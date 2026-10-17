@@ -236,7 +236,29 @@ class DogfoodReleaseTest(unittest.TestCase):
                 self.assertEqual(interrupted.exception.code, 143)
                 self.assertEqual(worker.wait.call_count, 3)
 
+    def test_signal_handled_inside_the_first_ones_handler_keeps_the_first_code(self):
+        # A signal delivered before the handler blocks the others runs its handler nested inside the first one's.
+        self.addCleanup(signal.pthread_sigmask, signal.SIG_SETMASK, signal.pthread_sigmask(signal.SIG_BLOCK, []))
+        cancellation = release.Cancellation()
+        nested = []
+        def trace(frame, event, arg):
+            if frame.f_code.co_filename != release.__file__:
+                return None
+            if event == 'line' and cancellation.raised is not None and not nested:
+                nested.append(cancellation.handle(signal.SIGHUP, None))
+            return trace
+        sys.settrace(trace)
+        try:
+            with self.assertRaises(SystemExit) as interrupted:
+                cancellation.handle(signal.SIGTERM, None)
+        finally:
+            sys.settrace(None)
+        self.assertEqual(nested, [None])
+        self.assertEqual(interrupted.exception.code, 143)
+
     def test_second_signal_while_cleanup_handles_its_own_error_is_dropped(self):
+        # The handler blocks the cancelling signals, and this runner must get them back.
+        self.addCleanup(signal.pthread_sigmask, signal.SIG_SETMASK, signal.pthread_sigmask(signal.SIG_BLOCK, []))
         cancellation = release.Cancellation()
         def wait(timeout=None):
             if worker.wait.call_count == 1:
@@ -388,17 +410,15 @@ sys.exit(release.main())
                             pass
                     process.communicate()
 
-    def test_signal_after_a_swallowed_one_still_cancels(self):
+    def test_swallowed_cancellation_ends_the_release_at_its_next_step(self):
         scripts = self.repo / 'script'
         scripts.mkdir()
         shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
-        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho $$ > "$WINMUX_TEST_WORKER_PID"\necho READY\nsleep 30\n')
+        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho $$ > "$WINMUX_TEST_WORKER_PID"\necho READY\nsleep 1\n')
         self.git('add', 'script')
         self.git('commit', '-m', 'scripts')
         self.bare_remote()
-        state = Path(self.temp.name) / 'state'
-        pid_file = Path(self.temp.name) / 'worker.pid'
-        # Python discards an exception raised in __del__, so the first SIGTERM's SystemExit is swallowed while the worker runs.
+        # Python discards an exception raised in __del__, so the SIGTERM's SystemExit is swallowed where the seam puts it.
         code = r"""
 import os, signal, subprocess, sys
 sys.path.insert(0, sys.argv[1])
@@ -406,40 +426,49 @@ import dogfood_release as release
 class Swallowed:
     def __del__(self):
         release.CANCELLATION.handle(signal.SIGTERM, None)
-original_wait = subprocess.Popen.wait
-def wait(self, timeout=None):
-    if self.args[0] == 'bash' and timeout is None and not getattr(wait, 'done', False):
-        wait.done = True
-        Swallowed()
-        print('SWALLOWED', flush=True)
-    return original_wait(self, timeout)
-subprocess.Popen.wait = wait
+def swallow_once(function, when):
+    def wrapped(*args, **kwargs):
+        if not getattr(wrapped, 'done', False) and when(*args, **kwargs):
+            wrapped.done = True
+            Swallowed()
+        return function(*args, **kwargs)
+    return wrapped
+if sys.argv[2] == 'before the worker':
+    release.verify_tree = swallow_once(release.verify_tree, lambda *args: True)
+else:
+    subprocess.Popen.wait = swallow_once(subprocess.Popen.wait, lambda self, timeout=None: self.args[0] == 'bash' and timeout is None)
 sys.argv = ['script/dogfood-release', '--next', '--dry-run']
 sys.exit(release.main())
 """
-        process = subprocess.Popen([sys.executable, '-c', code, str(scripts)],
-                                   env={**os.environ, 'XDG_STATE_HOME': str(state),
-                                        'WINMUX_TEST_WORKER_PID': str(pid_file), 'PYTHONDONTWRITEBYTECODE': '1'},
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        try:
-            output = self.read_lines(process, 3)
-            self.assertIn('next version:', output[0])
-            self.assertEqual(sorted(line.strip() for line in output[1:]), ['READY', 'SWALLOWED'])
-            process.send_signal(signal.SIGHUP)
-            stdout, stderr = process.communicate(timeout=5)
-            diagnostic = f'exit code: {process.returncode}\nstdout:\n{"".join(output)}{stdout}\nstderr:\n{stderr}'
-            self.assertIn('Exception ignored', stderr, diagnostic)
-            self.assertEqual(process.returncode, 129, diagnostic)
-            self.assert_group_gone(int(pid_file.read_text()), diagnostic)
-        finally:
-            if process.poll() is None:
-                process.kill()
-            if pid_file.exists():
+        for seam in ('before the worker', 'while the worker runs'):
+            with self.subTest(seam=seam):
+                state = Path(self.temp.name) / seam.replace(' ', '-')
+                state.mkdir()
+                pid_file = state / 'worker.pid'
+                process = subprocess.Popen([sys.executable, '-c', code, str(scripts), seam],
+                                           env={**os.environ, 'XDG_STATE_HOME': str(state),
+                                                'WINMUX_TEST_WORKER_PID': str(pid_file), 'PYTHONDONTWRITEBYTECODE': '1'},
+                                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 try:
-                    os.killpg(int(pid_file.read_text()), 9)
-                except (ProcessLookupError, PermissionError):
-                    pass
-            process.communicate()
+                    stdout, stderr = process.communicate(timeout=10)
+                    diagnostic = f'exit code: {process.returncode}\nstdout:\n{stdout}\nstderr:\n{stderr}'
+                    self.assertIn('Exception ignored', stderr, diagnostic)
+                    self.assertEqual(process.returncode, 143, diagnostic)
+                    if seam == 'before the worker':
+                        self.assertNotIn('READY', stdout, diagnostic)
+                        self.assertFalse(pid_file.exists(), diagnostic)
+                    else:
+                        self.assertIn('READY', stdout, diagnostic)
+                        self.assert_group_gone(int(pid_file.read_text()), diagnostic)
+                finally:
+                    if process.poll() is None:
+                        process.kill()
+                    if pid_file.exists():
+                        try:
+                            os.killpg(int(pid_file.read_text()), 9)
+                        except (ProcessLookupError, PermissionError):
+                            pass
+                    process.communicate()
 
     def test_detached_head_refuses_publish_but_allows_dry_run(self):
         self.git('checkout', '--detach')

@@ -106,35 +106,36 @@ def verify_tree(repo, head_sha):
 
 
 class Cancellation:
-    """A SIGTERM, SIGINT or SIGHUP cancels the release. A later one is dropped from the moment the cancellation is
-    raised, so it can neither interrupt the cleanup of a cancelled build nor replace the exit code. A cancellation
-    Python swallowed, as it does one raised in __del__, leaves the next signal to cancel."""
+    """A SIGTERM, SIGINT or SIGHUP cancels the release. Its handler blocks all three before it raises, so a later one
+    stays pending until the process exits: it can neither interrupt the cleanup of a cancelled build nor replace the
+    exit code."""
 
     SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
     def __init__(self):
         self.raised = None
-        # Set when build_release starts stopping its worker, and never cleared: the release is ending.
-        self.stopping = False
-        # While the worker is spawning, the signal that waits for its handle; a list so the first one wins.
-        self.held = None
 
     def install(self):
         for signum in self.SIGNALS:
             signal.signal(signum, self.handle)
 
     def handle(self, signum, frame):
-        # Until the cleanup sets stopping, the cancellation in flight is the exception being handled.
-        if self.stopping or (self.raised is not None and sys.exc_info()[1] is self.raised):
-            return
-        if self.held is not None:
-            self.held.append(signum)
-            return
-        self.cancel(signum)
+        # Record before blocking: a signal delivered before the block runs this handler again, nested, and must see it.
+        first = self.raised is None
+        if first:
+            self.raised = SystemExit(128 + signum)
+        signal.pthread_sigmask(signal.SIG_BLOCK, self.SIGNALS)
+        if first:
+            raise self.raised
 
-    def cancel(self, signum):
-        self.raised = SystemExit(128 + signum)
-        raise self.raised
+    def check(self):
+        """Raise a cancellation Python swallowed, as it does one raised in __del__, at the release's next step."""
+        if self.raised is not None:
+            raise self.raised
+
+
+def unblock_cancellation():
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, Cancellation.SIGNALS)
 
 
 CANCELLATION = Cancellation()
@@ -146,18 +147,19 @@ def build_release(repo, version, dry_run, head_sha):
         command.append('--dry-run')
     process = None
     try:
-        # Cancellation must not orphan a worker before Popen returns its handle.
-        CANCELLATION.held = []
+        CANCELLATION.check()
+        # Cancellation must not orphan a worker before Popen returns its handle, so it waits, blocked, until then.
+        # The worker inherits the mask across exec, so it unblocks the signals for itself.
+        signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
         try:
-            process = subprocess.Popen(command, cwd=repo, start_new_session=True,
+            process = subprocess.Popen(command, cwd=repo, start_new_session=True, preexec_fn=unblock_cancellation,
                                        env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
         finally:
-            held, CANCELLATION.held = CANCELLATION.held, None
-        if held:
-            CANCELLATION.cancel(held[0])
+            if CANCELLATION.raised is None:
+                unblock_cancellation()
         status = process.wait()
+        CANCELLATION.check()
     except BaseException:
-        CANCELLATION.stopping = True
         if process is not None:
             try:
                 os.killpg(process.pid, signal.SIGTERM)
