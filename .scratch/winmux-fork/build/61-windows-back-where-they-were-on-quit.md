@@ -45,7 +45,7 @@ The restore first freezes windows (`windowFramesForTermination`). From then on `
 - [x] A window opened after launch is on screen after quit. Checked after menu, Apple Event and signal quits; a late floating window also kept its exact new frame after config reload.
 - [x] After `SIGTERM` with windows on three workspaces, every window is on screen. All nine startup windows returned to their exact frames, and the tenth, opened later, was on screen.
 - [x] A window closed while WinMux ran is not reopened and causes no error. Closing Blue left it closed and restored the four surviving startup windows; injected AX failure also cannot stop later windows or another app.
-- [ ] The pull request shows the desktop before launch, tiled, and after quit.
+- [x] The pull request shows the desktop before launch, tiled, and after quit. Stills of all three, and GIFs of the menu's Quit, a late window and SIGTERM, filmed from the code that merged.
 
 ## Sources
 
