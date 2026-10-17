@@ -462,6 +462,7 @@
   "on-mode-changed": [],
   "persistent-workspaces": [],
   "reload-on-save": true,
+  "restore-windows-on-quit": true,
   "shortcuts-preset": "none",
   "start-at-login": false,
   "tab-group-padding": 30,

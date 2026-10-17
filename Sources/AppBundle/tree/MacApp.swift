@@ -237,6 +237,17 @@ final class MacApp: AbstractApp {
         }
     }
 
+    func restoreFrameOnQuit(_ windowId: UInt32, _ frame: Rect) async throws {
+        setFrameJobs.removeValue(forKey: windowId)?.cancel()
+        try await withWindow(windowId) { [axApp] window, job in
+            try disableAnimations(app: axApp.threadGuarded, job) {
+                try writeQuitFrame(frame) { attribute, value in
+                    AXUIElementSetAttributeValue(window, attribute as CFString, value)
+                }
+            }
+        }
+    }
+
     func getAxWindowsCount() async throws -> Int? {
         try await thread?.runInLoop { [axApp] job in
             axApp.threadGuarded.get(Ax.windowsAttr)?.count

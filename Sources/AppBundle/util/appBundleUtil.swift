@@ -18,34 +18,41 @@ func initTerminationHandler() {
 
 private struct AppServerTerminationHandler: TerminationHandler {
     func beforeTermination() async throws {
-        systemSymbolicHotkeys.restoreAndShutDown()
-        persistFrozenWorldForRestartIfPossible()
-        try await makeAllWindowsVisibleAndRestoreSize()
-        await toggleReleaseServerIfDebug(.on)
+        try await terminationOnce.run {
+            systemSymbolicHotkeys.restoreAndShutDown()
+            persistFrozenWorldForRestartIfPossible()
+            await restoreWindowsOnQuit()
+            await toggleReleaseServerIfDebug(.on)
+        }
     }
 }
 
 @MainActor
-private func makeAllWindowsVisibleAndRestoreSize() async throws {
-    // Make all windows fullscreen before Quit
-    for (_, window) in MacWindow.allWindowsMap {
-        // makeAllWindowsVisibleAndRestoreSize may be invoked when something went wrong (e.g. some windows are unbound)
-        // that's why it's not allowed to use `.parent` call in here
-        let monitor = try await window.getCenter()?.monitorApproximation ?? mainMonitor
-        let monitorVisibleRect = monitor.visibleRect
-        let windowSize = window.lastFloatingSize ?? CGSize(width: monitorVisibleRect.width, height: monitorVisibleRect.height)
-        let point = CGPoint(
-            x: (monitorVisibleRect.width - windowSize.width) / 2,
-            y: (monitorVisibleRect.height - windowSize.height) / 2,
-        )
-        try await window.setAxFrameBlocking(point, windowSize)
+private func restoreWindowsOnQuit() async {
+    let start = ContinuousClock.now
+    // Shutdown also runs with a damaged or unbound tree.
+    let windows = MacWindow.allWindowsMap
+    let displays = monitors
+    let main = mainMonitor
+    let plans = windows.values.sorted { $0.windowId < $1.windowId }.map { window in
+        QuitWindowFrame(appId: window.macApp.pid, windowId: window.windowId,
+            action: quitFrameAction(record: startupWindowFrames[window.windowId], hidden: window.isHiddenInCorner,
+                lastKnownFrame: window.lastKnownActualRect, floatingSize: window.lastFloatingSize,
+                restoreOriginal: config.restoreWindowsOnQuit, monitors: displays, main: main))
     }
+    await restoreQuitWindowFrames(plans, write: { id, frame in
+        try await windows[id]?.macApp.restoreFrameOnQuit(id, frame)
+    }, failed: { id, error in
+        let action = plans.first { $0.windowId == id }?.action.name ?? "unknown"
+        quitFramesLog.error("Quit frame window=\(id) action=\(action, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+    })
+    let elapsed = start.duration(to: .now)
+    quitFramesLog.info("Quit frames finished duration=\(String(describing: elapsed), privacy: .public) windows=\(plans.count)")
 }
 
 @MainActor
-func terminateApp() -> Never {
+func terminateApp() {
     NSApplication.shared.terminate(nil)
-    die("Unreachable code")
 }
 
 extension String {

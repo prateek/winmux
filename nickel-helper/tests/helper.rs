@@ -16,6 +16,15 @@ fn library() -> PathBuf {
 }
 
 #[test]
+fn restore_windows_on_quit_defaults_on_and_requires_bool() {
+    let defaults = evaluate_to_json(r#"import "winmux/defaults.ncl""#, &library()).unwrap();
+    assert_eq!(defaults["restore-windows-on-quit"], true);
+    let off = evaluate_to_json(r#"((import "winmux/defaults.ncl") & { restore-windows-on-quit = false }) | (import "winmux/winmux.ncl").Config"#, &library()).unwrap();
+    assert_eq!(off["restore-windows-on-quit"], false);
+    assert!(evaluate_to_json(r#"{ restore-windows-on-quit = "false" } | (import "winmux/winmux.ncl").Config"#, &library()).is_err());
+}
+
+#[test]
 fn empty_command_override_survives_the_default_binding_merge() {
     let value = evaluate_to_json(
         r#"let W = import "winmux/winmux.ncl" in

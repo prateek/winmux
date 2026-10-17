@@ -62,6 +62,18 @@ final class ConfigTest: XCTestCase {
         XCTAssertFalse(config.automaticallyTileNewWindows)
     }
 
+    func testRestoreWindowsOnQuitDefaultsOnAndAcceptsOnlyBool() {
+        XCTAssertTrue(defaultConfig.restoreWindowsOnQuit)
+        let (unset, errors) = parseConfig("")
+        XCTAssertTrue(unset.restoreWindowsOnQuit)
+        assertEquals(errors, [])
+        let (off, offErrors) = parseConfig("restore-windows-on-quit = false")
+        XCTAssertFalse(off.restoreWindowsOnQuit)
+        assertEquals(offErrors, [])
+        let (_, invalid) = parseConfig("restore-windows-on-quit = 'false'")
+        XCTAssertFalse(invalid.isEmpty)
+    }
+
     func testParseShakeToToggleTiling() {
         let (config, errors) = parseConfig("enable-shake-to-toggle-tiling = false")
 

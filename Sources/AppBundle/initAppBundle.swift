@@ -34,7 +34,7 @@ import Foundation
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
-        checkAccessibilityPermissions()
+        guard checkAccessibilityPermissions() else { return }
         requestScreenRecordingPermissionsIfNeeded()
         startUnixSocketServer()
         GlobalObserver.initObserver()

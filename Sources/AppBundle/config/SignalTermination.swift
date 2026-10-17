@@ -1,17 +1,19 @@
 import Foundation
 
+let terminationTimeout: TimeInterval = 2
+
 final class SignalTermination: @unchecked Sendable {
     private let lock = NSLock()
     private var started = false
     private var finished = false
 
-    func eventHandler(timeout: TimeInterval = 2, restore: @escaping @Sendable () -> Void,
+    func eventHandler(timeout: TimeInterval = terminationTimeout, restore: @escaping @Sendable () -> Void,
                       cleanup: @escaping @Sendable (@escaping @Sendable () -> Void) -> Void,
                       terminate: @escaping @Sendable () -> Void) -> @Sendable () -> Void {
         { [self] in run(timeout: timeout, restore: restore, cleanup: cleanup, terminate: terminate) }
     }
 
-    func run(timeout: TimeInterval = 2, restore: () -> Void,
+    func run(timeout: TimeInterval = terminationTimeout, restore: () -> Void,
              cleanup: (@escaping @Sendable () -> Void) -> Void,
              terminate: @escaping @Sendable () -> Void) {
         guard lock.withLock({
