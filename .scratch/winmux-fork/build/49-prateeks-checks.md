@@ -93,6 +93,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Three landing and placement edge cases: a float hint across displays, an empty container, and Columns turned off**
 - [ ] On two displays, on the installed build: give a workspace Columns and a `place` hook that answers Overflow `float` into an occupied Column, and open a `miniatures` Lens there. Hold the Summon modifier over a floating window on the other display's shown workspace, then over one on a hidden workspace, and Summon each. Each window lands inside the outline the hint drew.
 
+**The grid's first opening, and what refreshing every Tile costs**
+- [ ] On the installed build, quit WinMux, start it again with your usual windows open, and wait ten seconds. Press `alt-semicolon` then `w` five times, pressing Escape between openings, then run `winmux debug-lens-trace --last 5`. The first opening's total is within 50 ms of the median of the other four. Say here what the five totals read.
+- [ ] With about forty windows open across your workspaces, open the grid with `alt-semicolon` then `w` and leave it open for thirty seconds. The pictures refresh without the panel visibly stuttering, and WinMux stays under about a tenth of a core in Activity Monitor. The guest measured about 0.066 of a core.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
