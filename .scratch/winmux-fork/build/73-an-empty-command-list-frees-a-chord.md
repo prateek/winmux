@@ -6,7 +6,7 @@ Part of {{UMBRELLA}}.
 
 A config that imports the defaults and wants one chord back writes it with an empty command list. Before this change, the chord stayed registered: WinMux took the key in every app and ran nothing, and the only way to free it was to rebuild the binding record without that chord. `docs/default-config.md` documented record removal; the reported config needed three nested record updates to do it.
 
-Reproduced on the base build: overriding `alt-slash` with `[]` consumed Option-/ in TextEdit and typed only the control letter. Empty chord and sequence command lists are now omitted when parsing a mode, so their keys reach the focused app. Seen chords are tracked separately so an empty binding still participates in redeclaration checks. Empty modifier-tap bindings remain present.
+Reproduced on the base build: overriding `alt-slash` with `[]` consumed Option-/ in TextEdit and typed only the control letter. Empty chord and sequence command lists are now omitted when parsing a mode, so their keys reach the focused app. They are dropped after the redeclaration checks, so an empty binding still collides with another spelling of its chord. Empty modifier-tap bindings remain present.
 
 ## Decisions
 
