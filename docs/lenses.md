@@ -89,6 +89,13 @@ one-line title bar and add a small picture at the left. Miniatures always uses `
 accepts `tile = 'picture`, including in `when.default`, and rejects `card` and `text`. A grid defaults to `card`. The Lens contract leaves `tile` absent so Swift can
 resolve it after a Presentation override.
 
+Titles in card bars, text Tiles and list rows truncate in the middle, keeping their
+start and end. In text Tiles and list rows, the app name truncates at its tail
+before the title gives way. A long app name keeps at least one third of the
+space shared by those two labels; a short app name keeps its natural width.
+Icons, chips and hints take their space first. Presentation footers still show
+the whole title.
+
 The shipped `recent` Lens uses `tile = 'picture` and
 `grid.tile-size = 'same-height`: pictures share a row height and the selected title stays
 in the footer. To give `recent` cards with relative window sizes, merge:

@@ -82,15 +82,17 @@ struct TileView: View {
     private var bar: some View {
         HStack(spacing: metrics.gap) {
             icon(size: metrics.icon)
-            Text(lensHighlightedText(entry.displayTitle, ranges: entry.displayTitleRanges))
-                .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
-                .foregroundStyle(theme.ink(selected ? 1 : 0.62))
-                .lineLimit(1).truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
             if line && entry.appCount == nil {
-                Text(lensHighlightedText(entry.appName, ranges: entry.appRanges)).font(.system(size: metrics.appFont)).foregroundStyle(theme.ink(0.62)).lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                TileBarTextLayout(gap: metrics.gap) {
+                    title
+                    Text(lensHighlightedText(entry.appName, ranges: entry.appRanges))
+                        .font(.system(size: metrics.appFont)).foregroundStyle(theme.ink(0.62))
+                        .lineLimit(1).truncationMode(.tail)
+                }
+                .frame(maxWidth: .infinity)
+                .layoutPriority(1)
+            } else {
+                title.frame(maxWidth: .infinity, alignment: .leading).layoutPriority(1)
             }
             TileChips(entry: entry, metrics: metrics, enabled: settings.badges)
             if marked { Image(systemName: "checkmark.circle.fill") }
@@ -99,6 +101,13 @@ struct TileView: View {
                 if let hint { label(hint) }
             }
         }
+    }
+
+    private var title: some View {
+        Text(lensHighlightedText(entry.displayTitle, ranges: entry.displayTitleRanges))
+            .font(.system(size: metrics.titleFont, weight: selected ? .semibold : .regular))
+            .foregroundStyle(theme.ink(selected ? 1 : 0.62))
+            .lineLimit(1).truncationMode(.middle)
     }
 
     private func chip(_ text: String) -> some View {
@@ -180,6 +189,26 @@ struct TileView: View {
             }
         }
         .frame(width: available.width, height: available.height)
+    }
+}
+
+private struct TileBarTextLayout: SwiftUI.Layout {
+    let gap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let title = subviews[0].sizeThatFits(.unspecified)
+        let app = subviews[1].sizeThatFits(.unspecified)
+        return CGSize(width: proposal.width ?? title.width + gap + app.width, height: max(title.height, app.height))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let widths = tileBarTextWidths(available: bounds.width - gap,
+                                       titleIdeal: subviews[0].sizeThatFits(.unspecified).width,
+                                       appIdeal: subviews[1].sizeThatFits(.unspecified).width)
+        subviews[0].place(at: CGPoint(x: bounds.minX, y: bounds.midY), anchor: .leading,
+                          proposal: ProposedViewSize(width: widths.title, height: bounds.height))
+        subviews[1].place(at: CGPoint(x: bounds.maxX - widths.app, y: bounds.midY), anchor: .leading,
+                          proposal: ProposedViewSize(width: widths.app, height: bounds.height))
     }
 }
 

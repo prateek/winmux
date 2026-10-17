@@ -1,5 +1,11 @@
 import AppKit
 
+func tileBarTextWidths(available: CGFloat, titleIdeal: CGFloat, appIdeal: CGFloat) -> (title: CGFloat, app: CGFloat) {
+    let available = max(0, available)
+    let app = min(max(0, appIdeal), max(available / 3, available - max(0, titleIdeal)))
+    return (available - app, app)
+}
+
 enum TileKind: String, CaseIterable, Sendable {
     case card, picture, text
 
