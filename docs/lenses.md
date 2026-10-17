@@ -117,7 +117,8 @@ its picture rows. The windowing mode's `r` and `a` explicitly choose `--tile tex
 otherwise its display name, truncated after twelve characters with an ellipsis. These are followed by
 `floating`, `minimized` or `hidden` when applicable. `badges = false` removes these chips;
 marks, Summon labels, Frozen looks and the Accessory outline/tag remain. App entries use the
-app name as their title and retain their window-count chip. Chips stay beside a title: a picture-only
+app name as their title and retain their window-count chip. A per-app card widens to show its app name
+and chips whole, reserving up to 240 points for the name. Chips stay beside a title: a picture-only
 strip or grid puts the selected entry's chips in its footer, and miniatures puts them after the selected
 title under its workspace cell, omitting the workspace chip that the cell already names.
 With the default `hints = 'held` and `hints-key = 'alt`, holding Option shows four hints:

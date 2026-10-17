@@ -67,6 +67,64 @@ final class TileTextTest: XCTestCase {
         XCTAssertTrue(bars[0] != bars[1], "Card bars must retain the distinguishing title suffix")
     }
 
+    func testSelectedPerAppCardTitleMatchesAWiderCard() throws {
+        // 1470 by 956 is a 13-inch MacBook Air's default: text there is not 17-point text scaled down.
+        for (screen, marked) in [(self.screen, false), (self.screen, true), (CGSize(width: 1470, height: 956), false)] {
+            try assertPerAppCardTitleIsWhole(screen: screen, marked: marked)
+        }
+    }
+
+    func testAMarkedPerAppCardDrawsItsMarkOnThePicture() throws {
+        let entry = TileEntry(title: "Calculator", appName: "Calculator", appCount: 1)
+        let metrics = TileMetrics(scale: 1)
+        let size = CGSize(width: 252, height: 246)
+        let picture = tilePictureRect(entry: entry, kind: .card, size: size, pictureSize: nil, metrics: metrics, presentation: "strip", selected: false)
+        let corner = CGRect(x: picture.maxX - 40, y: picture.minY, width: 40, height: 40).integral
+        var corners: [[UInt8]] = []
+        for marked in [false, true] {
+            let tile = TileView(entry: entry, kind: .card, presentation: "strip", metrics: metrics, size: size,
+                                settings: LensConfig(), selected: false, marked: marked, hint: nil)
+            let renderer = ImageRenderer(content: tile.environment(\.lensTheme, .light).background(Color.black))
+            renderer.scale = 1
+            let crop = try XCTUnwrap(XCTUnwrap(renderer.cgImage).cropping(to: corner))
+            let context = try XCTUnwrap(CGContext(data: nil, width: crop.width, height: crop.height, bitsPerComponent: 8, bytesPerRow: 4 * crop.width,
+                                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            let bytes = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: 4 * crop.width * crop.height)
+            corners.append(Array(UnsafeBufferPointer(start: bytes, count: 4 * crop.width * crop.height)))
+        }
+        XCTAssertNotEqual(corners[0], corners[1], "A marked per-app card shows its mark in the picture's top-trailing corner")
+    }
+
+    private func assertPerAppCardTitleIsWhole(screen: CGSize, marked: Bool) throws {
+        let entry = TileEntry(title: "Calculator", appName: "Calculator", badges: TileBadges(workspaceLabel: "W3", onFocusedWorkspace: false), appCount: 1)
+        let input = GridLayout.Entry(aspect: entry.aspect, realSize: entry.realSize, kind: .card,
+                                     barWidth: entry.cardBarWidth(badges: true, scale: TileMetrics(visibleSize: screen).scale))
+        let layout = GridLayout(sections: [.init(label: nil, current: false, entries: Array(repeating: input, count: 10))], visibleSize: screen, tileSize: "real", sizing: .strip)
+        let size = try XCTUnwrap(layout.tiles.first).frame.size
+        let metrics = TileMetrics(scale: layout.tileScale)
+        let titleWidth = ceil((entry.title as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: metrics.titleFont, weight: .semibold)]).width)
+        let region = CGRect(x: metrics.padding + metrics.icon + metrics.gap, y: metrics.padding, width: titleWidth, height: metrics.barHeight).integral
+        var titles: [[UInt8]] = []
+        // 200 points wider keeps the fractional part of the width, so the bar lands on the same sub-pixels.
+        for (width, marked) in [(size.width, marked), (size.width + 200, false)] {
+            let tile = TileView(entry: entry, kind: .card, presentation: "strip", metrics: metrics, size: CGSize(width: width, height: size.height),
+                                settings: LensConfig(), selected: true, marked: marked, hint: nil, pictureSize: layout.tiles[0].pictureSize)
+            // Undo selection enlargement so both renders use the same bar coordinates.
+            let renderer = ImageRenderer(content: tile.scaleEffect(1 / metrics.selectionScale).environment(\.lensTheme, .light).background(Color.black))
+            renderer.scale = 1
+            let image = try XCTUnwrap(renderer.cgImage)
+            let crop = try XCTUnwrap(image.cropping(to: region))
+            let context = try XCTUnwrap(CGContext(data: nil, width: crop.width, height: crop.height, bitsPerComponent: 8, bytesPerRow: 4 * crop.width,
+                                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: crop.width, height: crop.height))
+            let bytes = try XCTUnwrap(context.data).bindMemory(to: UInt8.self, capacity: 4 * crop.width * crop.height)
+            titles.append(Array(UnsafeBufferPointer(start: bytes, count: 4 * crop.width * crop.height)))
+        }
+        XCTAssertGreaterThan(stride(from: 0, to: titles[1].count, by: 4).filter { titles[1][$0] > 5 }.count, 100, "The reference must contain visible title ink")
+        XCTAssertEqual(titles[0], titles[1], "The selected app name must draw whole at the strip's width on \(screen), marked: \(marked)")
+    }
+
     /// Draws the image into a fresh RGBA buffer, so a cropped image is compared by its own pixels.
     private func alphaMask(_ image: CGImage) throws -> [Bool] {
         let context = try XCTUnwrap(CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 4 * image.width,

@@ -144,6 +144,19 @@ final class TileSnapshotTest: XCTestCase {
         XCTAssertNil(tile.picture)
     }
 
+    func testAppSessionCountsOneAndTwoWindowsWithBadgesDisabled() {
+        var settings = LensConfig(); settings.entries = "app"; settings.badges = false
+        let items = ["Calculator", "Safari", "Safari"].enumerated().map { index, name in
+            SwitcherPaletteItem(id: UInt32(index + 1), title: "Document", appName: name, icon: nil, workspaceName: "3", appIdentity: name, isFocused: false,
+                                tile: TileEntry(title: "Document", appName: name, badges: TileBadges(workspaceLabel: "W3", onFocusedWorkspace: false)))
+        }
+        let session = LensSession(name: "apps", settings: settings, items: items, search: "")
+        let tiles = Dictionary(uniqueKeysWithValues: session.results.map { ($0.appName, $0.tile) })
+        XCTAssertEqual(tiles["Calculator"]?.chips(enabled: false), ["1 window"])
+        XCTAssertEqual(tiles["Safari"]?.chips(enabled: false), ["2 windows"])
+        XCTAssertEqual(tiles["Calculator"]?.chips(enabled: true), ["W3", "1 window"])
+    }
+
     func testPictureListUsesTheLifecycleRefreshSeamAndSkipsFrozenWindows() {
         let workspace = focus.workspace
         var settings = LensConfig(); settings.tile = "card"
