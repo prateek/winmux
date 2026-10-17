@@ -90,7 +90,7 @@ struct WorkspaceSidebarProjectRenameTextField: NSViewRepresentable {
             }
             let panel = (window as? WorkspaceSidebarPanel) ?? WorkspaceSidebarPanel.shared
             debugWorkspaceSidebarRenameLog("focus attempt=\(focusAttempts) before panelKey=\(panel.isKeyWindow) fieldWindowKey=\(window.isKeyWindow) firstResponder=\(String(describing: window.firstResponder))")
-            panel.prepareForInlineTextEditing()
+            panel.prepareForInlineTextEditing(origin: .rename)
             onPanelReady(panel)
             window.makeKeyAndOrderFront(nil)
             let didBecomeFirstResponder = window.makeFirstResponder(field)
@@ -177,6 +177,7 @@ struct WorkspaceSidebarProjectRenameField: View {
         guard WorkspaceSidebarPanel.activeInlineTextEditingPanel !== panel else { return }
         WorkspaceSidebarPanel.activeInlineTextEditingPanel?.endInlineTextEditing()
         panel.beginInlineTextEditing(
+            origin: .rename,
             locksExpansion: true,
             cancelsOnPointerExit: true,
             onCancel: onCancel,
@@ -274,6 +275,7 @@ struct WorkspaceSidebarWorkspaceRenameField: View {
         guard WorkspaceSidebarPanel.activeInlineTextEditingPanel !== panel else { return }
         WorkspaceSidebarPanel.activeInlineTextEditingPanel?.endInlineTextEditing()
         panel.beginInlineTextEditing(
+            origin: .rename,
             locksExpansion: true,
             cancelsOnPointerExit: true,
             onCancel: onCancel,

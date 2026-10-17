@@ -21,6 +21,7 @@ func openWorkspaceSidebarFromCommand() {
     installWorkspaceSidebarCommandMouseUnlockMonitor(panel)
     panel.expandSidebar(to: CGFloat(config.workspaceSidebar.width))
     panel.beginInlineTextEditing(
+        origin: .commandSearch,
         locksExpansion: true,
         cancelsOnPointerExit: false,
         onCancel: {

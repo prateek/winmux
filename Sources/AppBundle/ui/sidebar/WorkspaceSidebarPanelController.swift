@@ -177,7 +177,7 @@ final class WorkspaceSidebarPanel: NSPanelHud {
 
     override func keyDown(with event: NSEvent) {
         debugWorkspaceSidebarRenameLog("panel keyDown keyCode=\(event.keyCode) chars=\(event.charactersIgnoringModifiers ?? "nil") firstResponder=\(String(describing: firstResponder)) inline=\(inlineTextEditingActive)")
-        if handleInlineTextEditingKey(inlineTextKey(from: event)) {
+        if handleInlineTextEditingKey(Self.inlineTextKey(from: event)) {
             return
         }
         super.keyDown(with: event)

@@ -151,7 +151,7 @@ struct WorkspaceSidebarView: View {
         renamingProjectId = project.id
         renamingProjectText = project.displayName
         isProjectMenuOpen = false
-        currentPanel()?.prepareForInlineTextEditing()
+        currentPanel()?.prepareForInlineTextEditing(origin: .rename)
     }
 
     func finishProjectRename(cancelled: Bool = false) {
@@ -171,7 +171,7 @@ struct WorkspaceSidebarView: View {
         finishProjectRename(cancelled: true)
         renamingWorkspaceName = workspace.name
         renamingWorkspaceText = workspace.displayName
-        currentPanel()?.prepareForInlineTextEditing()
+        currentPanel()?.prepareForInlineTextEditing(origin: .rename)
     }
 
     func finishWorkspaceRename(cancelled: Bool = false) {
@@ -206,6 +206,7 @@ struct WorkspaceSidebarView: View {
         let locksExpansion = editingPanel.commandExpansionLocksCollapse || editingPanel.shouldLockNextSidebarSearchExpansion
         editingPanel.shouldLockNextSidebarSearchExpansion = false
         editingPanel.beginInlineTextEditing(
+            origin: locksExpansion ? .commandSearch : .hoverSearch,
             locksExpansion: locksExpansion,
             cancelsOnPointerExit: false,
             onCancel: {

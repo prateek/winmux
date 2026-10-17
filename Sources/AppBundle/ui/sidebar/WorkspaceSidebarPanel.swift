@@ -243,7 +243,7 @@ extension WorkspaceSidebarPanel {
         return maxY >= monitor.rect.minY && minY < monitor.rect.maxY
     }
 }
-enum WorkspaceSidebarInlineTextKey {
+enum WorkspaceSidebarInlineTextKey: Equatable {
     case text(String)
     case deleteBackward
     case deleteForward
@@ -268,12 +268,28 @@ private let workspaceSidebarInlineTextEventTapCallback: CGEventTapCallBack = { _
     return nil
 }
 
-private func workspaceSidebarInlineTextKey(from event: CGEvent) -> WorkspaceSidebarInlineTextKey {
-    let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-    let flags = event.flags
-    let usesCommand = flags.contains(.maskCommand)
-    let usesOption = flags.contains(.maskAlternate)
-    let usesControl = flags.contains(.maskControl)
+func workspaceSidebarInlineTextKey(from event: CGEvent) -> WorkspaceSidebarInlineTextKey {
+    var length = 0
+    var chars = [UniChar](repeating: 0, count: 8)
+    event.keyboardGetUnicodeString(maxStringLength: chars.count, actualStringLength: &length, unicodeString: &chars)
+    return workspaceSidebarInlineTextKey(
+        keyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode)),
+        modifiers: NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue)),
+        text: String(utf16CodeUnits: chars, count: length),
+    )
+}
+
+func workspaceSidebarInlineTextKey(
+    keyCode: UInt16,
+    modifiers: NSEvent.ModifierFlags,
+    text: String?,
+) -> WorkspaceSidebarInlineTextKey {
+    let usesCommand = modifiers.contains(.command)
+    let usesOption = modifiers.contains(.option)
+    let usesControl = modifiers.contains(.control)
+    guard !usesControl, keyCode == 51 || (!usesCommand && !usesOption) else {
+        return .ignored
+    }
     switch keyCode {
         case 36, 76:
             return .commit
@@ -297,59 +313,34 @@ private func workspaceSidebarInlineTextKey(from event: CGEvent) -> WorkspaceSide
             break
     }
 
-    guard !usesCommand, !usesOption, !usesControl else {
-        return .ignored
-    }
-
-    var length = 0
-    var chars = [UniChar](repeating: 0, count: 8)
-    event.keyboardGetUnicodeString(maxStringLength: chars.count, actualStringLength: &length, unicodeString: &chars)
-    guard length > 0 else { return .ignored }
-    let text = String(utf16CodeUnits: chars, count: length)
-    guard !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else {
+    guard let text,
+          !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+    else {
         return .ignored
     }
     return text.isEmpty ? .ignored : .text(text)
 }
 
-extension WorkspaceSidebarPanel {
-    func inlineTextKey(from event: NSEvent) -> WorkspaceSidebarInlineTextKey {
-        let usesCommand = event.modifierFlags.contains(.command)
-        let usesOption = event.modifierFlags.contains(.option)
-        let usesControl = event.modifierFlags.contains(.control)
-        switch event.keyCode {
-            case 36, 76:
-                return .commit
-            case 53:
-                return .cancel
-            case 51:
-                if usesCommand {
-                    return .deleteToBeginningOfLine
-                }
-                if usesOption {
-                    return .deleteWordBackward
-                }
-                return .deleteBackward
-            case 117:
-                return .deleteForward
-            case 126:
-                return .moveUp
-            case 125:
-                return .moveDown
-            default:
-                break
-        }
+enum WorkspaceSidebarInlineTextEditingOrigin {
+    case hoverSearch
+    case commandSearch
+    case rename
 
-        guard !usesCommand, !usesOption, !usesControl,
-              let text = event.characters,
-              !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
-        else {
-            return .ignored
-        }
-        return text.isEmpty ? .ignored : .text(text)
+    func preparePanel(orderFront: () -> Void, makeKey: () -> Void, activate: () -> Void) {
+        orderFront()
+        guard self != .hoverSearch else { return }
+        makeKey()
+        activate()
+    }
+}
+
+extension WorkspaceSidebarPanel {
+    nonisolated static func inlineTextKey(from event: NSEvent) -> WorkspaceSidebarInlineTextKey {
+        workspaceSidebarInlineTextKey(keyCode: event.keyCode, modifiers: event.modifierFlags, text: event.characters)
     }
 
     func beginInlineTextEditing(
+        origin: WorkspaceSidebarInlineTextEditingOrigin,
         locksExpansion: Bool = true,
         cancelsOnPointerExit: Bool = true,
         onCancel: (@MainActor () -> Void)? = nil,
@@ -364,7 +355,7 @@ extension WorkspaceSidebarPanel {
         inlineTextEditingKeyDown = onKeyDown
         inlineTextEditingStartedAt = .now
         inlineTextEditingPointerEnteredVisibleRegion = isMouseInsideVisibleRegion()
-        prepareForInlineTextEditing()
+        prepareForInlineTextEditing(origin: origin)
         installInlineTextEditingEventMonitors()
         installInlineTextEditingKeyEventTap()
     }
@@ -388,15 +379,19 @@ extension WorkspaceSidebarPanel {
         }
     }
 
-    func prepareForInlineTextEditing() {
+    func prepareForInlineTextEditing(origin: WorkspaceSidebarInlineTextEditingOrigin) {
         debugWorkspaceSidebarRenameLog("prepareForInlineTextEditing before visible=\(isVisible) isKey=\(isKeyWindow) ignoresMouse=\(ignoresMouseEvents) firstResponder=\(String(describing: firstResponder))")
         cancelExpansionWork()
         expandSidebar(to: CGFloat(config.workspaceSidebar.width))
         ignoresMouseEvents = false
-        orderFrontRegardless()
-        makeKeyAndOrderFront(nil)
-        makeKey()
-        NSApp.activate(ignoringOtherApps: true)
+        origin.preparePanel(
+            orderFront: { orderFrontRegardless() },
+            makeKey: {
+                makeKeyAndOrderFront(nil)
+                makeKey()
+            },
+            activate: { NSApp.activate(ignoringOtherApps: true) },
+        )
         debugWorkspaceSidebarRenameLog("prepareForInlineTextEditing after visible=\(isVisible) isKey=\(isKeyWindow) ignoresMouse=\(ignoresMouseEvents) firstResponder=\(String(describing: firstResponder)) activeApp=\(NSApp.isActive)")
     }
 
