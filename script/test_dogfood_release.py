@@ -2,6 +2,7 @@ import fcntl
 import importlib.util
 import os
 import shutil
+import signal
 from pathlib import Path
 import subprocess
 import sys
@@ -358,6 +359,61 @@ sys.exit(release.main())
                             pass
                     process.communicate()
 
+    def test_signal_after_a_swallowed_one_still_cancels(self):
+        scripts = self.repo / 'script'
+        scripts.mkdir()
+        shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
+        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho $$ > "$WINMUX_TEST_WORKER_PID"\necho READY\nsleep 30\n')
+        self.git('add', 'script')
+        self.git('commit', '-m', 'scripts')
+        self.bare_remote()
+        state = Path(self.temp.name) / 'state'
+        pid_file = Path(self.temp.name) / 'worker.pid'
+        # Python discards an exception raised in __del__, so the first SIGTERM's SystemExit is swallowed while the worker runs.
+        code = r"""
+import os, signal, subprocess, sys
+sys.path.insert(0, sys.argv[1])
+import dogfood_release as release
+class Swallowed:
+    def __del__(self):
+        os.kill(os.getpid(), signal.SIGTERM)
+        for _ in range(1000):
+            pass
+original_wait = subprocess.Popen.wait
+def wait(self, timeout=None):
+    if self.args[0] == 'bash' and timeout is None and not getattr(wait, 'done', False):
+        wait.done = True
+        Swallowed()
+        print('SWALLOWED', flush=True)
+    return original_wait(self, timeout)
+subprocess.Popen.wait = wait
+sys.argv = ['script/dogfood-release', '--next', '--dry-run']
+sys.exit(release.main())
+"""
+        process = subprocess.Popen([sys.executable, '-c', code, str(scripts)],
+                                   env={**os.environ, 'XDG_STATE_HOME': str(state),
+                                        'WINMUX_TEST_WORKER_PID': str(pid_file), 'PYTHONDONTWRITEBYTECODE': '1'},
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            output = self.read_lines(process, 3)
+            self.assertIn('next version:', output[0])
+            self.assertEqual(sorted(line.strip() for line in output[1:]), ['READY', 'SWALLOWED'])
+            process.send_signal(signal.SIGHUP)
+            stdout, stderr = process.communicate(timeout=5)
+            diagnostic = f'exit code: {process.returncode}\nstdout:\n{"".join(output)}{stdout}\nstderr:\n{stderr}'
+            self.assertIn('Exception ignored', stderr, diagnostic)
+            self.assertEqual(process.returncode, 129, diagnostic)
+            self.assert_group_gone(int(pid_file.read_text()), diagnostic)
+        finally:
+            if process.poll() is None:
+                process.kill()
+            if pid_file.exists():
+                try:
+                    os.killpg(int(pid_file.read_text()), 9)
+                except (ProcessLookupError, PermissionError):
+                    pass
+            process.communicate()
+
     def test_detached_head_refuses_publish_but_allows_dry_run(self):
         self.git('checkout', '--detach')
         with self.assertRaisesRegex(release.ReleaseError, 'fork branch'):
@@ -479,6 +535,7 @@ sys.exit(release.main())
             stdout, stderr = process.communicate(timeout=5)
             diagnostic = f'stdout:\n{stdout}\nstderr:\n{stderr}'
             self.assertEqual(process.returncode, 143, diagnostic)
+            self.assert_group_gone(int(pid_file.read_text()), diagnostic)
             try:
                 self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
             except OSError as error:

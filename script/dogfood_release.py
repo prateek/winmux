@@ -106,23 +106,35 @@ def verify_tree(repo, head_sha):
 
 
 class Cancellation:
-    """The first SIGTERM, SIGINT or SIGHUP cancels the release. Later ones are recorded and dropped, so none can
-    interrupt the cleanup of a cancelled build or replace the first one's exit code."""
+    """A SIGTERM, SIGINT or SIGHUP cancels the release. One that arrives while that cancellation's SystemExit is being
+    handled is dropped, so it can neither interrupt the cleanup of a cancelled build nor replace the exit code."""
 
     SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
     def __init__(self):
-        self.received = []
-        self.held = False
+        self.first = None
+        # A list while the worker is spawning; a signal waits in it until the worker's handle exists.
+        self.held = None
 
     def install(self):
         for signum in self.SIGNALS:
             signal.signal(signum, self.handle)
 
     def handle(self, signum, frame):
-        self.received.append(signum)
-        if len(self.received) == 1 and not self.held:
-            raise SystemExit(128 + signum)
+        if self.cancelling():
+            return
+        if self.held is not None:
+            self.held.append(signum)
+            return
+        self.cancel(signum)
+
+    def cancel(self, signum):
+        self.first = signum
+        raise SystemExit(128 + signum)
+
+    def cancelling(self):
+        error = sys.exc_info()[1]
+        return isinstance(error, SystemExit) and self.first is not None and error.code == 128 + self.first
 
 
 CANCELLATION = Cancellation()
@@ -135,14 +147,14 @@ def build_release(repo, version, dry_run, head_sha):
     process = None
     try:
         # Cancellation must not orphan a worker before Popen returns its handle.
-        CANCELLATION.held = True
+        CANCELLATION.held = []
         try:
             process = subprocess.Popen(command, cwd=repo, start_new_session=True,
                                        env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
         finally:
-            CANCELLATION.held = False
-        if CANCELLATION.received:
-            raise SystemExit(128 + CANCELLATION.received[0])
+            held, CANCELLATION.held = CANCELLATION.held, None
+        if held:
+            CANCELLATION.cancel(held[0])
         status = process.wait()
     except BaseException:
         if process is not None:
