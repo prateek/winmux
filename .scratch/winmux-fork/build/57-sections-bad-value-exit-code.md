@@ -20,7 +20,7 @@ Nothing.
 
 ## Done when
 
-- [x] `winmux sections spiral` and `winmux lens <name> --sections spiral` exit 2 with the same message and empty stdout.
+- [x] `winmux sections spiral` and `winmux lens <name> --sections spiral` exit 2 with empty stdout and the same message, `Possible sections values:` followed by the values each one accepts.
 
 ## Built
 
