@@ -239,13 +239,8 @@ final class MacApp: AbstractApp {
         }
     }
 
-    /// A job already running finishes its current write before the app thread takes the quit's.
-    func cancelFrameJobsForTermination() {
-        for job in setFrameJobs.values { job.cancel() }
-        setFrameJobs.removeAll()
-    }
-
-    /// The one frame write left once `windowFramesForTermination` is frozen.
+    /// The one frame write left once `windowFramesForTermination` is frozen. The app thread runs
+    /// jobs in order, so a write queued before the freeze lands before this one.
     func restoreFrameOnQuit(_ windowId: UInt32, _ frame: Rect) async throws {
         let wrote: Bool? = try await withWindow(windowId) { [axApp] window, job in
             try disableAnimations(app: axApp.threadGuarded, job) {
@@ -303,6 +298,7 @@ final class MacApp: AbstractApp {
     }
 
     func setNativeFullscreen(_ windowId: UInt32, _ value: Bool) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { window, job in
             window.set(Ax.isFullscreenAttr, value)
@@ -310,6 +306,7 @@ final class MacApp: AbstractApp {
     }
 
     func setNativeMinimized(_ windowId: UInt32, _ value: Bool) {
+        guard !windowFramesForTermination.isFrozen else { return }
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId) { window, job in
             window.set(Ax.minimizedAttr, value)

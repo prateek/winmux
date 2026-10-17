@@ -81,9 +81,10 @@ final class QuitWindowFramesTest: XCTestCase {
     }
 
     func testWindowMovedAsideForADragGoesBackWhereItWas() {
-        let aside = Rect(topLeftX: -399, topLeftY: 1079, width: 400, height: 300)
-        XCTAssertEqual(choice(record: nil, dragged: moved, last: aside), .restore(moved))
-        XCTAssertEqual(choice(record: original, dragged: moved, last: aside), .restore(original))
+        // Moving a window aside records its frame from before the drag as its actual frame.
+        let beforeDrag = Rect(topLeftX: 300, topLeftY: 200, width: 600, height: 400)
+        XCTAssertEqual(choice(record: nil, dragged: beforeDrag, last: beforeDrag), .restore(beforeDrag))
+        XCTAssertEqual(choice(record: original, dragged: beforeDrag, last: beforeDrag), .restore(original))
     }
 
     func testCenteredFrameLargerThanTheMonitorKeepsItsTitleBarOnScreen() {

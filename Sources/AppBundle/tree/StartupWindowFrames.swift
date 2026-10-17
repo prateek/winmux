@@ -2,7 +2,7 @@ import Common
 import os
 
 @MainActor var startupWindowFrames: [UInt32: Rect] = [:]
-/// Open from launch until startup has seen every window, closed even when startup throws.
+/// Open from launch until startup's discovery session ends, closed even when startup throws.
 @MainActor var isRecordingStartupWindowFrames = true
 let quitFramesLog = Logger(subsystem: winMuxAppId, category: "quit-frames")
 

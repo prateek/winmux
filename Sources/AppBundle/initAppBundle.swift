@@ -44,6 +44,7 @@ import Foundation
         _ = Workspace.all.first?.focusWorkspace()
         let didLoadPersistedFrozenWorld = loadPersistedFrozenWorldForStartupIfPresent()
         try await runRefreshSessionBlocking(.startup, layoutWorkspaces: false)
+        isRecordingStartupWindowFrames = false
         try await runLightSession(.startup, .forceRun) {
             if !didLoadPersistedFrozenWorld {
                 smartLayoutAtStartup()
@@ -51,7 +52,6 @@ import Foundation
             _ = try await config.afterStartupCommand.runCmdSeq(.defaultEnv, .emptyStdin)
         }
         isWinMuxRuntimeReady = true
-        isRecordingStartupWindowFrames = false
         await reloadConfigIfSavedDuringStartup()
         await SwitcherPalettePanel.shared.prepareAtStartup()
         if bootstrappedConfigUrl != nil {

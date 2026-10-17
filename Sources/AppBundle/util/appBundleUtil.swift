@@ -31,7 +31,6 @@ private struct AppServerTerminationHandler: TerminationHandler {
 private func restoreWindowsOnQuit() async {
     let start = ContinuousClock.now
     windowFramesForTermination.freeze()
-    for app in MacApp.allAppsMap.values { app.cancelFrameJobsForTermination() }
     let draggedAside = WindowMouseInteractionOpacityController.shared.endForTermination()
     // Shutdown also runs with a damaged or unbound tree.
     let windows = MacWindow.allWindowsMap
