@@ -126,8 +126,11 @@ codesign --verify --deep --strict "$staging_dir/WinMux.app" || die "the app's si
 log "artifacts signed by '$SIGN_IDENTITY'"
 
 # A signed bundle that dyld refuses to load would install and then never start.
-"$staging_dir/WinMux.app/Contents/MacOS/WinMux" --version >/dev/null \
+app_version="$("$staging_dir/WinMux.app/Contents/MacOS/WinMux" --version)" \
     || die "the built app does not start"
+# A stray .source-commit or a build that changed tracked files would name another commit.
+[ "$app_version" = "$VERSION $head_sha" ] \
+    || die "the built app names '$app_version', not '$VERSION $head_sha'"
 "$staging_dir/WinMux.app/Contents/Helpers/winmux-nickel" check \
     || die "the bundled config helper cannot load the shipped defaults"
 

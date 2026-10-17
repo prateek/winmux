@@ -74,6 +74,9 @@ with (root / 'state.json').open('r+') as f:
             code = subprocess.run(['bash', '-c', args[-1]],
                                   env=dict(os.environ, HOME=str(root / 'guest'))).returncode
     elif tool == 'rsync' and state.get('execute_sync'):
+        if state.get('commit_during_rsync'):
+            subprocess.run(['git', '-C', state['commit_during_rsync'], '-c', 'user.name=Test', '-c',
+                            'user.email=test@example.invalid', 'commit', '-qm', 'late', '--allow-empty'], check=True)
         target = root / 'guest/winmux'
         target.mkdir(parents=True, exist_ok=True)
         for path in target.iterdir():
@@ -269,8 +272,14 @@ class VMTest(unittest.TestCase):
         command = next(c[-1] for c in self.state()['calls'] if c[0] == 'sshpass')
         self.assertLess(command.index('pkill -x WinMuxApp'), command.index('make check'))
 
+    def source_git(self, source, *args):
+        return subprocess.check_output(['git', '-C', str(source), '-c', 'user.name=Test', '-c',
+                                        'user.email=test@example.invalid', *args], env=self.env, text=True).strip()
+
     def source_tree(self):
         self.seed({'a': guest()}, execute_sync=True)
+        # The test's commits stay clear of the developer's signing and hooks.
+        self.env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM='1')
         source = self.root / 'source'
         source.mkdir()
         common = source / 'Sources/Common'
@@ -278,10 +287,9 @@ class VMTest(unittest.TestCase):
         for name in ('versionGenerated.swift', 'gitHashGenerated.swift'):
             (common / name).write_text('// generated\n')
         shutil.copy2(VM.parents[3] / '.gitignore', source / '.gitignore')
-        subprocess.run(['git', 'init', '-q', str(source)], check=True)
-        subprocess.run(['git', '-C', str(source), 'add', '.'], check=True)
-        subprocess.run(['git', '-C', str(source), '-c', 'user.name=Test', '-c',
-                        'user.email=test@example.invalid', 'commit', '-qm', 'source'], check=True)
+        self.source_git(source, 'init', '-q')
+        self.source_git(source, 'add', '.')
+        self.source_git(source, 'commit', '-qm', 'source')
         return source
 
     def sync_commit(self, source):
@@ -293,32 +301,37 @@ class VMTest(unittest.TestCase):
     def test_sync_records_clean_host_head_then_replaces_previous_commit(self):
         source = self.source_tree()
         for _ in range(2):
-            head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+            head = self.source_git(source, 'rev-parse', 'HEAD')
             self.assertEqual(self.sync_commit(source), head + '\n')
-            subprocess.run(['git', '-C', str(source), '-c', 'user.name=Test', '-c',
-                            'user.email=test@example.invalid', 'commit', '-qm', 'next', '--allow-empty'], check=True)
+            self.source_git(source, 'commit', '-qm', 'next', '--allow-empty')
 
     def test_sync_marks_dirty_host_source_including_untracked_files(self):
         source = self.source_tree()
-        head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+        head = self.source_git(source, 'rev-parse', 'HEAD')
         (source / 'untracked file').write_text('source edit\n')
         self.assertEqual(self.sync_commit(source), head + '-dirty\n')
 
     def test_sync_ignores_only_generated_file_changes(self):
         source = self.source_tree()
-        head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+        head = self.source_git(source, 'rev-parse', 'HEAD')
         for path in (source / 'Sources/Common').iterdir():
             path.write_text('// changed\n')
         self.assertEqual(self.sync_commit(source), head + '\n')
 
-    def test_sync_of_non_repository_removes_previous_provenance(self):
+    def test_sync_marks_a_source_that_changes_while_it_is_copied(self):
+        source = self.source_tree()
+        self.seed({'a': guest()}, execute_sync=True, commit_during_rsync=str(source))
+        marker = self.sync_commit(source)
+        self.assertEqual(marker, self.source_git(source, 'rev-parse', 'HEAD') + '-dirty\n')
+
+    def test_sync_of_non_repository_records_unknown_and_keeps_the_sync_commit(self):
         source = self.source_tree()
         self.sync_commit(source)
         shutil.rmtree(source / '.git')
-        self.assertIsNone(self.sync_commit(source))
+        self.assertEqual(self.sync_commit(source), 'unknown\n')
         result = subprocess.run(['git', '-C', str(self.root / 'guest/winmux'), 'rev-parse', '--verify', 'HEAD'],
                                 capture_output=True)
-        self.assertNotEqual(result.returncode, 0, 'an archive must not name a throwaway sync commit')
+        self.assertEqual(result.returncode, 0, 'check\'s Package.resolved diff needs a sync commit')
 
     def test_build_generates_provenance_before_compiling(self):
         self.seed({'a': guest()})

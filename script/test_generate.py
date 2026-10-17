@@ -91,3 +91,45 @@ class GenerateTest(unittest.TestCase):
         (self.root / '.source-commit').write_text(head + '\n')
         self.git('add', '-A')
         self.assertEqual(self.git('ls-files', '.source-commit'), '')
+
+    def test_guest_edit_after_sync_marks_synced_commit_dirty(self):
+        self.repository()
+        commit = 'abcdef12' + '3' * 32
+        (self.root / '.source-commit').write_text(commit + '\n')
+        (self.root / 'VERSION').write_text('edited in the guest\n')
+        self.check_generate(commit + '-dirty')
+
+    def test_tree_nested_in_another_repository_is_unknown(self):
+        self.repository()
+        nested = self.root / 'export'
+        shutil.copytree(self.root, nested, ignore=shutil.ignore_patterns('.git', 'export'))
+        self.root = nested
+        self.check_generate('unknown')
+
+    def test_sha256_repository_names_its_head(self):
+        self.git('init', '-q', '--object-format=sha256')
+        self.git('add', '.')
+        self.git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'source')
+        self.check_generate(self.git('rev-parse', 'HEAD'))
+
+    def test_generation_with_nothing_changed_leaves_files_untouched(self):
+        self.repository()
+        subprocess.run(['make', 'generate'], cwd=self.root, env=self.env, check=True, capture_output=True)
+        files = [self.root / 'Sources/Common' / name for name in ('gitHashGenerated.swift', 'versionGenerated.swift')]
+        for path in files:
+            os.utime(path, (1, 1))
+        subprocess.run(['make', 'generate'], cwd=self.root, env=self.env, check=True, capture_output=True)
+        self.assertEqual([path.stat().st_mtime for path in files], [1, 1])
+
+
+class CommittedHashTest(unittest.TestCase):
+    # `make build` writes a real hash into the tracked file; committing it brings back the stale hash.
+    def test_committed_hash_is_unknown(self):
+        if (ROOT / '.source-commit').exists():
+            self.skipTest("a guest's sync commit holds the host's working copy, not a commit")
+        result = subprocess.run(['git', '-C', str(ROOT), 'show', 'HEAD:Sources/Common/gitHashGenerated.swift'],
+                                capture_output=True, text=True)
+        if result.returncode != 0:
+            self.skipTest('no repository')
+        self.assertEqual(dict(re.findall(r'public let (\w+) = "([^"]*)"', result.stdout)),
+                         {'gitHash': 'unknown', 'gitShortHash': 'unknown'})
