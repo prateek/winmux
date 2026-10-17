@@ -154,14 +154,23 @@ cmd_sync() {
   local vm=${1:?usage: vm sync <name> <worktree>} worktree=${2:?usage: vm sync <name> <worktree>}
   # A worktree's `.git` is a file that points at a path on the host, so it stays behind. The
   # guest's copy gets a repository of its own: `make check` ends on a `git diff`.
+  # The source's commit goes in .source-commit, which `make generate` prefers to the guest's
+  # sync commit. A tree that changed while it was copied is marked dirty.
+  local commit after
+  commit=$(python3 "$here/../../../script/source_commit.py" --git-only "$worktree")
   retry_auth rsync -a --delete --exclude .git --exclude .build --exclude target --exclude .deps \
     -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
-  guest "$vm" 'cd ~/winmux && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
+  after=$(python3 "$here/../../../script/source_commit.py" --git-only "$worktree")
+  if [ "$after" != "$commit" ]; then
+    [ "$after" = unknown ] || commit=$after
+    [ "$commit" = unknown ] || commit=${commit%-dirty}-dirty
+  fi
+  guest "$vm" "cd ~/winmux && printf '%s\\n' '$commit' > .source-commit && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync"
 }
 
 cmd_build() {
   local vm=${1:?usage: vm build <name>}
-  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make helper && source ./script/setup.sh && swift build'
+  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make generate && make helper && source ./script/setup.sh && swift build'
 }
 
 cmd_check() {

@@ -23,11 +23,12 @@ Done when the preflight prints `ok` for unlocked, accessibility, screen recordin
 
 ```sh
 $SKILL/vm sync <name> <worktree>   # copies the worktree to ~/winmux in the guest
-$SKILL/vm build <name>             # make helper, then swift build
+$SKILL/vm build <name>             # make generate, make helper, then swift build
 $SKILL/vm check <name>             # quits a running WinMuxApp, then make check on the Swift CI pins
 ```
 
 Edit on the host, then `sync` and `build` again; the build is incremental.
+`sync` records the worktree's commit and `build` regenerates, so `winmux doctor` in the guest names the synced commit, with `-dirty` for uncommitted changes on the host or edits made in the guest since.
 
 Done when `~/winmux/.build/debug/WinMuxApp` and `~/winmux/.build/debug/winmux` exist in the guest.
 

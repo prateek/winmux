@@ -43,6 +43,8 @@ verify_tree() {
         || die "working tree changed during the release; commit or stash first"
 }
 verify_tree
+# make generate prefers a synced guest's .source-commit to the checkout's own commit.
+[ ! -e .source-commit ] || die ".source-commit would name another commit; remove it"
 # Not `rev-parse --abbrev-ref`: with a remote that is also named fork, it prints heads/fork.
 branch="$(git symbolic-ref --quiet --short HEAD || echo detached)"
 # The build number is the commit count, which only means something on one branch.
@@ -126,8 +128,14 @@ codesign --verify --deep --strict "$staging_dir/WinMux.app" || die "the app's si
 log "artifacts signed by '$SIGN_IDENTITY'"
 
 # A signed bundle that dyld refuses to load would install and then never start.
-"$staging_dir/WinMux.app/Contents/MacOS/WinMux" --version >/dev/null \
+app_version="$("$staging_dir/WinMux.app/Contents/MacOS/WinMux" --version)" \
     || die "the built app does not start"
+# A build that changed tracked files would name another commit.
+[ "$app_version" = "$VERSION $head_sha" ] \
+    || die "the built app names '$app_version', not '$VERSION $head_sha'"
+cli_version="$("$staging_dir/bin/winmux" --version | head -1)"
+[ "$cli_version" = "winmux CLI client version: $VERSION $head_sha" ] \
+    || die "the built CLI names '$cli_version', not '$VERSION $head_sha'"
 "$staging_dir/WinMux.app/Contents/Helpers/winmux-nickel" check \
     || die "the bundled config helper cannot load the shipped defaults"
 

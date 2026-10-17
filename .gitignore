@@ -2,6 +2,7 @@
 /.debug
 /.derived
 /.release
+/.source-commit
 /.shell-completion
 /.site
 /.man
