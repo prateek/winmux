@@ -156,12 +156,20 @@ cmd_sync() {
   # guest's copy gets a repository of its own: `make check` ends on a `git diff`.
   retry_auth rsync -a --delete --exclude .git --exclude .build --exclude target --exclude .deps \
     -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
-  guest "$vm" 'cd ~/winmux && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
+  local commit
+  commit=$(python3 "$here/../../../script/source_commit.py" --git-only "$worktree")
+  if [ "$commit" = unknown ]; then
+    # An archive has no source identity. Keep check's repository unborn, not a sync commit.
+    guest "$vm" 'cd ~/winmux && rm -f .source-commit && rm -rf .git && git init -q'
+  else
+    guest "$vm" "cd ~/winmux && printf '%s\n' '$commit' > .source-commit"
+    guest "$vm" 'cd ~/winmux && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync'
+  fi
 }
 
 cmd_build() {
   local vm=${1:?usage: vm build <name>}
-  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make helper && source ./script/setup.sh && swift build'
+  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make generate && make helper && source ./script/setup.sh && swift build'
 }
 
 cmd_check() {

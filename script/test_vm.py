@@ -15,7 +15,7 @@ import unittest
 
 VM = Path(__file__).resolve().parents[1] / '.claude/skills/vm/vm'
 
-SHIM = r'''import fcntl, json, os, pathlib, sys, time
+SHIM = r'''import fcntl, json, os, pathlib, shutil, subprocess, sys, time
 root = pathlib.Path(os.environ['VM_TEST_STATE'])
 tool = pathlib.Path(sys.argv[0]).name
 args = sys.argv[1:]
@@ -70,6 +70,17 @@ with (root / 'state.json').open('r+') as f:
             state['approvals_ready'] = code == 0
         elif '~/vm/preflight' in args[-1] and state.get('require_approval_renewal'):
             code = int(not state.get('approvals_ready'))
+        elif state.get('execute_sync') and 'winmux' in args[-1]:
+            code = subprocess.run(['bash', '-c', args[-1]],
+                                  env=dict(os.environ, HOME=str(root / 'guest'))).returncode
+    elif tool == 'rsync' and state.get('execute_sync'):
+        target = root / 'guest/winmux'
+        target.mkdir(parents=True, exist_ok=True)
+        for path in target.iterdir():
+            if path.name != '.git':
+                shutil.rmtree(path) if path.is_dir() else path.unlink()
+        shutil.copytree(args[-2], target, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns('.git', '.build', 'target', '.deps'))
     f.seek(0); json.dump(state, f); f.truncate()
 if tool == 'sysctl' and args[-1] == 'hw.ncpu' and state.get('block_host'):
     with (root / 'ready').open('w') as ready:
@@ -257,6 +268,75 @@ class VMTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         command = next(c[-1] for c in self.state()['calls'] if c[0] == 'sshpass')
         self.assertLess(command.index('pkill -x WinMuxApp'), command.index('make check'))
+
+    def source_tree(self):
+        self.seed({'a': guest()}, execute_sync=True)
+        source = self.root / 'source'
+        source.mkdir()
+        common = source / 'Sources/Common'
+        common.mkdir(parents=True)
+        for name in ('versionGenerated.swift', 'gitHashGenerated.swift'):
+            (common / name).write_text('// generated\n')
+        shutil.copy2(VM.parents[3] / '.gitignore', source / '.gitignore')
+        subprocess.run(['git', 'init', '-q', str(source)], check=True)
+        subprocess.run(['git', '-C', str(source), 'add', '.'], check=True)
+        subprocess.run(['git', '-C', str(source), '-c', 'user.name=Test', '-c',
+                        'user.email=test@example.invalid', 'commit', '-qm', 'source'], check=True)
+        return source
+
+    def sync_commit(self, source):
+        result = self.run_vm('sync', 'a', str(source))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        marker = self.root / 'guest/winmux/.source-commit'
+        return marker.read_text() if marker.exists() else None
+
+    def test_sync_records_clean_host_head_then_replaces_previous_commit(self):
+        source = self.source_tree()
+        for _ in range(2):
+            head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+            self.assertEqual(self.sync_commit(source), head + '\n')
+            subprocess.run(['git', '-C', str(source), '-c', 'user.name=Test', '-c',
+                            'user.email=test@example.invalid', 'commit', '-qm', 'next', '--allow-empty'], check=True)
+
+    def test_sync_marks_dirty_host_source_including_untracked_files(self):
+        source = self.source_tree()
+        head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+        (source / 'untracked file').write_text('source edit\n')
+        self.assertEqual(self.sync_commit(source), head + '-dirty\n')
+
+    def test_sync_ignores_only_generated_file_changes(self):
+        source = self.source_tree()
+        head = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'], text=True).strip()
+        for path in (source / 'Sources/Common').iterdir():
+            path.write_text('// changed\n')
+        self.assertEqual(self.sync_commit(source), head + '\n')
+
+    def test_sync_of_non_repository_removes_previous_provenance(self):
+        source = self.source_tree()
+        self.sync_commit(source)
+        shutil.rmtree(source / '.git')
+        self.assertIsNone(self.sync_commit(source))
+        result = subprocess.run(['git', '-C', str(self.root / 'guest/winmux'), 'rev-parse', '--verify', 'HEAD'],
+                                capture_output=True)
+        self.assertNotEqual(result.returncode, 0, 'an archive must not name a throwaway sync commit')
+
+    def test_build_generates_provenance_before_compiling(self):
+        self.seed({'a': guest()})
+        result = self.run_vm('build', 'a')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = next(c[-1] for c in self.state()['calls'] if c[0] == 'sshpass')
+        source = self.root / 'winmux'
+        (source / 'script').mkdir(parents=True)
+        (source / 'script/setup.sh').write_text('')
+        tools = self.root / '.cargo/bin'
+        tools.mkdir(parents=True)
+        for tool in ('make', 'swift'):
+            path = tools / tool
+            path.write_text(f'#!/bin/sh\necho "{tool} $*" >> "$HOME/build-steps"\n')
+            path.chmod(0o755)
+        subprocess.run(['bash', '-c', command], env=dict(self.env, HOME=str(self.root)), check=True)
+        self.assertEqual((self.root / 'build-steps').read_text().splitlines(),
+                         ['make generate', 'make helper', 'swift build'])
 
     def test_every_verb_refuses_without_tart_home(self):
         env = dict(self.env)
