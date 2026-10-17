@@ -294,6 +294,68 @@ class DogfoodReleaseTest(unittest.TestCase):
                 process.kill()
             process.communicate()
 
+    def test_second_signal_during_cleanup_still_stops_worker(self):
+        scripts = self.repo / 'script'
+        scripts.mkdir()
+        shutil.copy(Path(__file__).with_name('dogfood_release.py'), scripts)
+        (scripts / 'dogfood-release-build').write_text('#!/bin/bash\necho $$ > "$WINMUX_TEST_WORKER_PID"\necho READY\nsleep 30\n')
+        self.git('add', 'script')
+        self.git('commit', '-m', 'scripts')
+        self.bare_remote()
+        state = Path(self.temp.name) / 'state'
+        pid_file = Path(self.temp.name) / 'worker.pid'
+        code = r"""
+import os, signal, sys
+sys.path.insert(0, sys.argv[1])
+import dogfood_release as release
+original_signal = release.signal.signal
+original_killpg = release.os.killpg
+sent = False
+def second_signal_during_cleanup():
+    global sent
+    if not sent and sys.exc_info()[0] is SystemExit:
+        sent = True
+        os.kill(os.getpid(), signal.SIGHUP)
+def install_handler(*args, **kwargs):
+    second_signal_during_cleanup()
+    return original_signal(*args, **kwargs)
+def signal_group(*args, **kwargs):
+    second_signal_during_cleanup()
+    return original_killpg(*args, **kwargs)
+release.signal.signal = install_handler
+release.os.killpg = signal_group
+sys.argv = ['script/dogfood-release', '--next', '--dry-run']
+sys.exit(release.main())
+"""
+        process = subprocess.Popen([sys.executable, '-c', code, str(scripts)],
+                                   env={**os.environ, 'XDG_STATE_HOME': str(state),
+                                        'WINMUX_TEST_WORKER_PID': str(pid_file), 'PYTHONDONTWRITEBYTECODE': '1'},
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            output = self.read_lines(process, 2)
+            self.assertIn('next version:', output[0])
+            self.assertEqual(output[1].strip(), 'READY')
+            process.terminate()
+            process.wait(timeout=5)
+            diagnostic = f'exit code: {process.returncode}\nstdout:\n{"".join(output)}'
+            with self.subTest('first signal exit code'):
+                self.assertEqual(process.returncode, 143, diagnostic)
+            with self.subTest('worker process group'):
+                self.assert_group_gone(int(pid_file.read_text()), diagnostic)
+            try:
+                self.assert_lock_free(*(state / 'winmux-release').glob('*.lock'))
+            except OSError as error:
+                self.fail(f'lock was not released: {error}\n{diagnostic}')
+        finally:
+            if process.poll() is None:
+                process.kill()
+            if pid_file.exists():
+                try:
+                    os.killpg(int(pid_file.read_text()), 9)
+                except ProcessLookupError:
+                    pass
+            process.communicate()
+
     def test_detached_head_refuses_publish_but_allows_dry_run(self):
         self.git('checkout', '--detach')
         with self.assertRaisesRegex(release.ReleaseError, 'fork branch'):
