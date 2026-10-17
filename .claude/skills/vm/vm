@@ -166,7 +166,8 @@ cmd_build() {
 
 cmd_check() {
   local vm=${1:?usage: vm check <name>}
-  guest "$vm" 'export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make check'
+  # A debug WinMux left by a live run makes the CLI tests skip: the check starts without one.
+  guest "$vm" 'if pkill -x WinMuxApp; then echo "vm: quit the running WinMuxApp before the check"; sleep 1; fi; export PATH=$HOME/.cargo/bin:/opt/homebrew/bin:$PATH; cd ~/winmux && make check'
 }
 
 cmd_ssh() { local vm=${1:?usage: vm ssh <name> <command>}; shift; guest "$vm" "$@"; }

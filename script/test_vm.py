@@ -248,6 +248,13 @@ class VMTest(unittest.TestCase):
         self.assertTrue(any(c[0] == 'sshpass' and 'shutdown' in c[-1] for c in self.state()['calls']))
         self.assertEqual(self.run_vm('stop', 'a').returncode, 0)
 
+    def test_check_quits_a_running_debug_winmux_before_make_check(self):
+        self.seed({'a': guest()})
+        result = self.run_vm('check', 'a')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        command = next(c[-1] for c in self.state()['calls'] if c[0] == 'sshpass')
+        self.assertLess(command.index('pkill -x WinMuxApp'), command.index('make check'))
+
     def test_every_verb_refuses_without_tart_home(self):
         env = dict(self.env)
         del env['TART_HOME']

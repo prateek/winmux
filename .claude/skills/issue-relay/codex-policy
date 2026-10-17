@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""codex-policy <worktree>: the approval and sandbox policy a builder pass is running with.
+
+Finds the newest Codex rollout started in the worktree, leaving out the rollouts of the
+reviewer and other subagents, prints the policy of its first turn, and fails unless the pass
+has full access with approvals off.
+"""
+import glob
+import json
+import os
+import sys
+
+SESSIONS = os.path.expanduser('~/Library/Application Support/orca/codex-accounts/*/home/sessions')
+WANTED = ('never', 'danger-full-access')
+
+
+def policy(path):
+    """The (approval, sandbox) of a rollout's first turn, or None before it has one."""
+    with open(path) as rollout:
+        for line in rollout:
+            record = json.loads(line)
+            if record.get('type') == 'turn_context':
+                payload = record['payload']
+                return payload.get('approval_policy'), (payload.get('sandbox_policy') or {}).get('type')
+    return None
+
+
+def rollouts(root, cwd):
+    """Rollouts of passes started in cwd, newest first. A subagent's `source` is an object."""
+    found = []
+    for path in glob.glob(os.path.join(root, '*', '*', '*', 'rollout-*.jsonl')):
+        with open(path) as rollout:
+            meta = json.loads(rollout.readline() or '{}')
+        payload = meta.get('payload') or {}
+        if meta.get('type') == 'session_meta' and payload.get('cwd') == cwd and not isinstance(payload.get('source'), dict):
+            found.append(path)
+    return sorted(found, key=os.path.getmtime, reverse=True)
+
+
+def main(argv):
+    if len(argv) != 2:
+        sys.exit('usage: codex-policy <worktree>')
+    cwd = os.path.abspath(argv[1])
+    for path in rollouts(os.environ.get('CODEX_SESSIONS', SESSIONS), cwd):
+        found = policy(path)
+        if found is None:
+            continue
+        approval, sandbox = found
+        print(f'{os.path.basename(path)}: approval {approval}, sandbox {sandbox}')
+        return 0 if found == WANTED else 1
+    sys.exit(f'codex-policy: no rollout with a turn started in {cwd}')
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
