@@ -22,7 +22,8 @@ func parseBindings(
         }
         parseChordBinding(binding, rawCommand, backtrace, mapping, errors: &errors, result: &chordResult)
     }
-    return (chordResult, seqResult)
+    // A binding with no commands is not registered, so its key reaches the focused app.
+    return (chordResult.filter { !$0.value.commands.isEmpty }, seqResult.filter { !$0.value.commands.isEmpty })
 }
 
 func parseBinding(_ raw: String, _ backtrace: TomlBacktrace, _ mapping: [String: Key]) -> ParsedToml<(NSEvent.ModifierFlags, Key)> {

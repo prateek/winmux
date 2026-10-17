@@ -15,6 +15,17 @@ fn library() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("nickel")
 }
 
+#[test]
+fn empty_command_override_survives_the_default_binding_merge() {
+    let value = evaluate_to_json(
+        r#"let W = import "winmux/winmux.ncl" in
+        ((import "winmux/defaults.ncl") & { mode.main.binding.alt-slash = [] }) | W.Config"#,
+        &library(),
+    ).unwrap();
+    assert_eq!(value["mode"]["main"]["binding"]["alt-slash"], json!([]));
+    assert_eq!(value["mode"]["main"]["binding"]["alt-shift-o"], json!("lens overview"));
+}
+
 fn fixture(name: &str) -> String {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(name).to_string_lossy().into_owned()
 }
