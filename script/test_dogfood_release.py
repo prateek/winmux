@@ -236,8 +236,37 @@ class DogfoodReleaseTest(unittest.TestCase):
                 self.assertEqual(interrupted.exception.code, 143)
                 self.assertEqual(worker.wait.call_count, 3)
 
+    def test_build_restores_the_signal_mask_it_found(self):
+        self.addCleanup(signal.pthread_sigmask, signal.SIG_SETMASK, signal.pthread_sigmask(signal.SIG_BLOCK, []))
+        signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGUSR1])
+        found = signal.pthread_sigmask(signal.SIG_BLOCK, [])
+        real = signal.pthread_sigmask
+        def pending_signal_raises(how, mask):
+            # CPython runs pending handlers after it changes the mask, so a cancellation can raise out of the call.
+            previous = real(how, mask)
+            if how == signal.SIG_BLOCK and signal.SIGTERM in mask:
+                raise SystemExit(143)
+            return previous
+        worker = unittest.mock.Mock(pid=4242)
+        worker.wait.return_value = 0
+        for name, patches in (('built', []), ('cancelled while blocking', [patch.object(release.signal, 'pthread_sigmask', pending_signal_raises)])):
+            with self.subTest(name), patch.object(release, 'CANCELLATION', release.Cancellation()), \
+                    patch.object(release.subprocess, 'Popen', return_value=worker):
+                for active in patches:
+                    active.start()
+                try:
+                    if patches:
+                        with self.assertRaises(SystemExit):
+                            release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
+                    else:
+                        release.build_release(self.repo, '0.5.6-dogfood.1', True, self.base)
+                finally:
+                    for active in patches:
+                        active.stop()
+                self.assertEqual(signal.pthread_sigmask(signal.SIG_BLOCK, []), found)
+
     def test_signal_handled_inside_the_first_ones_handler_keeps_the_first_code(self):
-        # A signal delivered before the handler blocks the others runs its handler nested inside the first one's.
+        # A signal that arrives while the first one's handler runs has its handler run nested inside it.
         cancellation = release.Cancellation()
         nested = []
         def trace(frame, event, arg):

@@ -147,8 +147,10 @@ def build_release(repo, version, dry_run, head_sha):
     try:
         CANCELLATION.check()
         # Cancellation must not orphan a worker before Popen returns its handle, so it waits, blocked, until then.
-        mask = signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
+        # Read the mask before blocking: a pending signal raises out of the call that blocks, after it has blocked.
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, [])
         try:
+            signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
             process = subprocess.Popen(command, cwd=repo, start_new_session=True, preexec_fn=lambda: worker_signals(mask),
                                        env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
         finally:
