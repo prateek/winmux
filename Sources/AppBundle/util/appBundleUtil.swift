@@ -53,12 +53,6 @@ private func restoreWindowsOnQuit() async {
     quitFramesLog.info("Quit frames finished duration=\(String(describing: elapsed), privacy: .public) windows=\(plans.count)")
 }
 
-@MainActor
-func terminateApp() -> Never {
-    NSApplication.shared.terminate(nil)
-    die("Unreachable code")
-}
-
 extension String {
     func copyToClipboard() {
         let pasteboard = NSPasteboard.general

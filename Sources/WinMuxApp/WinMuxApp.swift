@@ -13,6 +13,7 @@ struct WinMuxApp: App {
     @Environment(\.openWindow) var openWindow: OpenWindowAction
 
     init() {
+        runPermissionSubprocessIfRequested()
         #if !DEBUG
             AutomaticUpdates.start()
         #endif

@@ -77,7 +77,7 @@ extension HotKey {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
-                if hotkeysSuspended { return }
+                if hotkeysSuspended || !mayArrangeWindows { return }
                 noteTapBindingKeyDown()
                 guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
@@ -114,7 +114,7 @@ extension HotKey {
 }
 
 @MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
-    if hotkeysSuspended { return }
+    if hotkeysSuspended || !mayArrangeWindows { return }
     Task {
         if let activeMode {
             broadcastEvent(.bindingTriggered(

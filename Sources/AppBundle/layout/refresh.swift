@@ -118,6 +118,7 @@ func runRefreshSessionBlocking(
     layoutWorkspaces shouldLayoutWorkspaces: Bool = true,
     optimisticallyPreLayoutWorkspaces: Bool = false,
 ) async throws {
+    guard mayArrangeWindows else { throw CancellationError() }
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     if !TrayMenuModel.shared.isEnabled { return }
@@ -194,6 +195,7 @@ func runLightSession<T>(
     shouldSchedulePostRefresh: Bool = true,
     body: @MainActor () async throws -> T,
 ) async throws -> T {
+    guard mayArrangeWindows else { throw CancellationError() }
     let state = signposter.beginInterval(#function, "event: \(event) axTaskLocalAppThreadToken: \(axTaskLocalAppThreadToken?.idForDebug)")
     defer { signposter.endInterval(#function, state) }
     activeRefreshTask?.cancel() // Give priority to runSession

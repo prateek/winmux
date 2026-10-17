@@ -193,7 +193,11 @@ let W = import "winmux/winmux.ncl" in
 }) | W.Config
 ```
 
-The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, saving the file or any file it imports applies it (`reload-on-save = false` leaves that to `winmux reload-config`), and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
+The snippets in this README are fields of that record. `winmux config check` reports mistakes with Nickel's own diagnostics, saving the file or any file it imports applies it (`reload-on-save = false` leaves that to `winmux reload-config`), and `winmux config status` shows the state of `winmux-nickel`, the helper process that evaluates it, plus live permissions and setup status. WinMux never writes to the config file: the Settings window shows what is loaded, and names and colours changed in the sidebar are kept in `~/.local/state/winmux/sidebar.json`.
+
+On first launch, WinMux's setup window explains Accessibility and Screen Recording and opens their System Settings panes. Accessibility is required to arrange windows. You can continue without Screen Recording; window pictures and previews then degrade. WinMux remembers that choice. If Screen Recording needs a relaunch, the setup window relaunches WinMux for you. Before any window moves, choose **Start WinMux**; the window explains whether quitting restores your windows or centres them, using your loaded `restore-windows-on-quit` setting. Existing installs with both grants start as before. An existing install missing Screen Recording sees setup once, until you grant it or choose to continue without it.
+
+While setup waits, `winmux config status`, `config --config-path`, `config --get` and key listings remain available. Other commands, including `subscribe`, explain what setup is waiting for and exit 1. Hotkeys wait too. A config that takes over Cmd-Tab still takes ownership when loaded, so Cmd-Tab does nothing during setup for that config. The shipped defaults leave system Cmd-Tab alone. See [first-run setup](docs/first-run.md) for the status JSON and saved state.
 
 ### Filters
 A Filter is a function that says yes or no to a window. It takes the window as `w` and the Filter context as `ctx`, and named Filters live in the config's `filters` record:

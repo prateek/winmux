@@ -2,6 +2,15 @@ import AppKit
 import Common
 import Foundation
 
+@MainActor public func runPermissionSubprocessIfRequested() {
+    switch CommandLine.arguments.dropFirst().first {
+        case "--permission-probe-screen-recording": Darwin.exit(CGPreflightScreenCaptureAccess() ? 0 : 1)
+        case "--permission-request-accessibility":
+            Darwin.exit(AXIsProcessTrustedWithOptions([axTrustedCheckOptionPrompt: true] as CFDictionary) ? 0 : 1)
+        default: break
+    }
+}
+
 @MainActor public func initAppBundle() {
     Task {
         defer { isRecordingStartupWindowFrames = false }
@@ -35,9 +44,13 @@ import Foundation
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
-        checkAccessibilityPermissions()
-        requestScreenRecordingPermissionsIfNeeded()
+        if !AXIsProcessTrusted() {
+            let reset = try? Process.run(URL(filePath: "/usr/bin/tccutil"), arguments: ["reset", "Accessibility", winMuxAppId])
+            reset?.waitUntilExit()
+        }
         startUnixSocketServer()
+        await FirstRunSetup.shared.run()
+        mayArrangeWindows = true
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()
         Workspace.reconcileWorkspaceState() // init workspaces
