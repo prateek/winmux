@@ -35,13 +35,7 @@ The CGEvent tap and NSEvent panel adapter share one classifier. Required `.hover
 
 Base/head guest runs show the native overlays, frontmost app and focused window, Cmd-N's one-to-two window count, unchanged search/selection/Return/Escape and command search, plus workspace rename and Ctrl-Up during its field. Type-to-search begins under `always-expanded` and `auto-hide` on both trees, and Ctrl-Up works in both on head. Spotlight opens on both. Control-Left/Right were filmed on one Space; the edge bounce was inconclusive and no Space-transition claim is made.
 
-The base has no double-click rename handler; preservation was checked through its existing **Rename Workspace** context menu. Native arrow probes preserve the Function flag required by the guest's runtime hotkey table. Scripts and rerun instructions are in `.scratch/winmux-fork/proofs/sidebar-shortcuts/`. The pull request notes explain each lost shortcut and the base Cmd-N discrepancy. Final-commit demos and the release belong to the driver; the builder publishes no release.
-
-## Prateek's checks
-
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+The base has no double-click rename handler; preservation was checked through its existing **Rename Workspace** context menu. Native arrow probes preserve the Function flag required by the guest's runtime hotkey table. Scripts and rerun instructions are in `.scratch/winmux-fork/proofs/sidebar-shortcuts/`. The pull request says what took each lost shortcut. Whether hover search made an installed, bundled WinMux frontmost, and so took Cmd-N, is Prateek's check on an installed build.
 
 ## Sources
 
