@@ -1,16 +1,22 @@
 # Builder briefs
 
-The driver copies one section into a prompt file and fills each `<…>`.
+Each prompt file is **Every pass** followed by one pass's section, copied whole, with each `<…>` filled. The builder never sees this file, so each prompt file carries both sections.
+
+## Every pass
+
+Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: resize or reboot it only where this pass's section says to, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
+
+Edit files with `apply_patch`, not with a Python script that rewrites them, and wait for a background command once, with a long yield, instead of polling it in a loop.
+
+This pass writes one report, named in its section, once, at the end. Your last message is that report's path and nothing more.
 
 ## First pass
 
-Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: do not resize or reboot it, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
-
-You are building issue #<number> of prateek/winmux, "<title>", in the worktree `<WT>` on branch `<branch>`. You have full write access and the network. The host's desktop is not yours: every debug build runs in a guest. Edit files with `apply_patch`, not with a Python script that rewrites them, and wait for a background command once, with a long yield, instead of polling it in a loop.
+You are building issue #<number> of prateek/winmux, "<title>", in the worktree `<WT>` on branch `<branch>`. You have full write access and the network. The host's desktop is not yours: every debug build runs in a guest.
 
 Read first, end to end: `AGENTS.md`, `.scratch/winmux-fork/handoff.md`, `.claude/skills/vm/SKILL.md`, the issue (`gh issue view <number> -R prateek/winmux --json title,body,comments`) and its draft `.scratch/winmux-fork/build/<draft>.md`. Pass `-R prateek/winmux` to every `gh` command: without it `gh` resolves to upstream, where the same number is a different issue. A `gh` call that fails once is tried again. The issue is authoritative. Its **Decisions** are settled; a **Default chosen for you** may change when the code argues for it, and you say so.
 
-**This is the one full builder pass this issue gets, and it has <hours> hours.** The whole issue is its job. Write the report only when each Done-when item is built, tested and, where visible, checked in a live run. Stopping early with a list of remaining work fails the issue. If something truly cannot be done here, do everything around it and say exactly what and why.
+**This is the one full builder pass this issue gets, and it has <hours> hours.** The whole issue, or the part the rulings name, is its job. Write the report only when each Done-when item is built, tested and, where visible, checked in a live run. Stopping early with a list of remaining work fails the issue. If something truly cannot be done here, do everything around it and say exactly what and why.
 
 You have no one to ask. Where this prompt or the issue does not settle something, take the answer the issue recommends or the nearest one, record it in the report and in `pr.md` on a line starting "Decided:", and keep going. Record each **Default chosen for you** that you change, by name.
 
@@ -31,11 +37,9 @@ Build it:
 5. Commit on `<branch>` in commits a reviewer can follow. Leave pushing, the pull request and merging to the driver. Leave the guest up: the driver deletes it when the issue lands.
 6. Write `<STATE>/pr.md`, the notes the driver writes the pull request description from: what changes and why, where it departs from the issue, what was checked and what was not, and each "Decided:" line. Leave the demos to the demo pass. The repository is public: keep home paths, usernames, machine names and IP addresses out of it.
 
-Finish with a report, written to `<STATE>/report.md`: each Done-when item marked met, unmet or not checkable, with its evidence; each default you changed and each "Decided:"; the commits; what the live run showed; and anything you were unsure of. Your last message is the report's path and nothing more.
+Finish with the report, written to `<STATE>/report.md`: each Done-when item marked met, unmet or not checkable, with its evidence; each default you changed and each "Decided:"; the commits; what the live run showed; and anything you were unsure of.
 
 ## Follow-up pass
-
-Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: do not resize or reboot it, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
 
 You are continuing issue #<number> of prateek/winmux in `<WT>` on `<branch>`, now open as pull request #<pr>. Read its description first (`gh pr view <pr> -R prateek/winmux --json title,body`), and your first pass's prompt, `<STATE>/pass1.prompt.md`, whose rules still hold: `AGENTS.md`, the handoff, tests first, `make check` on the host and in the guest `<guest>`, the live run in the guest, and commits on `<branch>`.
 
@@ -45,11 +49,9 @@ Resolve each item. Every fix gets a test that fails without it: undo the fix, se
 
 <pending items, one per line, each with its evidence and the driver's ruling>
 
-Update `<STATE>/pr.md` for what changed. Finish with a report, written to `<STATE>/report2.md`: each item resolved or not, with the test that covers it and whether you saw it fail without the fix. Your last message is the report's path and nothing more.
+Update `<STATE>/pr.md` for what changed. Finish with the report, written to `<STATE>/report2.md`: each item resolved or not, with the test that covers it and whether you saw it fail without the fix.
 
 ## Demo pass
-
-Before anything else, in every shell you use: `export TART_HOME=<TART_HOME>`. The `vm` script refuses to run without it. Every command in the guest goes through `vm ssh`, `vm push`, `vm pull`, `vm sync`, `vm build` or `vm check`: never `tart exec` or Tart's guest agent, which raises a Screen Recording prompt of its own. The guest is the driver's: do not resize or reboot it, grant no permission prompt, and touch neither the golden image nor any other guest. If `tart list` shows it stopped, `vm up <guest>` boots it with its disk intact. Report `tart list` as you leave it.
 
 You are filming the demos for pull request #<pr> of prateek/winmux, issue #<number>, from the commit it will merge: `<sha>` on `<branch>` in `<WT>`. The code is finished and reviewed; change none of it. The pass has <hours> hours.
 
@@ -63,4 +65,4 @@ Read `.claude/skills/demo/SKILL.md` and `.claude/skills/vm/SKILL.md` end to end.
 - <what changed since the builder's last live run and no live run has seen. Look at these hardest and report on them first, by name.>
 - Render every demo, check every one as the skill's step 5 says, and write the captions into `<STATE>/demos.md`, in the storyboard's order with its headings and its Done-when table.
 
-Finish with a report, written to `<STATE>/demo-report.md`: each storyboard entry filmed or not, with where WinMux ended against its **Watch**; each GIF's size; and anything on screen you did not put there. Your last message is the report's path and nothing more.
+Finish with the report, written to `<STATE>/demo-report.md`: each storyboard entry filmed or not, with where WinMux ended against its **Watch**; each GIF's size; and anything on screen you did not put there.
