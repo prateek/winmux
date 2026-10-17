@@ -106,6 +106,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On the installed build, with a terminal focused and no Lens open, rest the pointer on the left edge until the sidebar expands, keep it there, and press Ctrl-Up: Mission Control opens. Close it with Ctrl-Up, then do the same with Ctrl-Down: App Exposé opens for the terminal. Then press Cmd-N with the pointer still on the sidebar: the terminal opens a new window, and its name stays in the menu bar.
 - [ ] Still on the installed build, with the pointer over the expanded sidebar, type a few letters so the sidebar searches, click once in the sidebar's search field, then press Cmd-Delete: the search clears. Say here if it does not.
 
+**A Safari window's picture is a thin grey strip**
+- [ ] On the installed build, open three Safari windows on different pages, wait a few seconds, then run `winmux lens --filter true --presentation grid --sections app` and, after Escape, hold Cmd-Tab for the strip: every Safari Tile shows its page, none a thin grey strip or the Safari icon. Say here if one does, with a screenshot.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
