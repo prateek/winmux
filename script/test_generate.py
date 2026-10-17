@@ -106,6 +106,15 @@ class GenerateTest(unittest.TestCase):
         self.root = nested
         self.check_generate('unknown')
 
+    def test_root_typed_in_another_case_names_its_head(self):
+        head = self.repository()
+        typed = self.root.with_name(self.root.name.swapcase())
+        if not typed.exists():
+            self.skipTest('case-sensitive file system')
+        output = subprocess.check_output(['python3', str(self.root / 'script/source_commit.py'), '--git-only', str(typed)],
+                                         env=self.env, text=True).strip()
+        self.assertEqual(output, head)
+
     def test_sha256_repository_names_its_head(self):
         self.git('init', '-q', '--object-format=sha256')
         self.git('add', '.')

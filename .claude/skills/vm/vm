@@ -161,7 +161,10 @@ cmd_sync() {
   retry_auth rsync -a --delete --exclude .git --exclude .build --exclude target --exclude .deps \
     -e "sshpass -p admin ssh ${ssh_opts[*]}" "$worktree/" "admin@$(tart ip "$vm"):winmux/"
   after=$(python3 "$here/../../../script/source_commit.py" --git-only "$worktree")
-  if [ "$after" != "$commit" ] && [ "$after" != unknown ]; then commit=${after%-dirty}-dirty; fi
+  if [ "$after" != "$commit" ]; then
+    [ "$after" = unknown ] || commit=$after
+    [ "$commit" = unknown ] || commit=${commit%-dirty}-dirty
+  fi
   guest "$vm" "cd ~/winmux && printf '%s\\n' '$commit' > .source-commit && { [ ! -f .git ] || rm .git; } && { [ -d .git ] || git init -q; } && git add -A && git -c user.name=vm -c user.email=vm@example.invalid commit -q --allow-empty -m sync"
 }
 
