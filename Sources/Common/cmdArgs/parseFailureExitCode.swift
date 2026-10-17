@@ -1,6 +1,6 @@
 public func parseFailureExitCode(_ args: StrArrSlice) -> Int32 {
     let isConfigAction = args.first == "config" && args.dropFirst().contains { ConfigAction(rawValue: $0) != nil }
-    let isLensCommand = ["lens", "list-lenses", "summon"].contains(args.first ?? "")
+    let isLensCommand = ["lens", "list-lenses", "summon", "sections"].contains(args.first ?? "")
         || (args.first == "list-windows" && args.contains { ["--lens", "--filter", "--search"].contains($0) })
     let isColumnCommand: Bool
     switch CmdKind(rawValue: args.first ?? "") {

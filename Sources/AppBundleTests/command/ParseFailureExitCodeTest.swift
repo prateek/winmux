@@ -2,6 +2,14 @@ import Common
 import XCTest
 
 final class ParseFailureExitCodeTest: XCTestCase {
+    func testEverySectionsParseFailureExitsTwo() {
+        for raw in ["sections spiral", "sections", "sections app extra", "sections --bogus"] {
+            let args = raw.split(separator: " ").map(String.init).slice
+            XCTAssertNotNil(parseCmdArgs(args).errorOrNil, raw)
+            XCTAssertEqual(parseFailureExitCode(args), 2, raw)
+        }
+    }
+
     func testExistingCommandsKeepTheirParseFailureExitCodes() {
         let cases: [(String, Int32)] = [
             ("lens --bogus", 2), ("list-lenses --bogus", 2), ("summon --bogus", 2),
