@@ -33,3 +33,5 @@ The probes save screenshots, key logs and readbacks under `~/takes/117/<label>/`
 The required `cliclick` Cmd-Space probe is retained. On the builder's image it did nothing even with WinMux stopped, while the demo skill's physical-key helper opened Spotlight. The script therefore captures that helper's whole Cmd-Space chord too. Dismiss Spotlight's informational first-run screen before the measured comparisons; this is an image-recipe follow-up, not a permission grant.
 
 Wait for a fixed interval before the single final `list-windows` read after Cmd-N. Repeated read-only commands can cancel a pending refresh on the baseline. After inspection, quit the debug build and close the staged apps, leaving the guest running for the driver.
+
+`always-away.zsh <label> <root>` restarts the named build under `always.ncl`, types into a focused Ghostty with the pointer away from the sidebar, and screenshots who got the keys. On base and head the sidebar search does; that is **With `always-expanded`, the sidebar's search takes every key typed anywhere**.
