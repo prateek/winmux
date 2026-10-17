@@ -106,36 +106,34 @@ def verify_tree(repo, head_sha):
 
 
 class Cancellation:
-    """A SIGTERM, SIGINT or SIGHUP cancels the release. Its handler blocks all three before it raises, so a later one
-    stays pending until the process exits: it can neither interrupt the cleanup of a cancelled build nor replace the
-    exit code."""
+    """A SIGTERM, SIGINT or SIGHUP cancels the release. Only the first one raises; a later one returns at once, so it
+    can neither interrupt the cleanup of a cancelled build nor replace the exit code."""
 
     SIGNALS = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
 
     def __init__(self):
-        self.raised = None
+        self.code = None
 
     def install(self):
         for signum in self.SIGNALS:
             signal.signal(signum, self.handle)
 
     def handle(self, signum, frame):
-        # Record before blocking: a signal delivered before the block runs this handler again, nested, and must see it.
-        first = self.raised is None
-        if first:
-            self.raised = SystemExit(128 + signum)
-        signal.pthread_sigmask(signal.SIG_BLOCK, self.SIGNALS)
-        if first:
-            raise self.raised
+        if self.code is None:
+            self.code = 128 + signum
+            raise SystemExit(self.code)
 
     def check(self):
-        """Raise a cancellation Python swallowed, as it does one raised in __del__, at the release's next step."""
-        if self.raised is not None:
-            raise self.raised
+        """Raise a cancellation Python swallowed, as it does one raised in __del__."""
+        if self.code is not None:
+            raise SystemExit(self.code)
 
 
-def unblock_cancellation():
-    signal.pthread_sigmask(signal.SIG_UNBLOCK, Cancellation.SIGNALS)
+def worker_signals(mask):
+    """In the worker before exec: neither the release's handlers nor its block around Popen are the worker's."""
+    for signum in Cancellation.SIGNALS:
+        signal.signal(signum, signal.SIG_DFL)
+    signal.pthread_sigmask(signal.SIG_SETMASK, mask)
 
 
 CANCELLATION = Cancellation()
@@ -149,14 +147,13 @@ def build_release(repo, version, dry_run, head_sha):
     try:
         CANCELLATION.check()
         # Cancellation must not orphan a worker before Popen returns its handle, so it waits, blocked, until then.
-        # The worker inherits the mask across exec, so it unblocks the signals for itself.
-        signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
+        mask = signal.pthread_sigmask(signal.SIG_BLOCK, Cancellation.SIGNALS)
         try:
-            process = subprocess.Popen(command, cwd=repo, start_new_session=True, preexec_fn=unblock_cancellation,
+            process = subprocess.Popen(command, cwd=repo, start_new_session=True, preexec_fn=lambda: worker_signals(mask),
                                        env={**os.environ, "WINMUX_RELEASE_WORKER": "1", "WINMUX_RELEASE_HEAD": head_sha})
         finally:
-            if CANCELLATION.raised is None:
-                unblock_cancellation()
+            signal.pthread_sigmask(signal.SIG_SETMASK, mask)
+        CANCELLATION.check()
         status = process.wait()
         CANCELLATION.check()
     except BaseException:
@@ -262,6 +259,9 @@ def main():
     except ReleaseError as error:
         print(f'[dogfood-release] error: {error}', file=sys.stderr)
         return 1
+    finally:
+        # A cancellation Python swallowed still decides the exit code.
+        CANCELLATION.check()
 
 
 if __name__ == '__main__':

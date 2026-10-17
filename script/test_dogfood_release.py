@@ -238,27 +238,25 @@ class DogfoodReleaseTest(unittest.TestCase):
 
     def test_signal_handled_inside_the_first_ones_handler_keeps_the_first_code(self):
         # A signal delivered before the handler blocks the others runs its handler nested inside the first one's.
-        self.addCleanup(signal.pthread_sigmask, signal.SIG_SETMASK, signal.pthread_sigmask(signal.SIG_BLOCK, []))
         cancellation = release.Cancellation()
         nested = []
         def trace(frame, event, arg):
             if frame.f_code.co_filename != release.__file__:
                 return None
-            if event == 'line' and cancellation.raised is not None and not nested:
+            if event == 'line' and cancellation.code is not None and not nested:
                 nested.append(cancellation.handle(signal.SIGHUP, None))
             return trace
+        previous = sys.gettrace()
         sys.settrace(trace)
         try:
             with self.assertRaises(SystemExit) as interrupted:
                 cancellation.handle(signal.SIGTERM, None)
         finally:
-            sys.settrace(None)
+            sys.settrace(previous)
         self.assertEqual(nested, [None])
         self.assertEqual(interrupted.exception.code, 143)
 
     def test_second_signal_while_cleanup_handles_its_own_error_is_dropped(self):
-        # The handler blocks the cancelling signals, and this runner must get them back.
-        self.addCleanup(signal.pthread_sigmask, signal.SIG_SETMASK, signal.pthread_sigmask(signal.SIG_BLOCK, []))
         cancellation = release.Cancellation()
         def wait(timeout=None):
             if worker.wait.call_count == 1:
@@ -435,12 +433,14 @@ def swallow_once(function, when):
     return wrapped
 if sys.argv[2] == 'before the worker':
     release.verify_tree = swallow_once(release.verify_tree, lambda *args: True)
-else:
+elif sys.argv[2] == 'while the worker runs':
     subprocess.Popen.wait = swallow_once(subprocess.Popen.wait, lambda self, timeout=None: self.args[0] == 'bash' and timeout is None)
+else:
+    release.ReleaseLock.__exit__ = swallow_once(release.ReleaseLock.__exit__, lambda *args: True)
 sys.argv = ['script/dogfood-release', '--next', '--dry-run']
 sys.exit(release.main())
 """
-        for seam in ('before the worker', 'while the worker runs'):
+        for seam in ('before the worker', 'while the worker runs', 'after the release'):
             with self.subTest(seam=seam):
                 state = Path(self.temp.name) / seam.replace(' ', '-')
                 state.mkdir()
