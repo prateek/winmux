@@ -14,7 +14,9 @@ mkdir -p ~/.config/zed ~/.config/winmux ~/demo/state ~/takes ~/desk/docs ~/desk/
 # film and the probes run ~/desk/keys without building it.
 swiftc -O ~/winmux/.claude/skills/demo/keys.swift -o ~/desk/keys
 zsh ~/desk/make-repo.sh
-cp ~/desk/zed/settings.json ~/.config/zed/settings.json
+# A synced tree from before the settings moved has none: fall back to the image's copy.
+cp ~/winmux/.claude/skills/vm/guest/zed-settings.json ~/.config/zed/settings.json 2>/dev/null ||
+  cp ~/vm/zed-settings.json ~/.config/zed/settings.json || exit 1
 cp ~/desk/rich/winmux.ncl ~/.config/winmux/winmux.ncl
 ~/winmux/nickel-helper/target/release/winmux-nickel check ~/.config/winmux/winmux.ncl || exit 1
 python3 - <<'BOOT'

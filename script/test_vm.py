@@ -3,6 +3,9 @@ import contextlib
 import json
 import os
 from pathlib import Path
+import runpy
+import shutil
+import sqlite3
 import subprocess
 import signal
 import select
@@ -365,6 +368,38 @@ with contextlib.closing(sqlite3.connect(path)) as db, db:
 
 
 class FirstRunRecipeTest(unittest.TestCase):
+    def test_announcement_seed_refuses_missing_or_changed_zed_database(self):
+        quiet = runpy.run_path(str(VM.parent / 'guest/quiet-zed.py'))['quiet']
+        with tempfile.TemporaryDirectory() as temp:
+            database = Path(temp) / 'db.sqlite'
+            with self.assertRaises(sqlite3.OperationalError):
+                quiet(database)
+            self.assertFalse(database.exists())
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE unrelated (value TEXT)')
+                db.execute("INSERT INTO unrelated VALUES ('preserved')")
+            with self.assertRaises(sqlite3.OperationalError):
+                quiet(database)
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(db.execute('SELECT * FROM unrelated').fetchall(), [('preserved',)])
+
+    def test_zed_database_is_ready_only_once_it_has_kv_store(self):
+        helper = runpy.run_path(str(VM.parent / 'guest/quiet-zed.py'))
+        with tempfile.TemporaryDirectory() as temp:
+            database = Path(temp) / 'db.sqlite'
+            self.assertFalse(helper['ready'](database))
+            self.assertFalse(database.exists())
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE other (value TEXT)')
+            self.assertFalse(helper['ready'](database))
+            with self.assertRaises(SystemExit) as timeout:
+                helper['wait'](database, 0)
+            self.assertIn('no kv_store', str(timeout.exception.code))
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
+            self.assertTrue(helper['ready'](database))
+            helper['wait'](database, 0)
+
     def test_initializes_local_props_and_preserves_notes_onboarding_settings(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -374,28 +409,66 @@ class FirstRunRecipeTest(unittest.TestCase):
             vm.mkdir()
             (vm / 'quiet-desktop.py').write_text('')
             (vm / 'dock-tile-registered').touch()
-            for tool in ['sleep', 'killall', 'pkill']:
+            for name in ['zed-settings.json', 'quiet-zed.py']:
+                source = VM.parent / 'guest' / name
+                shutil.copy2(source, vm / name)
+            database = root / 'Library/Application Support/Zed/db/0-stable/db.sqlite'
+            database.parent.mkdir(parents=True)
+            with contextlib.closing(sqlite3.connect(database)) as db, db:
+                db.execute('CREATE TABLE kv_store (key TEXT PRIMARY KEY, value TEXT NOT NULL) STRICT')
+                db.executemany('INSERT INTO kv_store VALUES (?, ?)', [
+                    ('auto-updater-should-show-updated-notification', '1'),
+                    ('unrelated', 'preserved'),
+                ])
+            for tool in ['sleep', 'killall']:
                 (binary / tool).write_text('#!/bin/sh\nexit 0\n')
                 (binary / tool).chmod(0o755)
-            shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sys
+            (binary / 'pgrep').write_text('#!/bin/sh\nexit 1\n')
+            (binary / 'pgrep').chmod(0o755)
+            shim = '#!' + sys.executable + '\n' + '''import json, os, pathlib, sqlite3, sys
 root = pathlib.Path(os.environ['HOME'])
 p = root / 'prefs.json'
-s = json.loads(p.read_text()) if p.exists() else {'opened': [], 'quit': [], 'prefs': {}}
+s = json.loads(p.read_text()) if p.exists() else {'opened': [], 'quit': [], 'prefs': {}, 'killed': []}
 tool = pathlib.Path(sys.argv[0]).name
 a = sys.argv[1:]
-if tool == 'open': s['opened'].append(a[-1])
+if tool == 'open':
+    s['opened'].append(a[-1])
+    if a[-1].endswith('Zed.app'): s['zed settings at launch'] = (root / '.config/zed/settings.json').exists()
+elif tool == 'pkill':
+    database = root / 'Library/Application Support/Zed/db/0-stable/db.sqlite'
+    seeded = sqlite3.connect(database).execute("SELECT 1 FROM kv_store WHERE key = 'delta_announcement_dismissed'").fetchone()
+    s['killed'].append([a[-1], seeded is not None])
 elif tool == 'osascript': s['quit'].append(a[-1].split('"')[1])
 elif tool == 'defaults': s['prefs'][a[1] + ':' + a[2]] = a[3:]
 p.write_text(json.dumps(s))
 '''
-            for tool in ['open', 'osascript', 'defaults']:
+            for tool in ['open', 'osascript', 'defaults', 'pkill']:
                 (binary / tool).write_text(shim)
                 (binary / tool).chmod(0o755)
             subprocess.run(['bash', str(VM.parent / 'guest/first-run.sh')], check=True,
                            env=dict(os.environ, HOME=str(root), PATH=str(binary) + ':' + os.environ['PATH']))
             state = json.loads((root / 'prefs.json').read_text())
-            self.assertEqual(state['opened'], ['Notes', 'Calendar', 'Music'])
+            self.assertEqual(state['opened'], ['/Applications/Zed.app', 'Notes', 'Calendar', 'Music'])
             self.assertEqual(state['quit'], ['Notes', 'Calendar', 'Music'])
+            self.assertTrue(state['zed settings at launch'])
+            self.assertEqual(state['killed'][0], ['zed', False])
+            settings = json.loads((root / '.config/zed/settings.json').read_text())
+            self.assertTrue(settings['session']['trust_all_worktrees'])
+            self.assertFalse(settings['title_bar']['show_onboarding_banner'])
+            self.assertFalse(settings['auto_update'])
+            self.assertEqual((root / '.config/ghostty/config').read_text().splitlines(), [
+                'auto-update = off', 'window-save-state = never', 'confirm-close-surface = false',
+            ])
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(dict(db.execute('SELECT key, value FROM kv_store')), {
+                    'delta_announcement_dismissed': '1', 'unrelated': 'preserved',
+                })
+            subprocess.run([sys.executable, str(vm / 'quiet-zed.py')], check=True,
+                           env=dict(os.environ, HOME=str(root)))
+            with contextlib.closing(sqlite3.connect(database)) as db:
+                self.assertEqual(dict(db.execute('SELECT key, value FROM kv_store')), {
+                    'delta_announcement_dismissed': '1', 'unrelated': 'preserved',
+                })
             prefs = state['prefs']
             notes = str(root / 'Library/Containers/com.apple.Notes/Data/Library/Preferences/com.apple.Notes')
             self.assertEqual(prefs[notes + ':hasShownWelcomeScreen'], ['-bool', 'true'])
