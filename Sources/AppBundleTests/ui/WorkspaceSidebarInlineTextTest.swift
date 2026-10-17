@@ -50,6 +50,19 @@ final class WorkspaceSidebarInlineTextTest: XCTestCase {
         check(117, .deleteForward, modifiers: .function, text: "\u{F728}")
     }
 
+    func testFunctionKeyGlyphsWithoutTheFlagAreNotSearchText() {
+        check(123, .ignored, text: "\u{F702}")
+        check(115, .ignored, text: "\u{F729}")
+        check(122, .ignored, text: "\u{F704}")
+    }
+
+    func testDeleteEditsBelongToWinMuxOnlyWhileItIsActiveOrTheSearchWasNotHovered() {
+        XCTAssertFalse(workspaceSidebarInlineTextKeepsDeleteEdits(origin: .hoverSearch, appIsActive: false))
+        XCTAssertTrue(workspaceSidebarInlineTextKeepsDeleteEdits(origin: .hoverSearch, appIsActive: true))
+        XCTAssertTrue(workspaceSidebarInlineTextKeepsDeleteEdits(origin: .commandSearch, appIsActive: false))
+        XCTAssertTrue(workspaceSidebarInlineTextKeepsDeleteEdits(origin: .rename, appIsActive: false))
+    }
+
     func testControlUpThroughCGEventEntryPoint() throws {
         let event = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 126, keyDown: true))
         event.flags = .maskControl

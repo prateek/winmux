@@ -257,9 +257,10 @@ enum WorkspaceSidebarInlineTextKey: Equatable {
 }
 
 private let workspaceSidebarInlineTextEventTapCallback: CGEventTapCallBack = { _, type, event, _ in
+    // The tap's run loop source is on the main run loop.
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
         // Hover search's panel is not key, so the tap is its only way to get keys.
-        DispatchQueue.main.async {
+        MainActor.assumeIsolated {
             if let tap = WorkspaceSidebarPanel.activeInlineTextEditingPanel?.inlineTextEditingKeyEventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
@@ -267,9 +268,13 @@ private let workspaceSidebarInlineTextEventTapCallback: CGEventTapCallBack = { _
         return Unmanaged.passUnretained(event)
     }
     guard type == .keyDown else { return Unmanaged.passUnretained(event) }
-    // The tap's run loop source is on the main run loop.
-    let origin = MainActor.assumeIsolated { WorkspaceSidebarPanel.activeInlineTextEditingPanel?.inlineTextEditingOrigin }
-    let key = workspaceSidebarInlineTextKey(from: event, keepsDeleteEdits: origin != .hoverSearch)
+    let keepsDeleteEdits = MainActor.assumeIsolated {
+        workspaceSidebarInlineTextKeepsDeleteEdits(
+            origin: WorkspaceSidebarPanel.activeInlineTextEditingPanel?.inlineTextEditingOrigin,
+            appIsActive: NSApp.isActive,
+        )
+    }
+    let key = workspaceSidebarInlineTextKey(from: event, keepsDeleteEdits: keepsDeleteEdits)
     if case .ignored = key {
         return Unmanaged.passUnretained(event)
     }
@@ -299,7 +304,6 @@ func workspaceSidebarInlineTextKey(
 ) -> WorkspaceSidebarInlineTextKey {
     let usesCommand = modifiers.contains(.command)
     let usesOption = modifiers.contains(.option)
-    // Hover search leaves the focused app in front, so its Cmd-Delete and Option-Delete stay the app's.
     let isDeleteEdit = keyCode == 51 && keepsDeleteEdits
     guard !modifiers.contains(.control), isDeleteEdit || (!usesCommand && !usesOption) else {
         return .ignored
@@ -327,14 +331,20 @@ func workspaceSidebarInlineTextKey(
             break
     }
 
-    // Globe-letter chords are the system's; arrow and function keys carry the flag too.
+    // A Globe-letter chord is the system's. AppKit spells arrow and function keys in U+F700-U+F8FF.
     guard !modifiers.contains(.function),
           let text,
-          !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) })
+          !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) || (0xF700...0xF8FF).contains($0.value) })
     else {
         return .ignored
     }
     return text.isEmpty ? .ignored : .text(text)
+}
+
+/// Hover search leaves the focused app in front, so its Cmd-Delete and Option-Delete stay the app's
+/// until WinMux is the active app, as it is after a click on the sidebar.
+func workspaceSidebarInlineTextKeepsDeleteEdits(origin: WorkspaceSidebarInlineTextEditingOrigin?, appIsActive: Bool) -> Bool {
+    origin != .hoverSearch || appIsActive
 }
 
 enum WorkspaceSidebarInlineTextEditingOrigin {

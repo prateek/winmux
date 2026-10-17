@@ -10,6 +10,8 @@ The cause, read from the code: the search begins whenever the sidebar reaches it
 
 `always-expanded` is off in the shipped defaults.
 
+With two displays, each panel can hold a search and a key tap at once, while the tap's callback reads and re-enables only `WorkspaceSidebarPanel.activeInlineTextEditingPanel`. Whoever builds this decides whether a tap should carry its own panel.
+
 ## Decisions
 
 - **Typing goes to the focused app unless the person is searching the sidebar.** Under `always-expanded`, type-to-search starts only while the pointer is over the sidebar, and ends when it leaves, as it does when the sidebar collapses.
