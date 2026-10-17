@@ -19,8 +19,8 @@ Nothing.
 
 ## Done when
 
-- [ ] A test delivers a second signal as the cleanup begins, and the worker's process group is gone and the exit code is the first signal's.
-- [ ] The existing interruption tests pass two hundred runs in a row under load on Xcode's Python 3.9.
+- [x] A test delivers a second signal as the cleanup begins, and the worker's process group is gone and the exit code is the first signal's.
+- [x] The existing interruption tests pass two hundred runs in a row under load on Xcode's Python 3.9.
 
 ## Sources
 
