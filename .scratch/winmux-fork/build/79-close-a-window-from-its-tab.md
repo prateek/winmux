@@ -30,10 +30,28 @@ Nothing.
 
 ## Done when
 
-- [ ] Clicking a tab's button closes that window and no other.
-- [ ] Three clicks without moving the pointer close three windows, in a guest.
-- [ ] A window with an unsaved-changes sheet keeps its tab.
+- [x] Clicking a tab's button closes that window and no other.
+- [x] Three clicks without moving the pointer close three windows, in a guest.
+- [x] A window with an unsaved-changes sheet keeps its tab.
 - [ ] The pull request has a clip of the three closes.
+
+## Built
+
+The trailing `xmark` appears on the active and hovered tabs, outside the tab's focus button and drag gestures. It has a 20-point circular hit area and the accessibility label `Close <title>`. Middle-button release uses the view's published tab frames, clipped to its scroll viewport; the gutter closes nothing, including when a tab's frame extends off screen.
+
+`Window.requestClose` shares project deletion's press-and-confirm implementation. A tab close presses without unregistering, waits up to one second with 100 ms checks, and stops waiting as soon as AX reports a sheet. The press, collection/strip update and retained-window focus use separate light sessions; the poll holds none. Project deletion retains its 1.5-second wait and caller-owned session. CLI, agent and Lens closes retain their accepted-press behavior, including the separate defect **A window that answers `close` with a save sheet drops out of WinMux until the sheet is dismissed**.
+
+An observable model outside the view retains closing ids and strip widths across panel root-view replacements. A closing tab stays present at 55% opacity and accepts no clicks or drags; another close cannot press again. A refused window or a window showing a sheet keeps its index and comes forward. Successful background closes preserve focus even when a refresh collects the window before the poll. Closing the active tab uses the existing most-recent replacement. A pointer close holds widths until the pointer leaves the strip or the panel disappears; the layout, drag hit tests and reorder offsets share that width. Re-widening uses the strip's normal or Reduce Motion animation. The default normalization still dissolves a group left with one window.
+
+Fourteen new behavior tests cover confirmation, sheets, timeout, retained bindings, targeting, both focus outcomes, repeated close suppression, width holding/release, three fixed-position closes, panel removal and clipped hit-testing. Existing project-deletion, CLI, agent, Lens and width tests pass unchanged. Host and pinned-version guest `make check` pass: 1,591 Swift tests, 92 Rust/helper tests and 171 Python tests.
+
+The 1280 × 720 standing-desk run adds Ghostty windows to make five tabs. One inactive-button close removes only its target and preserves focus. Three clicks at one point close three windows, leave two tabs at their held width, and moving out re-widens them. Middle-click targets its window and ignores the overflow gutter. An unsaved TextEdit document stays at its index with its save sheet visible and focused, both from the background and while active; Cancel leaves it managed. One script produces identical ordinary/no-button CLI close results on the base and feature trees. Reproduction tools are in `../proofs/close-tab/`; pull-request media is supplied by the demo pass.
+
+## Checks for Prateek
+
+- [ ] Installed-build behavior.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 

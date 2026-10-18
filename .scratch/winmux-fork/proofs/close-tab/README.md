@@ -1,0 +1,16 @@
+# Tab-close guest checks
+
+All commands run through the VM skill in an assigned 1280 × 720 guest. Stage `desk/stage-desk.sh` with the hero terminal preparation first. Dismiss the known Python Local Network screen with `killall UserNotificationCenter`, then rerun the desk check. Do not grant a permission prompt or script TextEdit.
+
+Push this directory to `~/close-tab-tools`, and the demo desk to `~/desk`. Compile `input.swift` and `ui.swift` there. For the unchanged-close comparison, compile `desk/close-result/close-fixture.swift` as `~/close-tab-tools/CloseFixture`; put the base tree in its own guest directory and build it, including its helper and Sparkle framework.
+
+- `unchanged.zsh <checkout> <label>` runs the same ordinary and missing-button CLI closes against each tree. Compare their `result.txt` files.
+- `group.zsh` starts the feature build, puts workspace 1 into a window tab group with Zed and four Ghostty windows, and captures the active-only button. It uses the desk's `keys.swift` for Cmd-N and `layout tiles horizontal` followed by `layout tab-group` on the root's windows. The optional argument sets the Ghostty count; `8` produces nine tabs and overflow. Keep the other desk apps on workspace 2.
+- On the five-tab set, hover `(480, 60)` for the second tab's button, then click `(495, 60)`. Read back window ids and focused id after a fixed three-second wait. Re-run `group.zsh` to replenish the fifth tab.
+- `three.zsh` records three `cliclick` clicks at `(495, 60)`, about 0.6 seconds apart, then moves out to `(1240, 714)`. It saves held and widened AX frames and window inventories. Two tabs remain, so flattening does not dissolve the strip.
+- `timed-three.zsh` repeats that take with a system movie, the existing trace recorder and `mouse-events.swift`. The event and capture metadata share Mach absolute seconds. Compare the actual frame showing the disappearing pill with the input timestamps; `displayTimes` describe frames and `framePTS` describe capture receipt. Parallel recording adds load, so this is evidence for this guest run rather than an installed-build latency target.
+- `input middle 450 60` closes the second of two widened tabs. On nine tabs, `input middle 1210 60` is in the gutter and must leave every id unchanged; `(400, 60)` hits a visible tab and removes only that id.
+
+For the sheet check, set TextEdit's `NSCloseAlwaysConfirmsChanges` to true, open an untitled document with Cmd-N, focus its id through WinMux, click its text area and type with `cliclick`. Verify the text through its AX tree. Put it in the group with `layout tab-group`, focus Zed, then click the TextEdit tab's button. Save the sheet and strip AX trees, screenshot, inventory and focused id. Cancel, wait, and read back again. Repeat while TextEdit is active. With two 240-point tabs starting at screen x=67, its close button is centred at `(536, 60)`; the save sheet's Cancel is around `(720, 518)` on this desk. Inspect the actual frames before reusing those coordinates.
+
+Wait fixed intervals before reading WinMux after creating or closing windows. Read-only commands can cancel a pending discovery refresh. This run uses no Search. Quit the debug manager before closing the desk apps, discard the owned TextEdit document, and leave the assigned guest running.
