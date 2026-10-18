@@ -53,6 +53,11 @@ protocol ConfigReloadCandidate {
     var warnings: [String] { get }
     var imports: [URL] { get }
     var library: URL? { get }
+    var shippedDefaults: Bool { get }
+}
+
+extension ConfigReloadCandidate {
+    var shippedDefaults: Bool { false }
 }
 
 @MainActor
@@ -102,6 +107,9 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     private let emit: (ServerEvent) -> Void
     private let saves: ConfigReloadSaves
     private let configPath: () -> String
+    private let loadStateChanged: (ConfigLoadState) -> Void
+    private let now: () -> Date
+    private var loadState = ConfigLoadState()
     private var state = ConfigReloadState()
     private var notifications = ConfigReloadNotifications()
     private var savedDuringStartup = false
@@ -133,6 +141,8 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         emit: @escaping (ServerEvent) -> Void,
         saves: ConfigReloadSaves,
         configPath: @escaping () -> String,
+        loadStateChanged: @escaping (ConfigLoadState) -> Void = { _ in },
+        now: @escaping () -> Date = Date.init,
     ) {
         self.load = load
         self.helper = helper
@@ -142,6 +152,8 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.emit = emit
         self.saves = saves
         self.configPath = configPath
+        self.loadStateChanged = loadStateChanged
+        self.now = now
     }
 
     /// The application runs in the caller's task, with the caller's task-locals and cancellation.
@@ -254,12 +266,16 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
                     try await apply(candidate)
                 }
                 hasApplied = true
+                loadState.loaded = .init(file: candidate.url, time: now(), shippedDefaults: candidate.shippedDefaults)
+                loadState.failure = nil
+                loadStateChanged(loadState)
                 report.clear()
                 notifications.loaded()
                 report.log(.notice, "Loaded the config from \(reporting.path)")
                 result = .success(true)
             } catch {
-                failure("Loaded \(reporting.path), but applying it failed: \(error.localizedDescription)", attempt, &reporting)
+                loadState.loaded = .init(file: candidate.url, time: now(), shippedDefaults: candidate.shippedDefaults)
+                failure("Loaded \(reporting.path), but applying it failed: \(error.localizedDescription)", attempt, &reporting, applying: true)
                 result = .failure(error)
             }
         }
@@ -283,11 +299,13 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         return waiter.turn
     }
 
-    private func failure(_ message: String, _ attempt: Attempt, _ reporting: inout Reporting) {
+    private func failure(_ message: String, _ attempt: Attempt, _ reporting: inout Reporting, applying: Bool = false) {
         reporting.text += message
         reporting.error = message
         if !attempt.dryRun {
             helper.recordFailure(message)
+            loadState.failure = .init(diagnostic: message, file: URL(filePath: reporting.path), time: now(), applying: applying)
+            loadStateChanged(loadState)
             report.log(.error, "The config failed to load: \(message)")
         }
         if !attempt.noGui && notifications.shouldNotify(message, trigger: attempt.trigger) { report.show(message) }
@@ -348,6 +366,8 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         try await ConfigReloadApplication.$current.withValue(.init(owner: ObjectIdentifier(self), attempt: id)) { @MainActor in
             try await application()
         }
+        loadState.loaded = nil
+        loadStateChanged(loadState)
     }
 
     private func becameIdle() {

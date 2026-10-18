@@ -10,6 +10,10 @@ struct ColumnsConfig: Sendable {
     }
 
     init() {}
+    var workspaceNames: [String] {
+        if case .object(let records) = workspaces { return Array(records.keys) }
+        return []
+    }
     init(_ global: JSONValue?, workspaces: JSONValue?) {
         self.global = global ?? .object([:])
         self.workspaces = workspaces ?? .object([:])

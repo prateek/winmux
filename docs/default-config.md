@@ -2,6 +2,14 @@
 
 With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new windows use ordinary tree tiling. Startup does not write a starter file unless it is converting a legacy config. “Open config” creates an editable import-only starter when needed.
 
+## Settings shows what is loaded
+
+Open **Settings…** from the menu bar to see the loaded file and time, Lenses and their Triggers, searchable bindings in every mode, Columns per workspace, hooks, Behavior and Appearance. Search accepts config notation such as `cmd` and modifier glyphs such as `⌘`. Filter functions stay in the config helper and appear on the Lenses that use them.
+
+Settings edits nothing. **Open Config** opens the config file in its default editor, creating a starter only if no file exists. **Config File** shows the text on disk; **Reload From Disk** refreshes that display without applying it. Save a valid edit to apply it when `reload-on-save` is on, or use the menu's Reload config action. A failed load displays its diagnostic above every pane and keeps the last good values; a failed first load displays the built-in defaults. A later successful load clears the banner while Settings stays open. Double-sided windows is switched from the menu bar menu; Settings shows its current state.
+
+## Importing defaults
+
 `restore-windows-on-quit` is a Bool, default `true`. Quitting WinMux, from its menu, the system's Quit or logout, or SIGTERM, SIGINT and SIGHUP, puts each window that was open when WinMux started back at the frame it had then. A window moved to another display or resized by hand still goes back to that frame. A window opened while WinMux ran stays where it is, and one parked on a hidden workspace is centred on its display. A window whose recorded display is gone stays where it is if it is on screen, and is otherwise centred on the nearest display. The records live in memory for one run of WinMux: a config reload keeps them, and a closed window is never reopened. Set `restore-windows-on-quit = false` to centre every window at its last floating size, as earlier versions did.
 
 `url-scheme` is a Bool, default `true`. Set it to `false` to refuse `winmux://` URL commands; a config reload applies to the next URL. [URL commands](url-scheme.md) has the form, the refused commands and who can use it.

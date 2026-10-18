@@ -14,6 +14,46 @@ private enum ReloadTestError: LocalizedError {
 
 @MainActor
 final class ConfigReloaderTest: SerialClockTestCase {
+    func testLoadStateRetainsGoodValuesAcrossFailureAndClearsOnRecovery() async throws {
+        let probe = ReloadProbe(), owner = probe.owner()
+        _ = await request(owner, "good")
+        let good = try XCTUnwrap(probe.loadStates.last)
+        XCTAssertEqual(good.loaded?.file.path, "/config/good.ncl")
+        XCTAssertNil(good.failure)
+        probe.failures["bad"] = "bad field"
+        _ = await request(owner, "bad", trigger: .fileChange)
+        let failed = try XCTUnwrap(probe.loadStates.last)
+        XCTAssertEqual(failed.loaded, good.loaded)
+        XCTAssertEqual(failed.failure?.diagnostic, "bad field")
+        XCTAssertEqual(failed.failure?.file.path, "/config/bad.ncl")
+        XCTAssertEqual(probe.activeConfig, "good")
+        _ = await request(owner, "bad", trigger: .fileChange)
+        XCTAssertEqual(probe.loadStates.count, 3, "notification dedupe must not dedupe Settings")
+        XCTAssertEqual(probe.shown.count, 1)
+        _ = await request(owner, "dry", dry: true)
+        _ = await request(owner, "bad", dry: true)
+        XCTAssertEqual(probe.loadStates.count, 3, "dry runs leave the state untouched")
+        _ = await request(owner, "recovered")
+        XCTAssertNil(probe.loadStates.last?.failure)
+        XCTAssertEqual(probe.loadStates.last?.loaded?.file.path, "/config/recovered.ncl")
+        XCTAssertEqual(probe.activeConfig, "recovered")
+    }
+
+    func testFailedFirstLoadAndStartupFallbackReportBuiltInDefaults() async throws {
+        let probe = ReloadProbe(), owner = probe.owner()
+        probe.failures["first"] = "broken at startup"
+        _ = await request(owner, "first")
+        await owner.applyStartupFallback {}
+        let state = try XCTUnwrap(probe.loadStates.last)
+        XCTAssertNil(state.loaded)
+        XCTAssertEqual(state.failure?.diagnostic, "broken at startup")
+        let summary = LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: [])
+        XCTAssertTrue(summary.loadExplanation.contains("built-in defaults"))
+        XCTAssertEqual(summary.lenses.count, 6)
+        _ = await request(owner, "dry", dry: true)
+        XCTAssertNil(probe.loadStates.last?.loaded)
+    }
+
     private func request(_ owner: ConfigReloader<ReloadCandidate>, _ name: String, dry: Bool = false, noGui: Bool = false, trigger: ConfigReloadTrigger = .command) async -> ConfigReloadCompletion {
         await owner.request(forceConfigUrl: URL(filePath: "/config/\(name).ncl"), dryRun: dry, noGui: noGui, trigger: trigger)
     }
@@ -167,6 +207,10 @@ final class ConfigReloaderTest: SerialClockTestCase {
         try assertEvent(probe.events[0], path: "/config/loaded.ncl", error: diagnostic)
         XCTAssertEqual(probe.recordedFailures, [diagnostic])
         XCTAssertEqual(probe.shown, [diagnostic])
+        XCTAssertEqual(probe.loadStates.last?.loaded?.file.path, "/config/loaded.ncl", "an application failure retains the adopted config, rather than rolling back")
+        XCTAssertEqual(probe.loadStates.last?.failure?.applying, true)
+        let partial = LoadedConfigSummary.build(defaultConfig, load: try XCTUnwrap(probe.loadStates.last), workspaceNames: [])
+        XCTAssertTrue(partial.loadExplanation.contains("applying it did not finish"))
         probe.applyFailure = nil
         let recovered = await request(owner, "recovered")
         XCTAssertTrue(try recovered.result.get())
@@ -174,6 +218,16 @@ final class ConfigReloaderTest: SerialClockTestCase {
         assertServing(probe, "recovered")
         XCTAssertNil(probe.notification)
         XCTAssertEqual(probe.events.count, 2)
+    }
+
+    func testStartupFallbackAfterFailedApplicationReportsActualBuiltInValues() async throws {
+        let probe = ReloadProbe(), owner = probe.owner()
+        probe.applyFailure = ReloadTestError.apply
+        _ = await request(owner, "partial")
+        await owner.applyStartupFallback { probe.activeConfig = "defaults" }
+        XCTAssertNil(probe.loadStates.last?.loaded)
+        XCTAssertEqual(probe.activeConfig, "defaults")
+        XCTAssertNotNil(probe.loadStates.last?.failure)
     }
 
     func testRequestDuringSuspendedApplicationCompletesInRequestOrder() async throws {

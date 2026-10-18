@@ -1,26 +1,35 @@
-import AppKit
 import Foundation
 
 @MainActor
 public final class ShortcutSettingsModel: ObservableObject {
     public static let shared = ShortcutSettingsModel()
-
-    @Published var selectedTab: Tab = .shortcuts
-    @Published var sections: [Section] = []
-    @Published var assignments: [String: String] = [:]
-    @Published var tapBindings: [Summary] = []
-    @Published var customBindings: [Summary] = []
-    @Published var workspaceNumbers: [String] = []
-    @Published var workspaceSwitchModifiers: NSEvent.ModifierFlags = defaultWorkspaceSwitchModifiers
-    @Published var workspaceMoveModifiers: NSEvent.ModifierFlags = defaultWorkspaceMoveModifiers
-    @Published var workspaceOverrides: [WorkspaceOverride] = []
-    @Published public var openRequestId: Int = 0
-    @Published var settingsRevision: Int = 0
-
-    var actionsById: [String: Action] = [:]
-    var actionIdByCommand: [String: String] = [:]
+    @Published public var openRequestId = 0
+    @Published var settingsRevision = 0
+    @Published var presentationRevision = 0
+    @Published var summary: LoadedConfigSummary
+    private var loadState = ConfigLoadState()
 
     private init() {
+        summary = .build(config, load: .init(), workspaceNames: Workspace.all.map(\.name))
+    }
+
+    func reload() {
+        summary = .build(config, load: loadState, workspaceNames: Workspace.all.map(\.name))
+        settingsRevision += 1
+    }
+
+    func updateLoadState(_ state: ConfigLoadState) {
+        loadState = state
         reload()
+    }
+
+    func requestWindowOpen() {
+        reload()
+        openRequestId += 1
+    }
+
+    func prepareForPresentation() {
+        reload()
+        presentationRevision += 1
     }
 }

@@ -26,6 +26,7 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
             }
         }.keyboardShortcut("E", modifiers: .command)
         OpenShortcutSettingsButton()
+        DoubleSidedWindowsMenuItem()
         if let checkForUpdates {
             Button("Check for Updates…") {
                 checkForUpdates()
@@ -49,6 +50,20 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
                 .resizable()
                 .aspectRatio(contentMode: .fit)
         }
+    }
+}
+
+private struct DoubleSidedWindowsMenuItem: View {
+    @AppStorage("doubleSidedWindows") private var enabled = false
+    var body: some View {
+        Toggle("Double-sided windows", isOn: Binding(
+            get: { enabled },
+            set: {
+                enabled = $0
+                if $0 { requestScreenRecordingPermissionsIfNeeded() }
+                scheduleRefreshSession(.menuBarButton)
+            },
+        ))
     }
 }
 

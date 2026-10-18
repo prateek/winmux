@@ -6,7 +6,7 @@ struct ShortcutConfigurationReferenceView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Configuration Reference")
                     .font(.headline)
-                Text("Every setting lives in the config file, winmux.ncl. The settings panes show the everyday options; this reference lists the remaining sections.")
+                Text("Every setting lives in the config file, winmux.ncl. Settings shows the loaded Lenses, Triggers, bindings, Columns, hooks and appearance without editing them. Use Open Config to make changes; this reference describes the config sections.")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -28,7 +28,7 @@ struct ShortcutConfigurationReferenceView: View {
                     ReferenceRow("project-labels", "Override visible project names.")
                     ReferenceRow("project-colors", "Assign project colors using #RRGGBB values.")
                 }
-                Text("The Configuration editor validates the entire file before saving and shows parser errors inline.")
+                Text("Config File displays the text on disk. Edit it with Open Config; invalid loads keep the running values and show an error banner.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

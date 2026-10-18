@@ -64,7 +64,7 @@ final class EmptyBindingTest: XCTestCase {
         XCTAssertEqual(bindings, ["alt-j": "focus down"])
         let settings = ShortcutSettingsModel.shared
         settings.reload()
-        XCTAssertFalse(settings.customBindings.contains { $0.notation == "alt-slash" })
-        XCTAssertFalse(settings.assignments.values.contains("alt-slash"))
+        XCTAssertFalse(settings.summary.bindings.contains { $0.notation == "alt-slash" })
+        XCTAssertTrue(settings.summary.bindings.contains { $0.notation == "alt-j" && $0.command == "focus down" })
     }
 }
