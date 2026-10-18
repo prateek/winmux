@@ -269,6 +269,14 @@ enum Ax {
         key: kAXCloseButtonAttribute,
         getter: castToAxUiElementMock,
     )
+    static let sheetsAttr = ReadableAttrImpl<[any AxUiElementMock]>(
+        key: "AXSheets",
+        getter: { ($0 as? NSArray)?.compactMap { castToAxUiElementMock($0 as AnyObject) } ?? [] },
+    )
+    static let childrenAttr = ReadableAttrImpl<[any AxUiElementMock]>(
+        key: kAXChildrenAttribute,
+        getter: { ($0 as? NSArray)?.compactMap { castToAxUiElementMock($0 as AnyObject) } ?? [] },
+    )
     // Note! fullscreen is not the same as "zoom" (green plus)
     static let fullscreenButtonAttr = ReadableAttrImpl<any AxUiElementMock>(
         key: kAXFullScreenButtonAttribute,

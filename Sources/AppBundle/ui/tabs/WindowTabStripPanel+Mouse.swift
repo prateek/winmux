@@ -22,7 +22,25 @@ extension WindowTabStripPanel {
 }
 
 final class WindowTabStripHostingView: NSHostingView<AnyView> {
+    var strip: WindowTabStripViewModel?
+    var tabFrames: [UInt32: CGRect] = [:]
+    var tabWidth: CGFloat = 0
+    var tabViewport: CGRect = .zero
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    override func otherMouseUp(with event: NSEvent) {
+        guard event.buttonNumber == 2, let strip else {
+            super.otherMouseUp(with: event)
+            return
+        }
+        var point = convert(event.locationInWindow, from: nil)
+        if !isFlipped { point.y = bounds.height - point.y }
+        guard let windowId = windowTabAtPoint(point, frames: tabFrames, viewport: tabViewport),
+              !isWindowTabStripDragInProgress()
+        else { return }
+        closeWindowFromTabStrip(windowId, fallbackWorkspace: strip.workspaceName, pointer: (strip.id, tabWidth))
     }
 }

@@ -51,6 +51,7 @@ extension WindowTabStripPanelController {
 
     func removeStaleStripPanels(activeIds: Set<ObjectIdentifier>) {
         for staleId in stripPanels.keys where !activeIds.contains(staleId) {
+            WindowTabCloseModel.shared.pointerLeftStrip(staleId)
             orderOutIfVisible(stripPanels[staleId])
             stripPanels.removeValue(forKey: staleId)
         }
@@ -58,6 +59,9 @@ extension WindowTabStripPanelController {
 
     func orderOutIfVisible(_ panel: NSPanelHud?) {
         guard panel?.isVisible == true else { return }
+        if let strip = (panel as? WindowTabStripPanel)?.hostingView.strip {
+            WindowTabCloseModel.shared.pointerLeftStrip(strip.id)
+        }
         panel?.orderOut(nil)
     }
 }
@@ -217,6 +221,7 @@ extension WindowTabStripPanelController {
         for id in Array(stripPanels.keys) {
             orderOutIfVisible(stripPanels[id])
             if !activeIds.contains(id) {
+                WindowTabCloseModel.shared.pointerLeftStrip(id)
                 stripPanels.removeValue(forKey: id)
             }
         }
@@ -254,6 +259,7 @@ extension WindowTabStripPanelController {
             panel.orderOut(nil)
         }
         for panel in stripPanels.values {
+            if let strip = panel.hostingView.strip { WindowTabCloseModel.shared.pointerLeftStrip(strip.id) }
             panel.orderOut(nil)
         }
         visualPanels.removeAll()

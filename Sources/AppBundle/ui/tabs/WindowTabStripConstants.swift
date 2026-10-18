@@ -60,6 +60,10 @@ func windowTabStripTabWidth(stripWidth: CGFloat, count: Int) -> CGFloat {
     )
 }
 
+func windowTabStripTabWidth(stripWidth: CGFloat, count: Int, heldWidth: CGFloat?) -> CGFloat {
+    heldWidth ?? windowTabStripTabWidth(stripWidth: stripWidth, count: count)
+}
+
 func windowTabStripAvailableTabsWidth(stripWidth: CGFloat) -> CGFloat {
     max(
         0,

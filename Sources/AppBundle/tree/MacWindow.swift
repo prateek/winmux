@@ -111,7 +111,9 @@ final class MacWindow: Window {
         ThumbnailCache.shared.closeWindow(self)
         WindowScreenshot.invalidateWindowList()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
+        let preservesFocus = WindowTabCloseModel.shared.preservesFocus(closingWindowId: windowId, focusedWindowId: focus.windowOrNil?.windowId)
         let parent = unbindFromParent().parent
+        guard !preservesFocus else { return }
         let deadWindowWorkspace = parent.nodeWorkspace
         let currentFocus = focus
         let previousFocus = prevFocus
@@ -162,17 +164,29 @@ final class MacWindow: Window {
     }
 
     @MainActor
+    override func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> Bool {
+        guard await windowCloseSession(tabStripSession, body: {
+            await self.macApp.pressCloseButton(self.windowId)
+        }) == .closed else { return false }
+        return await confirmWindowClose(
+            timeout: timeout,
+            isPresent: { try? await self.macApp.containsAxWindow(self.windowId) },
+            hasSheet: {
+                guard tabStripSession != nil else { return false }
+                return (try? await self.macApp.windowHasSheet(self.windowId)) == true
+            },
+            collect: {
+                await windowCloseSession(tabStripSession) {
+                    self.garbageCollect(skipClosedWindowsCache: true)
+                    if tabStripSession != nil { await updateWindowTabModel() }
+                }
+            },
+        )
+    }
+
+    @MainActor
     func requestCloseForProjectDeletion(timeout: TimeInterval = 1.5) async -> Bool {
-        guard await macApp.pressCloseButton(windowId) == .closed else { return false }
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if (try? await macApp.containsAxWindow(windowId)) == false {
-                garbageCollect(skipClosedWindowsCache: true)
-                return true
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        return false
+        await requestClose(timeout: timeout)
     }
 
     @MainActor

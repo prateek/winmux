@@ -131,6 +131,8 @@ open class Window: TreeNode, Hashable {
 
     @MainActor func closeAxWindow() async -> WindowCloseResult { die("Not implemented") }
 
+    @MainActor func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> Bool { die("Not implemented") }
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(windowId)
     }

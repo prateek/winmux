@@ -32,7 +32,12 @@ final class WindowTabStripPanel: NSPanelHud {
         let nextContent = WindowTabGroupChromeContent(strip: displayStrip)
         guard shouldUpdate(content: nextContent, strip: displayStrip) else { return }
         if currentContent != nextContent {
-            hostingView.rootView = AnyView(WindowTabStripView(strip: displayStrip))
+            hostingView.strip = displayStrip
+            hostingView.rootView = AnyView(WindowTabStripView(strip: displayStrip) { [weak hostingView] frames, width, viewport in
+                hostingView?.tabFrames = frames
+                hostingView?.tabWidth = width
+                hostingView?.tabViewport = viewport
+            })
             currentContent = nextContent
         }
         currentPanelFrame = displayStrip.frame

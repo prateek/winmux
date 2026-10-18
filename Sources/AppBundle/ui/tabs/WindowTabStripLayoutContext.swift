@@ -3,6 +3,7 @@ import AppKit
 struct WindowTabStripLayoutContext {
     let strip: WindowTabStripViewModel
     let width: CGFloat
+    var heldTabWidth: CGFloat? = nil
 
     var tabOrder: [UInt32] {
         strip.tabs.map(\.windowId)
@@ -13,7 +14,7 @@ struct WindowTabStripLayoutContext {
     }
 
     var tabWidth: CGFloat {
-        windowTabStripTabWidth(stripWidth: width, count: max(strip.tabs.count, 1))
+        windowTabStripTabWidth(stripWidth: width, count: max(strip.tabs.count, 1), heldWidth: heldTabWidth)
     }
 
     var effectiveTabWidth: CGFloat {

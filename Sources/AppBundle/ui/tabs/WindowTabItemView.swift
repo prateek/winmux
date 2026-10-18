@@ -15,6 +15,7 @@ struct WindowTabItemView: View {
                 .font(.system(size: 12, weight: tab.isActive ? .semibold : .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
+                .padding(.trailing, 22)
         }
         .foregroundStyle(tabForegroundStyle)
         .padding(.horizontal, 10)
@@ -31,7 +32,7 @@ struct WindowTabItemView: View {
         .contentShape(Rectangle())
     }
 
-    private var tabForegroundStyle: Color {
+    var tabForegroundStyle: Color {
         if tab.isActive { return Color.white.opacity(GlassToken.textPrimary) }
         if isDragSource { return Color.white.opacity(GlassToken.textSecondary) }
         return Color.white.opacity(isHovered ? GlassToken.textSecondary : GlassToken.textTertiary)
