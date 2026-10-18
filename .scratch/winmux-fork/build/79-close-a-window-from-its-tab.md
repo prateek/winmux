@@ -33,7 +33,7 @@ Nothing.
 - [x] Clicking a tab's button closes that window and no other.
 - [x] Three clicks without moving the pointer close three windows, in a guest.
 - [x] A window with an unsaved-changes sheet keeps its tab.
-- [ ] The pull request has a clip of the three closes.
+- [x] The pull request has a clip of the three closes.
 
 ## Built
 
