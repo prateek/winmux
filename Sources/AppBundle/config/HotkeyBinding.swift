@@ -77,7 +77,7 @@ extension HotKey {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
-                if hotkeysSuspended || !mayArrangeWindows { return }
+                if hotkeysSuspended { return }
                 noteTapBindingKeyDown()
                 guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
                 let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
@@ -239,7 +239,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 @MainActor private func applyHotkeyEnabledState() {
     let targetBindings = activeMode.flatMap { config.modes[$0] }?.bindings ?? [:]
     for (binding, key) in hotkeys {
-        key.isEnabled = !hotkeysSuspended && mayArrangeWindows && targetBindings.keys.contains(binding)
+        key.isEnabled = !hotkeysSuspended && targetBindings.keys.contains(binding)
         if key.isEnabled && key.registrationError != 0 {
             lensLog.error("Carbon registration failed for \(binding, privacy: .public): \(key.registrationError)")
         }
@@ -254,7 +254,7 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 }
 
 @MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {
-    guard !hotkeysSuspended, mayArrangeWindows, let mode = activeMode.flatMap({ config.modes[$0] }) else { return [] }
+    guard !hotkeysSuspended, let mode = activeMode.flatMap({ config.modes[$0] }) else { return [] }
     return Set(hotkeys.compactMap { name, key in
         guard mode.bindings[name] != nil, key.isEnabled, key.registrationError == 0 else { return nil }
         return SymbolicHotkeyChord(keyCode: UInt16(key.keyCombo.carbonKeyCode), modifiers: UInt64(key.keyCombo.modifiers.rawValue))

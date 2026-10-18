@@ -91,14 +91,36 @@ final class FirstRunTest: XCTestCase {
     }
 
     func testTheAccessibilityResetSkipsALaunchWhoseSetupIsPending() {
-        XCTAssertTrue(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: false))
-        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: true))
-        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: true, setupPending: false))
-        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: true, setupPending: true))
+        XCTAssertTrue(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: { false }))
+        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: { true }))
+        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: true, setupPending: { XCTFail("read the state file with Accessibility granted"); return false }))
+    }
+
+    func testTwoProbesInFlightCannotUndoASeenGrant() async {
+        var answers = [true, false]
+        let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: false) },
+                                 probeScreenRecording: { await Task.yield(); return answers.removeFirst() })
+        setup.waiting = true
+        setup.markScreenRecordingRequested()
+        async let first: Void = setup.refreshPermissions()
+        async let second: Void = setup.refreshPermissions()
+        _ = await (first, second)
+        XCTAssertEqual(setup.permissions.screenRecording, "granted-relaunch-needed")
+    }
+
+    func testAnEmptyXdgStateHomeMeansTheDefault() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        XCTAssertEqual(winMuxStateDirectory(environment: ["XDG_STATE_HOME": ""]), home.appending(path: ".local/state/winmux"))
+        XCTAssertEqual(winMuxStateDirectory(environment: [:]), home.appending(path: ".local/state/winmux"))
+        XCTAssertEqual(winMuxStateDirectory(environment: ["XDG_STATE_HOME": "/tmp/s"]), URL(filePath: "/tmp/s/winmux"))
     }
 
     func testTheDebugBuildKeepsItsOwnSetupState() {
-        XCTAssertEqual(firstRunStateUrl().lastPathComponent, isDebug ? "setup-debug.json" : "setup.json")
+        #if DEBUG
+            XCTAssertEqual(firstRunStateUrl().lastPathComponent, "setup-debug.json")
+        #else
+            XCTAssertEqual(firstRunStateUrl().lastPathComponent, "setup.json")
+        #endif
         XCTAssertEqual(firstRunStateUrl().deletingLastPathComponent(), workspaceSidebarStateUrl().deletingLastPathComponent())
     }
 

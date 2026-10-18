@@ -26,8 +26,8 @@ func firstRunStep(grants: PermissionGrants, state: FirstRunState, screenRecordin
 
 @MainActor var isRelaunchingForSetup = false
 
-func winMuxStateDirectory() -> URL {
-    let home = ProcessInfo.processInfo.environment["XDG_STATE_HOME"].flatMap { $0.isEmpty ? nil : URL(filePath: $0) }
+func winMuxStateDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+    let home = environment["XDG_STATE_HOME"].flatMap { $0.isEmpty ? nil : URL(filePath: $0) }
         ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/state")
     return home.appending(path: "winmux")
 }
@@ -39,8 +39,8 @@ func firstRunStateUrl() -> URL {
 
 /// The reset clears a stale grant left by an earlier signature. A pending setup may already have
 /// registered this one, which the reset would take out of the list.
-func shouldResetAccessibilityAtLaunch(trusted: Bool, setupPending: Bool) -> Bool {
-    !trusted && !setupPending
+func shouldResetAccessibilityAtLaunch(trusted: Bool, setupPending: () -> Bool) -> Bool {
+    !trusted && !setupPending()
 }
 
 func readFirstRunState(from url: URL = firstRunStateUrl()) -> FirstRunState {

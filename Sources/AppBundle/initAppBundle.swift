@@ -19,6 +19,9 @@ import Foundation
         isCli = false
         initServerArgs()
         var bootstrappedConfigUrl: URL? = nil
+        if isDebug {
+            await toggleReleaseServerIfDebug(.off)
+        }
         do {
             bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded(createStarter: false)
         } catch {
@@ -41,15 +44,11 @@ import Foundation
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
-        if !AXIsProcessTrusted(), shouldResetAccessibilityAtLaunch(trusted: false, setupPending: readFirstRunState().pending) {
+        if shouldResetAccessibilityAtLaunch(trusted: AXIsProcessTrusted(), setupPending: { readFirstRunState().pending }) {
             await resetAccessibilityGrant()
         }
         startUnixSocketServer()
         await FirstRunSetup.shared.run()
-        // A debug build in setup touches nothing, so the release build keeps the desk until Start.
-        if isDebug {
-            await toggleReleaseServerIfDebug(.off)
-        }
         await allowWindowArrangement()
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()

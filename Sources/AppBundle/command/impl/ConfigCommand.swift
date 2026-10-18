@@ -5,9 +5,8 @@ struct ConfigCommand: Command {
     let args: ConfigCmdArgs
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
-    func run(_ env: CmdEnv, _ io: CmdIo) async -> Bool {
-        if case .status = args.mode { await FirstRunSetup.shared.refreshPermissions() }
-        return run(env, io, permissions: { FirstRunSetup.shared.permissions })
+    func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+        run(env, io, permissions: { FirstRunSetup.shared.permissions })
     }
 
     @MainActor func run(_ env: CmdEnv, _ io: CmdIo, permissions: () -> SetupPermissions) -> Bool {

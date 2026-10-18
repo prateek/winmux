@@ -43,7 +43,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     func refreshPermissions() async {
         // A grant cannot be taken back without a relaunch, so once seen it stays.
         if waiting && screenRequested && !freshScreenGrant && !readGrants().screenRecording {
-            freshScreenGrant = await probeScreenRecording()
+            if await probeScreenRecording() { freshScreenGrant = true }
         }
         let value = grants
         if snapshot != value { snapshot = value }
