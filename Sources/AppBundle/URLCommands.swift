@@ -5,7 +5,8 @@ import Common
     guard let trigger = command as? TriggerBindingCommand else {
         return urlCommandRefusal(kind: command.info.kind, args: command.args)
     }
-    // A missing binding runs and reports itself.
+    // Checked here too so a refused binding is answered before the first-run checks and the session,
+    // like every other refusal. A missing binding runs and reports itself.
     return urlBindingRefusal(trigger.args.binding.val, trigger.bindingCommands ?? [])
 }
 
@@ -15,9 +16,9 @@ func urlBindingRefusal(_ binding: String, _ commands: [any Command]) -> String? 
     for inner in commands {
         let reason = inner is TriggerBindingCommand
             ? "its binding runs another binding"
-            : urlCommandRefusal(kind: inner.info.kind, args: inner.args).map { inner in
-                let parts = inner.components(separatedBy: " is refused in a URL: ")
-                return "its binding runs \(parts[0]) (\(parts.last ?? inner))"
+            : urlCommandRefusal(kind: inner.info.kind, args: inner.args).map { refusal in
+                let parts = refusal.components(separatedBy: " is refused in a URL: ")
+                return "its binding runs \(parts[0]) (\(parts.last ?? refusal))"
             }
         if let reason { return "trigger-binding \(binding) is refused in a URL: \(reason)" }
     }
@@ -112,7 +113,7 @@ final class URLAppleEventHandler: NSObject {
         if result.exitCode == 0 {
             urlLog.info("URL \(text, privacy: .public) finished with exit 0: \(result.stdout, privacy: .public)")
         } else {
-            urlLog.error("URL \(text, privacy: .public) refused or failed with exit \(result.exitCode). stderr: \(result.stderr, privacy: .public) stdout: \(result.stdout, privacy: .public)")
+            urlLog.error("URL \(text, privacy: .public) refused or failed with exit \(result.exitCode). stderr: \(result.stderr, privacy: .public)\(result.stdout.isEmpty ? "" : " stdout: \(result.stdout)", privacy: .public)")
         }
     }
 

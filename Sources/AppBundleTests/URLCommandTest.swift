@@ -207,6 +207,9 @@ final class URLCommandTest: XCTestCase {
             let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", chord]).cmdOrNil, chord)
             XCTAssertNotNil(urlCommandRefusal(command), chord)
         }
+        let exec = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", "alt-enter"]).cmdOrNil)
+        XCTAssertEqual(urlCommandRefusal(exec),
+                       "trigger-binding alt-enter is refused in a URL: its binding runs exec-and-forget (it runs a shell command)")
         for chord in ["alt-2", "alt-missing"] {
             let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", chord]).cmdOrNil, chord)
             XCTAssertNil(urlCommandRefusal(command), chord)
