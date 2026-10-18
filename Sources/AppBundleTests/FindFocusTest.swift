@@ -16,7 +16,7 @@ final class FindFocusTest: SerialClockTestCase {
 
     private func install(_ clock: TestClock<Duration> = TestClock(), show: @escaping (Rect) -> Void = { _ in }, fade: @escaping () -> Void = {}, hide: @escaping () -> Void = {}) -> FindFocusHighlight {
         FindFocusHighlight.shared.dismiss()
-        let owner = FindFocusHighlight(clock: clock, show: show, fade: fade, hide: hide)
+        let owner = FindFocusHighlight(clock: clock, show: show, fade: fade, hide: hide, monitorInput: { _ in {} })
         FindFocusHighlight.shared = owner
         TrayMenuModel.shared.isEnabled = true
         return owner
@@ -120,17 +120,17 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertEqual(shows, 0)
     }
 
-    func testDisabledSocketCommandSucceedsSilentlyWhileOtherCommandsStayRefused() async {
+    func testDisabledSocketCommandIsRefusedLikeEveryOtherCommand() async {
         var shows = 0
         _ = install(show: { _ in shows += 1 })
+        let target = window()
+        let applied = Rect(topLeftX: 1, topLeftY: 2, width: 3, height: 4)
+        target.lastAppliedLayoutPhysicalRect = applied
         TrayMenuModel.shared.isEnabled = false
         let marked = await executeExternalCommand(["find-focus"], stdin: "", windowId: nil, workspace: nil, traceOrigin: .internalNow())
-        XCTAssertEqual(marked.exitCode, 0)
-        XCTAssertEqual(marked.stdout, "")
-        XCTAssertEqual(marked.stderr, "")
-        let focus = await executeExternalCommand(["focus", "left"], stdin: "", windowId: nil, workspace: nil, traceOrigin: .internalNow())
-        XCTAssertEqual(focus.exitCode, 1)
-        XCTAssertTrue(focus.stderr.contains("server is disabled"))
+        XCTAssertEqual(marked.exitCode, 1)
+        XCTAssertTrue(marked.stderr.contains("server is disabled"))
+        XCTAssertEqual(target.lastAppliedLayoutPhysicalRect, applied, "a disabled WinMux runs no layout for find-focus")
         XCTAssertEqual(shows, 0)
     }
 
@@ -280,7 +280,8 @@ final class FindFocusTest: SerialClockTestCase {
     }
 
     func testFocusLayoutAndDisableKeepTheirBehaviorWithNoMark() async throws {
-        TrayMenuModel.shared.isEnabled = true
+        var hides = 0
+        _ = install(hide: { hides += 1 })
         let a = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
         let b = TestWindow.new(id: 2, parent: focus.workspace.rootTilingContainer)
         XCTAssertTrue(a.focusWindow())
@@ -293,6 +294,7 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertEqual(disabled.exitCode, 0)
         XCTAssertFalse(TrayMenuModel.shared.isEnabled)
         TrayMenuModel.shared.isEnabled = true
+        XCTAssertEqual(hides, 0, "with no mark, the end hooks hide nothing")
     }
 
     func testCommandParsesWithoutArgumentsAndIsAllowedInConfigAndURL() throws {
@@ -310,7 +312,7 @@ final class FindFocusTest: SerialClockTestCase {
         let screen = NSRect(x: -800, y: 100, width: 800, height: 600)
         let window = NSRect(x: -200, y: 200, width: 400, height: 300)
         let panel = FindFocusPanel()
-        panel.show(window: window, screen: screen)
+        panel.show(window: window, screen: screen, scale: 2)
         defer { panel.orderOut(nil) }
         XCTAssertEqual(panel.frame, screen)
         XCTAssertFalse(panel.canBecomeKey)
@@ -394,6 +396,98 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertFalse(owner.isShowing)
     }
 
+    func testRestartSentAsTheOldMarkExpiresStillDraws() async throws {
+        let clock = TestClock<Duration>()
+        var shows = 0
+        _ = install(clock, show: { _ in shows += 1 })
+        let target = window()
+        try await mark()
+        await clock.advance(by: .milliseconds(1199))
+        let gate = ReloadGate()
+        target.beforeAxRect = { await gate.hold() }
+        let request = Task { try await self.mark() }
+        await gate.entered.wait()
+        target.beforeAxRect = nil
+        await clock.advance(by: .milliseconds(1))
+        XCTAssertFalse(FindFocusHighlight.shared.isShowing)
+        gate.release()
+        let result = try await request.value
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(shows, 2)
+        XCTAssertTrue(FindFocusHighlight.shared.isShowing)
+        FindFocusHighlight.shared.dismiss()
+    }
+
+    func testAFailedAXReadFallsBackToTheCachedFrame() async throws {
+        var shown: [Rect] = []
+        _ = install(show: { shown.append($0) })
+        let target = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        XCTAssertTrue(target.focusWindow())
+        let actual = Rect(topLeftX: 20, topLeftY: 30, width: 500, height: 400)
+        target.recordAuthoritativeActualRect(actual)
+        target.testAxRectError = FindFocusTestError()
+        let result = try await mark()
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(shown.last, actual)
+    }
+
+    func testALayoutDuringTheReadDrawsWhereWinMuxPutTheWindow() async throws {
+        var shown: [Rect] = []
+        let owner = install(show: { shown.append($0) })
+        let target = window()
+        let moved = Rect(topLeftX: 700, topLeftY: 40, width: 300, height: 200)
+        target.beforeAxRect = { [weak target] in
+            target?.lastAppliedLayoutPhysicalRect = moved
+            target?.beforeAxRect = nil
+        }
+        try await mark()
+        XCTAssertEqual(shown.last, moved)
+        owner.refresh()
+        XCTAssertTrue(owner.isShowing, "the new layout is the mark's baseline")
+    }
+
+    func testAFloatingWindowTiledAgainEndsTheMark() async throws {
+        let owner = install()
+        let floating = window(3, floating: true)
+        try await mark()
+        XCTAssertNil(floating.lastAppliedLayoutPhysicalRect)
+        owner.refresh()
+        XCTAssertTrue(owner.isShowing)
+        floating.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 0, topLeftY: 0, width: 600, height: 400)
+        owner.refresh()
+        XCTAssertFalse(owner.isShowing)
+    }
+
+    func testTriggerBindingCommandEndsTheMarkBeforeItsCommandsRun() async throws {
+        var shows = 0, hides = 0
+        _ = install(show: { _ in shows += 1 }, hide: { hides += 1 })
+        _ = window()
+        config.modes["window"] = defaultConfig.modes["window"]
+        try await mark()
+        let result = try await parseCommand("trigger-binding --mode window c").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual([shows, hides], [2, 1])
+        XCTAssertTrue(FindFocusHighlight.shared.isShowing)
+    }
+
+    func testFocusResolvingToAnotherWindowDuringTheReadDrawsNothing() async throws {
+        var shows = 0
+        _ = install(show: { _ in shows += 1 })
+        let first = window(floating: true)
+        _ = window(2)
+        XCTAssertTrue(first.focusWindow())
+        let gate = ReloadGate()
+        first.beforeAxRect = { await gate.hold() }
+        let request = Task { try await self.mark() }
+        await gate.entered.wait()
+        _ = first.unbindFromParent()
+        XCTAssertNotEqual(focus.windowOrNil, first)
+        gate.release()
+        let result = try await request.value
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(shows, 0)
+    }
+
     func testRestartDuringFadeShowsAtFullOpacityAndCancelsTheOldHide() async throws {
         let clock = TestClock<Duration>()
         var events: [String] = []
@@ -410,3 +504,5 @@ final class FindFocusTest: SerialClockTestCase {
         try await clock.checkSuspension()
     }
 }
+
+private struct FindFocusTestError: Error {}

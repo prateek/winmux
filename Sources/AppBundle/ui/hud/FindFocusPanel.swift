@@ -37,19 +37,22 @@ final class FindFocusPanel: NSPanelHud {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    func show(window: CGRect, screen: CGRect) {
+    func show(window: CGRect, screen: CGRect, scale: CGFloat) {
         setFrame(screen, display: true)
         let paths = findFocusPaths(window: window, screen: screen)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        dim.contentsScale = scale
+        border.contentsScale = scale
         dim.path = paths.dim
         dim.fillColor = NSColor.black.withAlphaComponent(0.35).cgColor
         border.path = paths.border
         border.fillColor = NSColor.controlAccentColor.cgColor
         CATransaction.commit()
+        // Through the animator, so a restart during the fade replaces the fade instead of racing it.
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0
-            alphaValue = 1
+            animator().alphaValue = 1
         }
         orderFrontRegardless()
     }
@@ -65,18 +68,17 @@ final class FindFocusPanel: NSPanelHud {
 @MainActor
 final class FindFocusPanels {
     static let shared = FindFocusPanels()
-    private var panels: [ObjectIdentifier: FindFocusPanel] = [:]
+    private var panels: [CGDirectDisplayID: FindFocusPanel] = [:]
 
     func show(_ rect: Rect) {
-        let screens = NSScreen.screens
-        let ids = Set(screens.map(ObjectIdentifier.init))
+        let screens = NSScreen.screens.compactMap { screen in screen.displayId.map { ($0, screen) } }
+        let ids = Set(screens.map(\.0))
         for (id, panel) in panels where !ids.contains(id) { panel.orderOut(nil) }
         panels = panels.filter { ids.contains($0.key) }
-        for screen in screens {
-            let id = ObjectIdentifier(screen)
+        for (id, screen) in screens {
             let panel = panels[id] ?? FindFocusPanel()
             panels[id] = panel
-            panel.show(window: rect.toAppKitScreenRect, screen: screen.frame)
+            panel.show(window: rect.toAppKitScreenRect, screen: screen.frame, scale: screen.backingScaleFactor)
         }
     }
 

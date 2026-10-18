@@ -18,14 +18,18 @@ struct FindFocusCommand: Command {
         }
         let ticket = highlight.generation
         let cached = window.lastKnownActualRect
-        let rect = try await window.getAxRect() ?? window.lastKnownActualRect ?? cached ?? window.lastAppliedLayoutPhysicalRect
+        let appliedBefore = window.lastAppliedLayoutPhysicalRect
+        let live = (try? await window.getAxRect()) ?? nil
         guard ticket == highlight.generation, focus == target,
               TrayMenuModel.shared.isEnabled, !MissionControlState.shared.isOpen else { return true }
+        let applied = window.lastAppliedLayoutPhysicalRect
+        // A layout during the read moved the window after AX answered: draw where WinMux put it.
+        let rect = (applied != appliedBefore ? applied : nil) ?? live ?? window.lastKnownActualRect ?? cached ?? applied
         guard let rect else {
             highlight.dismiss()
             return io.err("find-focus: the focused window's frame is unavailable")
         }
-        highlight.show(window: window, rect: rect)
+        highlight.show(window: window, rect: rect, appliedRect: applied)
         return true
     }
 }

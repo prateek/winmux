@@ -25,7 +25,7 @@ final class FindFocusHighlight {
 
     init(clock: any Clock<Duration> = ContinuousClock(), show: @escaping (Rect) -> Void,
          fade: @escaping () -> Void, hide: @escaping () -> Void,
-         monitorInput: @escaping MonitorInput = { _ in {} }) {
+         monitorInput: @escaping MonitorInput) {
         self.clock = clock
         self.draw = show
         self.fade = fade
@@ -33,28 +33,35 @@ final class FindFocusHighlight {
         self.monitorInput = monitorInput
     }
 
-    func show(window: Window, rect: Rect) {
+    func show(window: Window, rect: Rect, appliedRect: Rect?) {
         generation += 1
         lifetime?.cancel()
         stopMonitoring?()
         self.window = window
-        appliedRect = window.lastAppliedLayoutPhysicalRect
+        self.appliedRect = appliedRect
         isShowing = true
         draw(rect)
         stopMonitoring = monitorInput { [weak self] in self?.receiveInput($0) }
         let ticket = generation
         lifetime = Task { [weak self, clock] in
             do { try await clock.sleep(for: .milliseconds(800)) } catch { return }
-            guard let self, self.generation == ticket, !Task.isCancelled else { return }
+            guard let self, self.generation == ticket else { return }
             self.fade()
             do { try await clock.sleep(for: .milliseconds(400)) } catch { return }
-            guard self.generation == ticket, !Task.isCancelled else { return }
-            self.dismiss()
+            guard self.generation == ticket else { return }
+            self.end()
         }
     }
 
+    /// Ends the mark and invalidates a `find-focus` still reading its frame, so a key pressed during
+    /// the read keeps the mark from coming back.
     func dismiss() {
         generation += 1
+        end()
+    }
+
+    /// The timed end leaves `generation` alone: a `find-focus` sent as the old mark expires still draws.
+    private func end() {
         lifetime?.cancel()
         lifetime = nil
         stopMonitoring?()
@@ -74,7 +81,7 @@ final class FindFocusHighlight {
 
     func refresh() {
         guard isShowing else { return }
-        if let appliedRect, window?.lastAppliedLayoutPhysicalRect != appliedRect { dismiss() }
+        if window?.lastAppliedLayoutPhysicalRect != appliedRect { dismiss() }
     }
 }
 
