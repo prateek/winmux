@@ -511,6 +511,8 @@ extension WindowTabStripView {
             item
         }
         .buttonStyle(.plain)
+        // A closed tab's button leaves; without this the focus ring jumps to the first tab.
+        .focusable(false)
         .shadow(
             color: draggingTabId == tab.windowId ? Color.black.opacity(0.18) : Color.clear,
             radius: draggingTabId == tab.windowId ? 7 : 0,

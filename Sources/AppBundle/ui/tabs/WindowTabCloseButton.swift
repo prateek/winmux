@@ -16,6 +16,7 @@ struct WindowTabCloseButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .focusable(false)
         .accessibilityLabel("Close \(title)")
         .onHover { isHovered = $0 }
         .padding(.trailing, windowTabCloseButtonTrailingInset)
