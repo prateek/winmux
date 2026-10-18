@@ -25,9 +25,10 @@ private func persistedFrozenWorldUrl() throws -> URL {
 }
 
 @MainActor
-func persistFrozenWorldForRestartIfPossible() {
+func persistFrozenWorldForRestartIfPossible(file: URL? = nil) {
+    guard mayArrangeWindows else { return }
     do {
-        let url = try persistedFrozenWorldUrl()
+        let url = try file ?? persistedFrozenWorldUrl()
         let world = snapshotCurrentFrozenWorld()
         guard !world.windowIds.isEmpty else {
             try? FileManager.default.removeItem(at: url)

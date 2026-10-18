@@ -18,6 +18,8 @@ Read the pull request's diff and its issue's **Done when** list. Cut the work in
 - A claim where something moves gets a demo.
 - A **Watch** that names a count gets it from a run of the query on the same desk, not from a guess: in the relay, the match counts the first pass wrote in `captures/index.md`.
 - Choose windows by their minimum width. Safari will not go narrower than 574 points, so at 1280 by 720 it cannot be the window that lands in a quarter-width Column; Ghostty can.
+- Notes will not go below 709 by 300 points at 1280 by 720, so a storyboard cannot place it smaller.
+- The debug build's menu bar item can draw a blank icon while its hit area still opens the menu. Find the item and its Quit from a screenshot, not from the icon.
 - A grid packs the standing desk's four windows into one row at 1280 by 720, so `j` and `k` have nowhere to go. A take that moves vertically needs a Lens with `sections = 'workspace` and `grid.sections-arrangement = 'rows`, which puts each workspace on a row of its own.
 - A list, grid or strip opens on the entry after the focused one, and an arrow or `h` `j` `k` `l` at an edge keeps the selection. Write a **Watch** from that starting entry, not from the focused window.
 - A strip cannot be typed into: a letter or `/` turns it into a list. A take of a strip showing a Search binds a chord in the desk's config to `lens <name> --presentation strip --search '<text>'` and holds it. Write that config as a literal file and reload; escaping its quotes through `vm ssh` has opened WinMux's Config Error window.

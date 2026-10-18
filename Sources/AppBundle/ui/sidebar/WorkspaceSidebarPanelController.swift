@@ -94,7 +94,12 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         workspaceSidebarDropTargets = visiblePanels.flatMap { $0.convertDropTargets(targets) }
     }
 
-    static func refreshAll() {
+    static func refreshAll(updatePanels: @MainActor () -> Void = refreshPanels) {
+        guard mayArrangeWindows else { return }
+        updatePanels()
+    }
+
+    private static func refreshPanels() {
         let activeMonitorScopeIds = Set(workspaceSidebarResolvedPanelMonitors().map { workspaceSidebarMonitorScopeId(for: $0) })
         for monitor in workspaceSidebarResolvedPanelMonitors() {
             let scopeId = workspaceSidebarMonitorScopeId(for: monitor)

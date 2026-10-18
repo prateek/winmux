@@ -2,6 +2,15 @@ import AppKit
 import Common
 import Foundation
 
+@MainActor public func prepareWinMuxProcess() {
+    switch CommandLine.arguments.dropFirst().first {
+        case "--permission-probe-screen-recording": Darwin.exit(CGPreflightScreenCaptureAccess() ? 0 : 1)
+        case "--permission-request-accessibility":
+            Darwin.exit(AXIsProcessTrustedWithOptions([axTrustedCheckOptionPrompt: true] as CFDictionary) ? 0 : 1)
+        default: break
+    }
+}
+
 @MainActor public func initAppBundle() {
     Task {
         defer { isRecordingStartupWindowFrames = false }
@@ -35,9 +44,12 @@ import Foundation
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
-        checkAccessibilityPermissions()
-        requestScreenRecordingPermissionsIfNeeded()
+        if shouldResetAccessibilityAtLaunch(trusted: AXIsProcessTrusted(), setupPending: readFirstRunState().pending) {
+            await resetAccessibilityGrant()
+        }
         startUnixSocketServer()
+        await FirstRunSetup.shared.run()
+        allowWindowArrangement()
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()
         Workspace.reconcileWorkspaceState() // init workspaces
@@ -59,6 +71,16 @@ import Foundation
                 ShortcutSettingsModel.shared.requestWindowOpen()
             }
         }
+    }
+}
+
+private func resetAccessibilityGrant() async {
+    await withCheckedContinuation { continuation in
+        let reset = Process()
+        reset.executableURL = URL(filePath: "/usr/bin/tccutil")
+        reset.arguments = ["reset", "Accessibility", winMuxAppId]
+        reset.terminationHandler = { _ in continuation.resume() }
+        do { try reset.run() } catch { continuation.resume() }
     }
 }
 

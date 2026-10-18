@@ -296,4 +296,19 @@ final class SymbolicHotkeyBindingStateTest: XCTestCase {
         try await activateMode("plain"); XCTAssertTrue(listeningHotkeyChords().isEmpty)
         try await activateMode(nil); XCTAssertTrue(listeningHotkeyChords().isEmpty)
     }
+
+    func testSetupRegistersNoChordUntilWindowArrangementIsAllowed() async throws {
+        setUpWorkspacesForTests()
+        let value = try JSONDecoder().decode(JSONValue.self, from: Data("{\"mode\":{\"main\":{\"binding\":{\"cmd-tab\":\"lens recent\"}}}}".utf8))
+        let parsed = parseConfig(value)
+        XCTAssertTrue(parsed.errors.isEmpty, "\(parsed.errors)")
+        config = parsed.config
+        mayArrangeWindows = false
+        resetHotKeys()
+        defer { resetHotKeys(); mayArrangeWindows = true }
+        try await activateMode("main")
+        XCTAssertTrue(listeningHotkeyChords().isEmpty)
+        allowWindowArrangement()
+        XCTAssertEqual(listeningHotkeyChords(), [SymbolicHotkeyChord(keyCode: 48, modifiers: 0x100000)])
+    }
 }

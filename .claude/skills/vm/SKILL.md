@@ -48,6 +48,135 @@ Done when `~/winmux/.build/debug/WinMuxApp` and `~/winmux/.build/debug/winmux` e
 
 Done when the takes are in `~/takes` in the guest.
 
+## First-run setup: an independent bundle with no grants
+
+For an assigned relay guest, keep its disk and leave it running when finished. Do not
+resize, reboot, replace the image, or grant permissions to a recorder. Set
+`TART_HOME` in each host shell before using `vm`.
+
+After `vm sync` and `vm build`, push the props and proof tools from the host:
+
+```sh
+$SKILL/vm push <assigned-guest> .claude/skills/demo/desk desk
+$SKILL/vm push <assigned-guest> .scratch/winmux-fork/proofs/first-run first-run
+```
+
+Run the following through `vm ssh` (all paths below are guest paths). Clear a
+previous pending take before staging. The desk script leaves its SSH-launched
+manager running: stop it and allow quit restoration to finish before opening
+the untrusted bundle, so that manager cannot move the desk during setup.
+
+```sh
+pkill -x WinMuxApp || true
+sleep 3
+rm -f "$HOME/demo/setup-state/winmux/setup-debug.json"
+zsh "$HOME/desk/stage-desk.sh"
+pkill -x WinMuxApp || true
+sleep 3
+bash "$HOME/winmux/.claude/skills/vm/setup-bundle.sh"
+app="$HOME/demo/WinMux Setup.app"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+tccutil reset Accessibility com.zimengxiong.winmux.debug
+tccutil reset ScreenCapture com.zimengxiong.winmux.debug
+mkdir -p "$HOME/demo/setup-config/winmux" "$HOME/demo/setup-state"
+cp "$HOME/desk/winmux.ncl" "$HOME/demo/setup-config/winmux/winmux.ncl"
+mkdir -p "$HOME/takes/first-run"
+swiftc "$HOME/first-run/frames.swift" -o "$HOME/demo/frames"
+swiftc "$HOME/first-run/ui.swift" -o "$HOME/demo/ui"
+"$HOME/demo/frames" > "$HOME/takes/first-run/before.frames.json"
+```
+
+Start the recorder before opening the bundle. Run this as a background host
+tool call and drive the UI through other `vm ssh` calls while it records:
+
+```sh
+app="$HOME/demo/WinMux Setup.app"
+screencapture -x -v -V 300 "$HOME/takes/first-run/setup.mov" &
+recorder=$!
+launchctl setenv XDG_CONFIG_HOME "$HOME/demo/setup-config"
+launchctl setenv XDG_STATE_HOME "$HOME/demo/setup-state"
+launchctl setenv WINMUX_NICKEL_HELPER "$HOME/winmux/nickel-helper/target/release/winmux-nickel"
+open "$app"
+wait "$recorder"
+```
+
+`launchctl setenv`, not `open --env`: macOS's Quit & Reopen starts the new
+process with launchd's environment, and only `launchctl setenv` reaches it.
+Undo it when the takes are done, with `launchctl unsetenv` for each of the
+three, so a later `open` in the guest gets the default directories.
+
+Stage the standing desk first with `desk/stage-desk.sh`. The wrapper copies the
+debug executable and Sparkle framework, declares the debug bundle identifier and
+ad-hoc signs the bundle. LaunchServices gives it its own responsible-process
+identity; running the executable over ssh inherits the image's grants instead.
+Never change the host environment for this purpose.
+
+Film the welcome window, each Settings button and its correct pane. Answer the
+native Accessibility alert's **Open System Settings** button too; an alert can
+sit behind Settings. Verify the pane heading is **Accessibility**, then toggle
+WinMux's entry and answer the native password sheet with the guest's local
+admin password (`admin` in the recipe). Close Settings and show the live state.
+Repeat for Screen Recording, verifying **Screen & System Audio Recording** and
+the disabled WinMux entry before clicking its toggle. Both buttons register the
+bundle natively; the final cold-bundle run needed no TCC database fixture.
+Choosing **Later** on macOS's
+Quit & Reopen sheet lets the film show **Granted · relaunch to finish** and
+WinMux's own **Relaunch WinMux** button. That button preserves the environment
+and returns at **Start WinMux**. Also test macOS's Quit & Reopen: leave Settings
+running until the replacement process appears. Wait at least 20 seconds before
+reading `config status`; verify the original config path and `waiting-for-go`.
+Do not fill a failed reopen with `open`. Only after proving the new process is
+running may `open -a` bring its existing setup window forward. Close Settings
+before Start so it does not become part of the tiled desk.
+
+The pending marker and decline live only in `setup-debug.json` (the debug build's name for `setup.json`), which the reopened
+process reads from the `launchctl setenv` state directory. Deleting that file
+starts a second take from scratch.
+Film **Continue without Screen Recording** as a separate supported path: it
+leads to the same go step and remembers the choice on later launches.
+
+The first-run proof tools under `.scratch/winmux-fork/proofs/first-run/` read the
+four staged windows with `CGWindowListCopyWindowInfo`, independently of WinMux.
+Compile `frames.swift` and `ui.swift` in the guest. Sample frames before launch,
+after at least 20 seconds at each setup step, and after Start. Do not poll
+read-only WinMux commands during startup discovery; wait, then read once.
+Save `config status` and a refused command at each step. `socket-routing.py`
+also checks server-side help, parse failures and refused subscriptions.
+
+```sh
+swiftc "$HOME/winmux/.scratch/winmux-fork/proofs/first-run/frames.swift" -o "$HOME/demo/frames"
+swiftc "$HOME/winmux/.scratch/winmux-fork/proofs/first-run/ui.swift" -o "$HOME/demo/ui"
+mkdir -p "$HOME/takes/first-run"
+"$HOME/demo/frames" > "$HOME/takes/first-run/before.frames.json"
+screencapture -x "$HOME/takes/first-run/before.png"
+```
+
+Push the proof directory with `vm push <assigned-guest>
+.scratch/winmux-fork/proofs/first-run first-run` before running its shell tools.
+Use `screencapture -x -v -V <seconds> <movie>` to record, keep the recorder's PID
+and wait for it to finish before pulling the directory. Read a frame from the
+movie as well as a still screenshot to verify it actually captured the flow.
+
+Old native permission alerts can outlive a quit during repeated takes. Inspect
+and dismiss WinMux's own stale alerts before resetting; each can open a
+different pane, so verify the heading again before touching a toggle. Quit can
+end the app before AX replies: verify process disappearance even if AXPress
+reports `cannotComplete`. `seed-screen-denial.sh` is retained only as a historical
+diagnostic that writes a denial; it is not part of the verified filming flow.
+
+WinMux's own Accessibility, Screen Recording and password prompts are the
+subject of this flow. A private-window-picker bypass prompt for the recorder
+is an image defect: do not grant it; capture it and stop that recording. The
+same prompt for WinMux after its first picture must also remain ungranted;
+capture it and continue checking tiling without pictures. Dismiss unrelated
+screens and name them in the report; do not click the wallpaper.
+
+For another take, quit WinMux first, reset both permissions with the two
+`tccutil` commands above, and remove only
+`$HOME/demo/setup-state/winmux/setup-debug.json`. Quit the desk apps and Settings at
+the end, repeat those resets, copy out the captures, and report `tart list`.
+Never delete an assigned relay guest.
+
 ## 4. Take the results out and delete the guest
 
 ```sh

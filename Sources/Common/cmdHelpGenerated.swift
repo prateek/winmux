@@ -1,5 +1,4 @@
-// FILE IS GENERATED FROM docs/winmux-*.adoc files
-// TO REGENERATE THE FILE RUN generate.sh
+// CLI help is maintained here; this fork has no adoc generator.
 
 let balance_sizes_help_generated = """
     USAGE: balance-sizes [-h|--help] [--workspace <workspace>]
@@ -21,6 +20,10 @@ let config_help_generated = """
        OR: config [-h|--help] check [<file>]
        OR: config [-h|--help] convert [<file>]
        OR: config [-h|--help] schema [--json]
+
+    status reports the config helper and live permissions. The permissions object contains
+    accessibility (granted/missing), screen-recording (granted/missing/granted-relaunch-needed),
+    and setup (done/waiting-for-permissions/waiting-for-go).
     """
 let debug_windows_help_generated = """
     USAGE: debug-windows [-h|--help] [--window-id <window-id> [--filter-context]]

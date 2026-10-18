@@ -22,7 +22,7 @@ private struct AppServerTerminationHandler: TerminationHandler {
             systemSymbolicHotkeys.restoreAndShutDown()
             persistFrozenWorldForRestartIfPossible()
             await restoreWindowsOnQuit()
-            await toggleReleaseServerIfDebug(.on)
+            if await !isRelaunchingForSetup { await toggleReleaseServerIfDebug(.on) }
         }
     }
 }
@@ -51,12 +51,6 @@ private func restoreWindowsOnQuit() async {
     })
     let elapsed = start.duration(to: .now)
     quitFramesLog.info("Quit frames finished duration=\(String(describing: elapsed), privacy: .public) windows=\(plans.count)")
-}
-
-@MainActor
-func terminateApp() -> Never {
-    NSApplication.shared.terminate(nil)
-    die("Unreachable code")
 }
 
 extension String {
