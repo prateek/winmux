@@ -119,6 +119,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On a Mac account that has never granted WinMux anything (or after `tccutil reset Accessibility com.zimengxiong.winmux` and `tccutil reset ScreenCapture com.zimengxiong.winmux`, with WinMux quit), install the release from the cask, follow the caveats past Gatekeeper, and open it. Pass: the WinMux Setup window appears; each button adds WinMux to its list in System Settings and opens that pane; after both toggles, the window offers a relaunch or macOS offers Quit & Reopen, and either one comes back at "Ready to arrange your windows?"; no window moves until **Start WinMux**, and then they tile. Say here which step needed anything the window did not tell you.
 - [ ] With two displays, the setup window and the first tile after Start. Pass: the setup window is on the main display, and windows on both displays stay put until Start.
 
+**Mission Control and Exposé with WinMux running**
+- [ ] On the installed build, with a tab group and Columns on the focused workspace and the sidebar collapsed, swipe up with three or four fingers on the trackpad. Pass: Mission Control shows only app windows, with no tab bar, tab-group frame, Column divider or sidebar among or over the thumbnails. Swipe down, switch workspace with the sidebar, and swipe up again: still none. Then swipe down with the same fingers over a terminal for App Exposé: its windows show and nothing of WinMux's does. Close each view by swiping back, by Escape and by clicking a thumbnail, and check the tab bars, dividers and sidebar are back where they were. Say here, with a screenshot, if any WinMux panel shows.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

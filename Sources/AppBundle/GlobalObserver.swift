@@ -17,8 +17,10 @@ enum GlobalObserver {
         Task { @MainActor in
             if notifName == NSWorkspace.didWakeNotification.rawValue || notifName == NSWorkspace.screensDidWakeNotification.rawValue {
                 reconcileSystemSymbolicHotkeys(repair: .wake)
+                MissionControlState.shared.systemDidWakeOrUnlock()
             } else if notifName == "com.apple.screenIsUnlocked" {
                 reconcileSystemSymbolicHotkeys(repair: .unlock)
+                MissionControlState.shared.systemDidWakeOrUnlock()
             }
             if !TrayMenuModel.shared.isEnabled { return }
             if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {

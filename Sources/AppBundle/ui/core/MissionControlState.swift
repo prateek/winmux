@@ -19,9 +19,15 @@ final class MissionControlState {
         }
     }
 
+    /// Wake and unlock close any overview, and the Dock may not send its exit for one it closed that way.
+    func systemDidWakeOrUnlock() {
+        setOpen(false)
+    }
+
     private func setOpen(_ value: Bool) {
         guard isOpen != value else { return }
         isOpen = value
+        if value { WorkspaceSidebarPanel.cancelAllInlineTextEditing() }
         WindowTabStripPanelController.shared.refresh()
         ColumnDividerPanelController.shared.refresh()
         FocusedEmptyColumnPanel.shared.refresh()
@@ -41,9 +47,12 @@ final class MissionControlState {
 
     func startObserving() {
         guard runningApplicationsObservation == nil else { return }
-        runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications, options: [.initial, .new]) { workspace, _ in
-            let dock = workspace.runningApplications.first { $0.bundleIdentifier == "com.apple.dock" }
-            Task { @MainActor in self.dockProcessChanged(to: dock) }
+        runningApplicationsObservation = NSWorkspace.shared.observe(\.runningApplications, options: [.initial, .new]) { _, _ in
+            // Read the list on the main actor, so callbacks that arrive out of order still act on the current Dock.
+            Task { @MainActor in
+                let dock = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.apple.dock" }
+                self.dockProcessChanged(to: dock)
+            }
         }
     }
 
@@ -58,12 +67,13 @@ final class MissionControlState {
             let ready = app.isFinishedLaunching
             Task { @MainActor in
                 guard self.dockPid == pid, ready, self.observer == nil else { return }
-                self.attach(to: pid)
+                self.attach(to: pid, attemptsLeft: 10)
             }
         }
     }
 
-    private func attach(to pid: pid_t) {
+    /// A Dock that has just finished launching can still refuse registration, so a refusal is retried.
+    private func attach(to pid: pid_t, attemptsLeft: Int) {
         guard let observer = AXObserver.new(pid, { observer, _, notification, _ in
             MainActor.assumeIsolated {
                 let state = MissionControlState.shared
@@ -73,10 +83,17 @@ final class MissionControlState {
         }) else { return }
         let application = AXUIElementCreateApplication(pid)
         for name in ["AXExposeShowAllWindows", "AXExposeShowFrontWindows", "AXExposeShowDesktop", "AXExposeExit"] {
-            guard AXObserverAddNotification(observer, application, name as CFString, nil) == .success else { return }
+            guard AXObserverAddNotification(observer, application, name as CFString, nil) == .success else {
+                guard attemptsLeft > 1 else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    guard self.dockPid == pid, self.observer == nil else { return }
+                    self.attach(to: pid, attemptsLeft: attemptsLeft - 1)
+                }
+                return
+            }
         }
         self.observer = observer
-        dockPid = pid
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
     }
 }

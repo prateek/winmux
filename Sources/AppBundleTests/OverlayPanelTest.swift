@@ -17,13 +17,18 @@ final class OverlayPanelTest: XCTestCase {
         checkOverlay(NSPanelHud())
     }
 
-    func testNormalLevelChromeKeepsItsLevelAndTransientPolicy() {
+    func testSidebarAndLensKeepThePolicyThroughTheirOwnSetup() {
+        checkOverlay(WorkspaceSidebarPanel.shared)
+        checkOverlay(SwitcherPalettePanel(emit: { _ in }))
+    }
+
+    func testNormalLevelChromeKeepsItsLevelAndTransientPolicy() throws {
         let owner = NSObject()
         let id = ObjectIdentifier(owner)
         focus.workspace.columns = ColumnState(count: 2)
         TrayMenuModel.shared.isEnabled = true
         ColumnDividerPanelController.shared.refresh()
-        let divider = NSApp.windows.first { $0.isVisible && $0.level == .normal && $0.frame.width == 6 } as! NSPanel
+        let divider = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.level == .normal && $0.frame.width == 6 } as? NSPanel)
         let panels: [NSPanel] = [WindowTabStripPanel(id: id), WindowTabGroupVisualPanel(id: id), FocusedEmptyColumnPanel.shared, divider]
         for panel in panels {
             checkOverlay(panel)

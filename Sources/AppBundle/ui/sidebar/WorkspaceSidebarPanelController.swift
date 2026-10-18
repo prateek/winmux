@@ -77,6 +77,11 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         installMenuTrackingObservers()
     }
 
+    static func cancelAllInlineTextEditing() {
+        shared.cancelInlineTextEditing()
+        for panel in panelsByMonitorScopeId.values where panel !== shared { panel.cancelInlineTextEditing() }
+    }
+
     static var visiblePanels: [WorkspaceSidebarPanel] {
         panelsByMonitorScopeId.values.filter(\.isVisible)
     }

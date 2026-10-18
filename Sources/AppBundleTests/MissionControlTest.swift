@@ -41,6 +41,29 @@ final class MissionControlTest: XCTestCase {
         XCTAssertFalse(state.isOpen)
     }
 
+    func testWakeOrUnlockClosesAnOverviewTheDockNeverReportedClosed() {
+        let state = MissionControlState.shared
+        state.receive("AXExposeShowDesktop")
+        XCTAssertTrue(state.isOpen)
+        state.systemDidWakeOrUnlock()
+        XCTAssertFalse(state.isOpen)
+    }
+
+    func testOpeningAnOverviewEndsSidebarInlineEditing() {
+        let panel = WorkspaceSidebarPanel.shared
+        var cancelled = 0
+        panel.inlineTextEditingActive = true
+        panel.inlineTextEditingCancel = { cancelled += 1 }
+        defer {
+            panel.inlineTextEditingActive = false
+            panel.inlineTextEditingCancel = nil
+        }
+        MissionControlState.shared.receive("AXExposeShowAllWindows")
+        XCTAssertEqual(cancelled, 1)
+        MissionControlState.shared.receive("AXExposeExit")
+        XCTAssertEqual(cancelled, 1)
+    }
+
     func testTabRefreshStaysHiddenAndCloseRestoresSameFramesWithoutChangingMouseMode() {
         let owner = NSObject()
         let id = ObjectIdentifier(owner)
