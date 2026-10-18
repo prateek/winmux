@@ -67,7 +67,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         animationBehavior = .none
         backgroundColor = .clear
         applyWinMuxLayer(.overlay)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hostingView.onFirstLayout = { [weak self] in
             self?.lifecycle.trace?.advance("first layout")
         }
@@ -80,7 +79,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         gridLandingPanel.hasShadow = false
         gridLandingPanel.ignoresMouseEvents = true
         gridLandingPanel.applyWinMuxLayer(.overlay)
-        gridLandingPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         hostingView.wantsLayer = true
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero

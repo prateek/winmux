@@ -66,7 +66,11 @@ extension Workspace {
                     let x = rect.minX + columns.widths.prefix(slot).reduce(0, +) * rect.width
                     panel.setFrame(Rect(topLeftX: x - 3, topLeftY: rect.minY, width: 6, height: rect.height).toAppKitScreenRect, display: true)
                     panel.contentView?.frame = CGRect(origin: .zero, size: panel.frame.size)
-                    panel.orderFrontRegardless()
+                    if MissionControlState.shared.isOpen {
+                        panel.orderOut(nil)
+                    } else {
+                        panel.orderFrontRegardless()
+                    }
                 }
             }
         }

@@ -67,7 +67,6 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         isFloatingPanel = true
         isExcludedFromWindowsMenu = true
         animationBehavior = .none
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         applyWinMuxLayer(.workspaceSidebar)
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero
@@ -76,6 +75,11 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         standardWindowButton(.miniaturizeButton)?.isHidden = true
         standardWindowButton(.zoomButton)?.isHidden = true
         installMenuTrackingObservers()
+    }
+
+    static func cancelAllInlineTextEditing() {
+        shared.cancelInlineTextEditing()
+        for panel in panelsByMonitorScopeId.values where panel !== shared { panel.cancelInlineTextEditing() }
     }
 
     static var visiblePanels: [WorkspaceSidebarPanel] {

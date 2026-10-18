@@ -995,6 +995,10 @@ extension WorkspaceSidebarPanel {
             viewModel.workspaceSidebarVisibleWidth = layout.collapsedWidth
         }
         updateMousePassthrough()
+        if MissionControlState.shared.isOpen {
+            orderOut(nil)
+            return
+        }
         orderFrontRegardless()
         // Panel geometry may have just changed under a stationary cursor; hover is otherwise
         // event-driven from the pointer monitors.
