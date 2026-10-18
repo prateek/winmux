@@ -70,9 +70,12 @@ final class DefaultConfigTest: XCTestCase {
              "alt-shift-t", "alt-shift-m", "alt-slash", "alt-semicolon", "alt-shift-o"]
             + (1...9).map { "ctrl-\($0)" }
             + (1...9).map { "alt-shift-\($0)" }
-            + (0...9).map { "alt-\($0)" }
+            + (1...9).map { "alt-\($0)" }
         )
         XCTAssertEqual(Set(defaultConfig.modes["main"]!.bindings.keys), expected)
+        for (chord, command) in ["alt-9": "focus --tab-index last", "alt-8": "focus --tab-index 8"] {
+            XCTAssertTrue(defaultConfig.modes["main"]!.bindings[chord]?.commands.singleOrNil()?.equals(parseCommand(command).cmdOrDie) == true)
+        }
     }
 
     func testSixLensesTriggersAndLeaderEscape() async throws {

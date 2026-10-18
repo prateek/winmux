@@ -62,7 +62,7 @@ Leaving the import out supplies no default Lenses or bindings. `winmux config co
 
 `config-version` is optional, accepted and ignored for compatibility with earlier Nickel conversions, like `contract-version`. It is absent from shipped defaults and new conversions; both version keys are removed before the Swift settings parser runs. Nickel uses an explicit `persistent-workspaces` list, defaulting to empty. For TOML version 1 or lower, or an absent version, conversion preserves the old inferred persistence when the file sets no list: it writes workspace targets from every mode's `workspace` and `move-node-to-workspace` bindings, followed by force-assignment keys, in first-seen order, and prints a warning. A quoted name is one target. When nothing is inferred it writes no list and prints no warning. Relative `next` and `prev` targets declare no workspace. Version 2 and an explicit list suppress inference.
 
-## The 41 default shortcuts
+## The 40 default shortcuts
 
 | Binding in `main` | Command |
 | --- | --- |
@@ -70,7 +70,7 @@ Leaving the import out supplies no default Lenses or bindings. `winmux config co
 | `alt-shift-h/j/k/l` | `move left/down/up/right` |
 | `ctrl-1` through `ctrl-9` | `workspace 1` through `workspace 9` |
 | `alt-shift-1` through `alt-shift-9` | `move-node-to-workspace 1` through `9` |
-| `alt-1` through `alt-9`, `alt-0` | `focus --tab-index 1` through `10` |
+| `alt-1` through `alt-8`, and `alt-9` | `focus --tab-index 1` through `8`, and `focus --tab-index last` |
 | `alt-shift-t` | `layout floating tiling` |
 | `alt-shift-m` | `fullscreen` |
 | `alt-slash` | `lens search` |
@@ -147,6 +147,8 @@ mode.main.binding.cmd-backtick = "lens app-windows",
 Cmd-Tab and Cmd-Shift-Tab then open WinMux's recent-window strip instead of Apple's app switcher; Cmd-backtick opens the same-app grid, which commits on Command release. WinMux disables the matching enabled system Cmd-Tab pair while the mode listens to those chords. Native Cmd-backtick remains enabled; WinMux handles its registered chord. Removing the bindings, leaving their mode, disabling WinMux or quitting restores the shortcuts WinMux held. Signal exits restore them too. A hard kill cannot restore them: relaunch WinMux, then quit normally to repair and restore the saved system shortcuts. Wake and unlock repair remains in place for configs that opt in.
 
 ## For people upgrading
+
+`alt-0` is no longer a default and `alt-9` now focuses the last tab; a config that wants the old tenth-tab chord merges `mode.main.binding.alt-0 = "focus --tab-index 10"`, and a config that carries its own `alt-9` line, as a file converted from upstream's default TOML does, keeps focusing the ninth tab until that line changes to `focus --tab-index last`.
 
 The shipped binding mode is now `window`; there is no default `lens` binding mode or alias. A config merging `mode.lens.binding.x = "focus left"` over defaults still loads: it creates a user-defined `lens` binding mode that the default Trigger never enters. Reading `defaults.mode.lens.binding` fails with a missing-field error; the helper prints a rename hint above Nickel's diagnostic. Change that read to `defaults.mode.window.binding`.
 

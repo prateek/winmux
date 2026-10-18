@@ -8,9 +8,12 @@ struct FocusCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         // todo bug: floating windows break mru
-        let floatingWindows = args.floatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
+        // A floating window bound into the tree could land inside a tab group and become a tab.
+        // Tab targets skip it; directions and dfs still bind it there (prateek/winmux#242).
+        let seesFloatingAsTiling = args.floatingAsTiling && !args.target.addressesTabs
+        let floatingWindows = seesFloatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
         defer {
-            if args.floatingAsTiling {
+            if seesFloatingAsTiling {
                 restoreFloatingWindows(floatingWindows: floatingWindows, workspace: target.workspace)
             }
         }
@@ -39,7 +42,11 @@ struct FocusCommand: Command {
                 }
             case .tabIndex(let tabIndex):
                 guard let windowToFocus = tabWindowToFocus(target, tabIndex) else {
-                    return io.err("Can't find tab with index \(tabIndex) in the current tab group")
+                    let name = switch tabIndex {
+                        case .position(let index): "tab with index \(index)"
+                        case .last: "the last tab"
+                    }
+                    return io.err("Can't find \(name) in the current tab group")
                 }
                 return windowToFocus.focusWindow()
             case .dfsRelative(let nextPrev):
@@ -157,15 +164,28 @@ struct FocusCommand: Command {
 }
 
 @MainActor
-private func tabWindowToFocus(_ target: LiveFocus, _ oneBasedTabIndex: UInt32) -> Window? {
-    guard let group = currentTabGroupData(target)?.group else { return nil }
-    return tabWindowToFocus(group, Int(oneBasedTabIndex) - 1)
+private func tabWindowToFocus(_ target: LiveFocus, _ tabIndex: FocusCmdArgs.TabIndex) -> Window? {
+    guard let focusedWindow = target.windowOrNil,
+          let group = focusedWindow.nearestWindowTabGroup ?? (tabIndex == .last ? focusedWindow.nearestTabLayout : nil)
+    else { return nil }
+    let zeroBasedIndex = switch tabIndex {
+        case .position(let index): Int(index) - 1
+        case .last: group.children.count - 1
+    }
+    return tabWindowToFocus(group, zeroBasedIndex)
 }
 
 @MainActor
 private func tabWindowToFocus(_ group: TilingContainer, _ zeroBasedIndex: Int) -> Window? {
     guard let targetTab = group.children.getOrNil(atIndex: zeroBasedIndex) else { return nil }
     return targetTab.mostRecentWorkspaceFocusableWindowRecursive ?? targetTab.tabRepresentativeWindow
+}
+
+/// A tab layout holding one window is no tab group, but `last` still names its one tab.
+@MainActor private extension Window {
+    var nearestTabLayout: TilingContainer? {
+        parentsWithSelf.lazy.compactMap { $0 as? TilingContainer }.first { $0.layout == .tabGroup }
+    }
 }
 
 @MainActor

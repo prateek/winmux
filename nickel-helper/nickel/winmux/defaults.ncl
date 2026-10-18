@@ -35,7 +35,6 @@
   mode = {
     main = {
       binding = {
-        alt-0 | default = "focus --tab-index 10",
         alt-1 | default = "focus --tab-index 1",
         alt-2 | default = "focus --tab-index 2",
         alt-3 | default = "focus --tab-index 3",
@@ -44,7 +43,7 @@
         alt-6 | default = "focus --tab-index 6",
         alt-7 | default = "focus --tab-index 7",
         alt-8 | default = "focus --tab-index 8",
-        alt-9 | default = "focus --tab-index 9",
+        alt-9 | default = "focus --tab-index last",
         alt-h | default = "focus left",
         alt-j | default = "focus down",
         alt-k | default = "focus up",

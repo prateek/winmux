@@ -26,7 +26,7 @@ public struct FocusCmdArgs: CmdArgs {
     public var rawBoundariesAction: WhenBoundariesCrossed? = nil
     fileprivate var wrapAroundAlias: Bool = false
     public var dfsIndex: UInt32? = nil
-    public var tabIndex: UInt32? = nil
+    public var tabIndex: TabIndex? = nil
     public var targetArg: FocusTargetArg? = nil
     public var floatingAsTiling: Bool = true
 
@@ -45,9 +45,14 @@ public struct FocusCmdArgs: CmdArgs {
         self.dfsIndex = dfsIndex
     }
 
-    public init(rawArgs: StrArrSlice, tabIndex: UInt32) {
+    public init(rawArgs: StrArrSlice, tabIndex: TabIndex) {
         self.commonState = .init(rawArgs)
         self.tabIndex = tabIndex
+    }
+
+    public enum TabIndex: Equatable, Sendable {
+        case position(UInt32)
+        case last
     }
 
     public enum Boundaries: String, CaseIterable, Equatable, Sendable {
@@ -66,7 +71,7 @@ public enum FocusCmdTarget {
     case direction(CardinalDirection)
     case windowId(UInt32)
     case dfsIndex(UInt32)
-    case tabIndex(UInt32)
+    case tabIndex(FocusCmdArgs.TabIndex)
     case dfsRelative(DfsNextPrev)
     case tabRelative(TabNextPrev)
 
@@ -74,6 +79,13 @@ public enum FocusCmdTarget {
         switch self {
             case .dfsRelative, .tabRelative: true
             default: false
+        }
+    }
+
+    public var addressesTabs: Bool {
+        switch self {
+            case .tabIndex, .tabRelative: true
+            case .direction, .windowId, .dfsIndex, .dfsRelative: false
         }
     }
 }
@@ -149,10 +161,10 @@ private func parseFocusTargetArg(i: PosArgParserInput) -> ParsedCliArgs<FocusTar
     .init(parseEnum(i.arg, FocusTargetArg.self), advanceBy: 1)
 }
 
-private func parseTabIndexSubArg(i: SubArgParserInput) -> ParsedCliArgs<UInt32> {
-    parseUInt32SubArg(i: i).flatMap { rawIndex in
-        rawIndex > 0
-            ? .succ(rawIndex, advanceBy: 1)
-            : .fail("'\(i.superArg)' must be followed by UInt32 greater than zero", advanceBy: 1)
-    }
+private func parseTabIndexSubArg(i: SubArgParserInput) -> ParsedCliArgs<FocusCmdArgs.TabIndex> {
+    let message = "'\(i.superArg)' must be followed by a UInt32 greater than zero or 'last'"
+    guard let arg = i.nonFlagArgOrNil() else { return .fail(message, advanceBy: 0) }
+    if arg == "last" { return .succ(.last, advanceBy: 1) }
+    if let index = UInt32(arg), index > 0 { return .succ(.position(index), advanceBy: 1) }
+    return .fail(message, advanceBy: 1)
 }

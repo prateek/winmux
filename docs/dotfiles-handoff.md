@@ -6,7 +6,7 @@ Each entry is a bullet with the date and the pull request, or where it came from
 
 ## Pending
 
-Nothing.
+- **2026-10-18, #241.** In the WinMux config managed by the dotfiles, change Option-9 to focus the last tab and delete the Option-0 binding so it reaches the focused app, matching the new defaults. In the TOML's `[mode.main.binding]`, replace the `alt-9` line with `alt-9 = "focus --tab-index last"` and delete `alt-0 = "focus --tab-index 10"`. In a `winmux.ncl` converted from that TOML, the same two lines sit inside `converted-modes`, under `main`'s `binding` record: change `alt-9 = "focus --tab-index 9",` to `alt-9 = "focus --tab-index last",` and delete `alt-0 = "focus --tab-index 10",`. Conversion preserves these user-owned chords, so upgrading alone does not change them.
 
 ## Done
 

@@ -139,6 +139,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On the installed build, make a tab group of five windows, hover a background tab and click its ×, then click three times in one place, at the active tab's × or a hovered tab's ×, with your own mouse or trackpad. Pass: each click closes one window, the next tab's × lands under the pointer without the tabs widening, and the tabs widen only once the pointer leaves the strip. Then middle-click a tab with a real mouse's middle button. Pass: that window closes. Say here if the hold or the animation feels wrong.
 - [ ] Put an unsaved document from an app you use (TextEdit, Pages, an editor) in a tab group as a background tab and click its ×. Pass: its tab stays, it comes to the front with the save sheet, and Cancel leaves it in the group.
 
+**The ninth tab digit goes to the last tab**
+- [ ] After the dotfiles change for Option-9 and Option-0, on the installed build with a real keyboard, make a tab group of more than nine windows and press Option-9, then Option-8. Pass: the last tab, then the eighth, is focused. Then press Option-0 in a text field. Pass: the app gets it (on a US layout it types `º`) and WinMux does nothing.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

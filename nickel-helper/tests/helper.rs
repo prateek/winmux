@@ -837,7 +837,7 @@ fn default_main_bindings_are_exactly_the_short_list() {
     ].into_iter().map(str::to_owned).collect();
     expected.extend((1..=9).map(|n| format!("ctrl-{n}")));
     expected.extend((1..=9).map(|n| format!("alt-shift-{n}")));
-    expected.extend((0..=9).map(|n| format!("alt-{n}")));
+    expected.extend((1..=9).map(|n| format!("alt-{n}")));
     let actual = reply["result"]["config"]["mode"]["main"]["binding"].as_object().unwrap().keys().cloned().collect();
     assert_eq!(expected, actual);
 }
@@ -1203,7 +1203,7 @@ fn without_bindings_ignores_absent_chords_and_removes_present_ones() {
 
 #[test]
 fn check_hints_only_for_missing_chords_removed_from_defaults() {
-    for (chord, hint) in [("ctrl-w", true), ("never-a-binding", false), ("alt-slash", false)] {
+    for (chord, hint) in [("ctrl-w", true), ("alt-0", true), ("never-a-binding", false), ("alt-slash", false)] {
         let file = std::env::temp_dir().join(format!("winmux-removal-{chord}-{}.ncl", std::process::id()));
         let record = if chord == "alt-slash" { "{}" } else { "d.mode.main.binding" };
         std::fs::write(&file, format!(r#"
@@ -1218,7 +1218,7 @@ fn check_hints_only_for_missing_chords_removed_from_defaults() {
         assert!(error.contains(&format!("missing field `{chord}`")), "{error}");
         assert_eq!(error.contains("is no longer a default binding"), hint, "{error}");
         if hint {
-            assert!(error.starts_with("ctrl-w is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
+            assert!(error.starts_with(&format!("{chord} is no longer a default binding; delete its removal from your config.\n\nerror:")), "{error}");
         }
     }
 }

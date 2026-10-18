@@ -31,7 +31,7 @@ final class FocusCommandTest: XCTestCase {
 
         expected = FocusCmdArgs(rawArgs: [], targetArg: .tabRelative(.tabNext))
         testParseCommandSucc("focus tab-next", expected)
-        testParseCommandSucc("focus --tab-index 2", FocusCmdArgs(rawArgs: [], tabIndex: 2))
+        testParseCommandSucc("focus --tab-index 2", FocusCmdArgs(rawArgs: [], tabIndex: .position(2)))
 
         assertEquals(
             parseCommand("focus --boundaries workspace --boundaries workspace left").errorOrNil,
@@ -62,6 +62,22 @@ final class FocusCommandTest: XCTestCase {
             parseCommand("focus left --boundaries-action wrap-around-the-workspace --wrap-around").errorOrNil,
             "ERROR: Conflicting options: --boundaries-action, --wrap-around",
         )
+    }
+
+    func testParseLastTabIndex() {
+        testParseCommandSucc("focus --tab-index last", FocusCmdArgs(rawArgs: [], tabIndex: .last))
+        for value in ["0", "Last", "first", "4294967296"] {
+            XCTAssertEqual(parseCommand("focus --tab-index \(value)").errorOrNil,
+                           "ERROR: '--tab-index' must be followed by a UInt32 greater than zero or 'last'", value)
+        }
+        XCTAssertEqual(parseCommand("focus --tab-index last --wrap-around").errorOrNil,
+                       "--tab-index is incompatible with other options")
+        XCTAssertEqual(parseCommand("focus --tab-index -1").errorOrNil,
+                       "ERROR: '--tab-index' must be followed by a UInt32 greater than zero or 'last'\nERROR: Unknown flag '-1'")
+        for missing in ["focus --tab-index", "focus --tab-index --wrap-around"] {
+            XCTAssertEqual(parseCommand(missing).errorOrNil,
+                           "ERROR: '--tab-index' must be followed by a UInt32 greater than zero or 'last'", missing)
+        }
     }
 
     func testFocus() {
@@ -333,9 +349,111 @@ final class FocusCommandTest: XCTestCase {
 
         XCTAssertTrue(firstTab.focusWindow())
 
-        let exitCode = try await FocusCommand(args: FocusCmdArgs(rawArgs: [], tabIndex: 2)).run(.defaultEnv, .emptyStdin).exitCode
+        let exitCode = try await FocusCommand(args: FocusCmdArgs(rawArgs: [], tabIndex: .position(2))).run(.defaultEnv, .emptyStdin).exitCode
         XCTAssertEqual(exitCode, 0)
         XCTAssertEqual(focus.windowOrNil?.windowId, secondTab.windowId)
+    }
+
+    func testLastTabOnOneTab() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let window = TestWindow.new(id: 1, parent: group)
+        XCTAssertTrue(window.focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testLastAndEighthTabOnTwelveTabs() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let windows = (1...12).map { TestWindow.new(id: UInt32($0), parent: group) }
+        XCTAssertTrue(windows[0].focusWindow())
+        let last = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(last.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, 12)
+        let eighth = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .position(8))).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(eighth.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, 8)
+    }
+
+    func testPositionPastEndPreservesFocus() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let windows = (1...3).map { TestWindow.new(id: UInt32($0), parent: group) }
+        XCTAssertTrue(windows[1].focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .position(9))).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertEqual(result.stderr, ["Can't find tab with index 9 in the current tab group"])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 2)
+    }
+
+    func testLastOutsideTabGroupFails() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        XCTAssertTrue(TestWindow.new(id: 1, parent: root).focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertEqual(result.stderr, ["Can't find the last tab in the current tab group"])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testLastPrefersTheEnclosingGroupOverASingleTabLayoutInsideIt() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let single = TilingContainer(parent: group, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let inner = TestWindow.new(id: 1, parent: single)
+        TestWindow.new(id: 2, parent: group)
+        let last = TestWindow.new(id: 3, parent: group)
+        XCTAssertTrue(inner.focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, last.windowId)
+    }
+
+    func testTabTargetsDoNotTakeAFloatingWindowRightOfTheActiveTabAsATab() async throws {
+        let workspace = Workspace.get(byName: name)
+        let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
+        let rect = Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100)
+        TestWindow.new(id: 1, parent: group, rect: rect)
+        TestWindow.new(id: 2, parent: group, rect: rect)
+        let third = TestWindow.new(id: 3, parent: group, rect: rect)
+        TestWindow.new(id: 4, parent: workspace, rect: Rect(topLeftX: 500, topLeftY: 0, width: 100, height: 100))
+        let commands = [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), .new(tabRelative: .tabNext)]
+        for command in commands {
+            XCTAssertTrue(third.focusWindow())
+            _ = try await command.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(focus.windowOrNil?.windowId, 3, "\(command.args)")
+        }
+    }
+
+    func testTabTargetsDoNotTakeAFloatingWindowLeftOfTheFirstTabAsATab() async throws {
+        let workspace = Workspace.get(byName: name)
+        let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
+        let rect = Rect(topLeftX: 400, topLeftY: 0, width: 100, height: 100)
+        let first = TestWindow.new(id: 1, parent: group, rect: rect)
+        TestWindow.new(id: 2, parent: group, rect: rect)
+        TestWindow.new(id: 3, parent: workspace, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        for command in [FocusCommand(args: .init(rawArgs: [], tabIndex: .position(1))), .new(tabRelative: .tabPrev)] {
+            XCTAssertTrue(first.focusWindow())
+            _ = try await command.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(focus.windowOrNil?.windowId, 1, "\(command.args)")
+        }
+    }
+
+    func testLastNestedTabResolvesMostRecentWindow() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let first = TestWindow.new(id: 1, parent: group)
+        let nested = TilingContainer(parent: group, adaptiveWeight: 1, .v, .tiles, index: INDEX_BIND_LAST)
+        TestWindow.new(id: 2, parent: nested)
+        let recent = TestWindow.new(id: 3, parent: nested)
+        XCTAssertTrue(recent.focusWindow())
+        XCTAssertTrue(first.focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, recent.windowId)
     }
 }
 
