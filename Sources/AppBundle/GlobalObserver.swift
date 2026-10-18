@@ -67,7 +67,9 @@ enum GlobalObserver {
     }
 
     private static func onKeyDown(_ event: NSEvent) {
+        stripDebugLog("tab hints input=keyDown keyCode=\(event.keyCode)")
         runOnMainActor {
+            WindowTabHintController.shared.keyOrClick()
             noteTapBindingKeyDown()
         }
     }
@@ -83,12 +85,14 @@ enum GlobalObserver {
     }
 
     private static func onPointerActivity(_ event: NSEvent) {
+        let eventType = event.type
         let isLeftMouseDownEvent = event.type == .leftMouseDown
         let isHoverMove = event.type == .mouseMoved
         let timestamp = event.timestamp
         let screenPoint = NSEvent.mouseLocation
         let point = normalizeAppKitScreenPoint(screenPoint)
         runOnMainActor {
+            WindowTabHintController.shared.pointerActivity(eventType)
             if isHoverMove { SwitcherPalettePanel.shared.notePointerMoved(at: screenPoint) }
             MousePointerTracker.shared.note(point: point, timestamp: timestamp)
             WorkspaceSidebarPanel.trapCursorForVisiblePanelsIfNeeded()

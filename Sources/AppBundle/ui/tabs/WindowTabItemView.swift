@@ -9,7 +9,15 @@ struct WindowTabItemView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            appIcon(size: 14)
+            if let label = tab.hintLabel {
+                Text(label)
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.black.opacity(0.9))
+                    .frame(minWidth: 14, minHeight: 14)
+                    .background(Color.white.opacity(0.94), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            } else {
+                appIcon(size: 14)
+            }
 
             Text(tab.title)
                 .font(.system(size: 12, weight: tab.isActive ? .semibold : .medium))
