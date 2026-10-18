@@ -49,7 +49,10 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
-        lifecycle.show = { [weak self] model in self?.show(model) }
+        lifecycle.show = { [weak self] model in
+            self?.show(model)
+            WindowTabHintController.shared.reconcile()
+        }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
         lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }

@@ -67,7 +67,6 @@ enum GlobalObserver {
     }
 
     private static func onKeyDown(_ event: NSEvent) {
-        stripDebugLog("tab hints input=keyDown keyCode=\(event.keyCode)")
         runOnMainActor {
             WindowTabHintController.shared.keyOrClick()
             noteTapBindingKeyDown()

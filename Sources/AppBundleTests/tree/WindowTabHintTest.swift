@@ -86,33 +86,54 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertNil(owner.shownModifiers)
     }
 
-    func testOnlyAddressedStripGetsLabelsAndFloatingFocusGetsNone() async {
+    func testOnlyAddressedGroupGetsLabelsAndFloatingFocusGetsNone() async {
         let root = focus.workspace.rootTilingContainer
         let first = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         let second = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         let windows = [TestWindow.new(id: 1, parent: first), TestWindow.new(id: 2, parent: first), TestWindow.new(id: 3, parent: second), TestWindow.new(id: 4, parent: second)]
-        let strips = [first, second].map { group in
-            WindowTabStripViewModel(id: ObjectIdentifier(group), workspaceName: "1", frame: .zero, groupFrame: .zero, activeWindowId: nil, activeWindowCornerRadius: 0, tabs: group.children.compactMap(\.tabRepresentativeWindow).map {
-                WindowTabItemViewModel(windowId: $0.windowId, workspaceName: "1", appName: "App", appBundleId: nil, appBundlePath: nil, title: "Tab", isActive: false)
-            }, occludingFloatingWindowFrames: [])
-        }
         let clock = TestClock<Duration>()
         let owner = WindowTabHintController(clock: clock, liveFlags: { .option }, allowed: { true }, lensOpen: { false }, bindings: { self.digits() })
         XCTAssertTrue(windows[0].focusWindow())
-        XCTAssertTrue(owner.applyingLabels(to: strips).allSatisfy { $0.tabs.allSatisfy { $0.hintLabel == nil } })
+        XCTAssertEqual(owner.labels, [:])
         owner.flagsChanged(.option)
         await clock.advance(by: .seconds(1))
-        var result = owner.applyingLabels(to: strips)
-        XCTAssertEqual(result[0].tabs.compactMap(\.hintLabel), ["1", "2"])
-        XCTAssertTrue(result[1].tabs.compactMap(\.hintLabel).isEmpty)
+        XCTAssertEqual(owner.labels, [1: "1", 2: "2"])
         XCTAssertTrue(windows[2].focusWindow())
-        result = owner.applyingLabels(to: result)
-        XCTAssertTrue(result[0].tabs.compactMap(\.hintLabel).isEmpty)
-        XCTAssertEqual(result[1].tabs.compactMap(\.hintLabel), ["1", "2"])
+        owner.reconcile()
+        XCTAssertEqual(owner.labels, [3: "1", 4: "2"])
         let floating = TestWindow.new(id: 5, parent: focus.workspace)
         XCTAssertTrue(floating.focusWindow())
-        XCTAssertTrue(owner.applyingLabels(to: result).allSatisfy { $0.tabs.compactMap(\.hintLabel).isEmpty })
+        owner.reconcile()
+        XCTAssertEqual(owner.labels, [:])
         owner.reset()
+    }
+
+    func testDroppedReleaseIsCaughtUpFromLiveFlags() async {
+        let clock = TestClock<Duration>()
+        var live: NSEvent.ModifierFlags = .option
+        let owner = WindowTabHintController(clock: clock, liveFlags: { live }, allowed: { true }, lensOpen: { false }, bindings: { self.digits() })
+        owner.flagsChanged(.option)
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(owner.shownModifiers, .option)
+        live = []
+        owner.pointerActivity(.mouseMoved)
+        XCTAssertNil(owner.shownModifiers, "A pointer move after a dropped release hides the hints")
+        live = .option
+        owner.flagsChanged(.option)
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(owner.shownModifiers, .option, "The next hold of the same modifier shows again")
+    }
+
+    func testKeyUnderUnboundModifiersSpoilsUntilFullRelease() {
+        var state = WindowTabHintState()
+        state.flagsChanged([.option, .shift], hasBindings: false, allowed: true)
+        XCTAssertNil(state.deadline)
+        state.keyOrClick(allowed: true)
+        state.flagsChanged(.option, hasBindings: true, allowed: true)
+        XCTAssertNil(state.deadline, "Releasing Shift after an Option-Shift chord does not arm")
+        state.flagsChanged([], hasBindings: true, allowed: true)
+        state.flagsChanged(.option, hasBindings: true, allowed: true)
+        XCTAssertNotNil(state.deadline)
     }
 
     func testDeadlineReleaseAndShownKey() {

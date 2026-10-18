@@ -20,8 +20,10 @@ struct WindowTabHintState {
         }
     }
 
+    /// A key or click under held modifiers spoils the hold until every modifier is released, even
+    /// under a set with no tab bindings: releasing Shift after an Option-Shift chord must not arm.
     mutating func keyOrClick(allowed: Bool) {
-        if deadline != nil {
+        if shown == nil, !held.isEmpty {
             hide()
             spoiled = true
         }

@@ -118,7 +118,6 @@ extension HotKey {
 }
 
 @MainActor func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
-    stripDebugLog("tab hints input=binding binding=\(binding)")
     WindowTabHintController.shared.keyOrClick()
     if hotkeysSuspended || !mayArrangeWindows { return }
     FindFocusHighlight.shared.dismiss()

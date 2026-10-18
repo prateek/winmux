@@ -7,16 +7,13 @@ final class WindowTabHintController: ObservableObject {
         allowed: { !hotkeysSuspended && TrayMenuModel.shared.isEnabled && config.windowTabs.enabled },
         lensOpen: { SwitcherPalettePanel.shared.session != nil },
         bindings: { Array(activeMode.flatMap { config.modes[$0] }?.bindings.values ?? [:].values) },
-        didChange: {
-            let strips = WindowTabHintController.shared.applyingLabels(to: TrayMenuModel.shared.windowTabStrips)
-            if TrayMenuModel.shared.setIfChanged(\.windowTabStrips, strips) {
-                WindowTabStripPanelController.shared.refresh()
-            }
-        }
     )
     private static let delay: Duration = .milliseconds(500)
 
-    @Published private(set) var shownModifiers: NSEvent.ModifierFlags?
+    private(set) var shownModifiers: NSEvent.ModifierFlags?
+    /// Each labelled tab's key, by the window id the strip draws for that tab. The strip view reads
+    /// this directly, so the strip models never carry a label.
+    @Published private(set) var labels: [UInt32: String] = [:]
     private var state = WindowTabHintState()
     private var task: Task<Void, Never>?
     private var scheduledToken: Int?
@@ -25,15 +22,13 @@ final class WindowTabHintController: ObservableObject {
     private let enabled: () -> Bool
     private let lensOpen: () -> Bool
     private let bindingSource: () -> [HotkeyBinding]
-    private let didChange: () -> Void
 
-    init(clock: any Clock<Duration> = ContinuousClock(), liveFlags: @escaping () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }, allowed: @escaping () -> Bool, lensOpen: @escaping () -> Bool, bindings: @escaping () -> [HotkeyBinding], didChange: @escaping () -> Void = {}) {
+    init(clock: any Clock<Duration> = ContinuousClock(), liveFlags: @escaping () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }, allowed: @escaping () -> Bool, lensOpen: @escaping () -> Bool, bindings: @escaping () -> [HotkeyBinding]) {
         self.clock = clock
         self.liveFlags = liveFlags
         self.enabled = allowed
         self.lensOpen = lensOpen
         self.bindingSource = bindings
-        self.didChange = didChange
     }
 
     private var allowed: Bool {
@@ -45,8 +40,7 @@ final class WindowTabHintController: ObservableObject {
     }
 
     func flagsChanged(_ flags: NSEvent.ModifierFlags) {
-        let flags = windowTabHintModifiers(flags)
-        state.flagsChanged(flags, hasBindings: bindings.contains { $0.modifiers == flags && windowTabBindingTarget($0) != nil }, allowed: allowed)
+        apply(windowTabHintModifiers(flags))
         publish()
     }
 
@@ -65,9 +59,15 @@ final class WindowTabHintController: ObservableObject {
         publish()
     }
 
+    /// Catches up with the live modifiers, which differ from the last `flagsChanged` only when
+    /// macOS dropped an event, then rechecks the gates and the addressed group.
     func reconcile() {
-        state.enforce(allowed: allowed)
+        apply(windowTabHintModifiers(liveFlags()))
         publish()
+    }
+
+    private func apply(_ flags: NSEvent.ModifierFlags) {
+        state.flagsChanged(flags, hasBindings: bindings.contains { $0.modifiers == flags && windowTabBindingTarget($0) != nil }, allowed: allowed)
     }
 
     private func publish() {
@@ -81,35 +81,22 @@ final class WindowTabHintController: ObservableObject {
                     do { try await clock.sleep(for: Self.delay) } catch { return }
                     guard let self else { return }
                     self.state.fire(token, liveFlags: windowTabHintModifiers(self.liveFlags()), allowed: self.allowed)
-                    self.publish()
+                    self.reconcile()
                 }
             }
         }
-        if shownModifiers != state.shown {
-            shownModifiers = state.shown
-            didChange()
-        }
+        shownModifiers = state.shown
+        let labels = currentLabels()
+        if self.labels != labels { self.labels = labels }
     }
 
-    func applyingLabels(to strips: [WindowTabStripViewModel]) -> [WindowTabStripViewModel] {
-        let addressed = resolveTabFocusTarget(focus, .last)?.group
-        let labels = shownModifiers.flatMap { modifiers in
-            addressed.map { windowTabHintLabels(bindings: bindings, modifiers: modifiers, childCount: $0.children.count, isTabGroup: $0.isWindowTabGroup) }
-        } ?? [:]
-        let labelsByWindow = addressed.map { group in
-            Dictionary(uniqueKeysWithValues: group.children.enumerated().compactMap { index, child -> (UInt32, String)? in
-                guard let window = child.tabRepresentativeWindow, let label = labels[index] else { return nil }
-                return (window.windowId, label)
-            })
-        } ?? [:]
-        return strips.map { strip in
-            var strip = strip
-            strip.tabs = strip.tabs.map { tab in
-                var tab = tab
-                tab.hintLabel = addressed.map { ObjectIdentifier($0) == strip.id } == true ? labelsByWindow[tab.windowId] : nil
-                return tab
-            }
-            return strip
+    private func currentLabels() -> [UInt32: String] {
+        guard let modifiers = shownModifiers, let group = resolveTabFocusTarget(focus, .last)?.group else { return [:] }
+        let labels = windowTabHintLabels(bindings: bindings, modifiers: modifiers, childCount: group.children.count, isTabGroup: group.isWindowTabGroup)
+        var result: [UInt32: String] = [:]
+        for (index, child) in group.children.enumerated() {
+            if let window = child.tabRepresentativeWindow, let label = labels[index] { result[window.windowId] = label }
         }
+        return result
     }
 }

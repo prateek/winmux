@@ -6,10 +6,11 @@ struct WindowTabItemView: View {
     let height: CGFloat
     let isDragSource: Bool
     let isHovered: Bool
+    var hintLabel: String? = nil
 
     var body: some View {
         HStack(spacing: 6) {
-            if let label = tab.hintLabel {
+            if let label = hintLabel {
                 Text(label)
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.black.opacity(0.9))

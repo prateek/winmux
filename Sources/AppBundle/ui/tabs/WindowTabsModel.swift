@@ -2,7 +2,6 @@ import AppKit
 
 @MainActor
 func updateWindowTabModel() async {
-    WindowTabHintController.shared.reconcile()
     let didClearMouseInteractionChromeSuppression =
         WindowTabStripPanelController.shared.clearMouseInteractionChromeSuppressionIfInactive()
     guard TrayMenuModel.shared.isEnabled, config.windowTabs.enabled else {
@@ -13,9 +12,8 @@ func updateWindowTabModel() async {
     }
     pruneCachedWindowTitles()
 
-    let built = await buildWindowTabStripViewModelsFromChromeItems()
+    let strips = await buildWindowTabStripViewModelsFromChromeItems()
     WindowTabHintController.shared.reconcile()
-    let strips = WindowTabHintController.shared.applyingLabels(to: built)
 
     if TrayMenuModel.shared.windowTabStrips != strips {
         debugFocusLog("updateWindowTabModel apply strips old=\(TrayMenuModel.shared.windowTabStrips.map(\.frame)) new=\(strips.map(\.frame))")

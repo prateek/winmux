@@ -7,7 +7,7 @@ struct WindowTabStripViewModel: Identifiable, Equatable {
     let groupFrame: CGRect
     let activeWindowId: UInt32?
     let activeWindowCornerRadius: CGFloat
-    var tabs: [WindowTabItemViewModel]
+    let tabs: [WindowTabItemViewModel]
     let occludingFloatingWindowFrames: [CGRect]
 
     var tabStripIsOccludedByFloatingWindow: Bool {
@@ -27,7 +27,6 @@ struct WindowTabItemViewModel: Hashable, Identifiable {
     let appBundlePath: String?
     let title: String
     let isActive: Bool
-    var hintLabel: String? = nil
 
     var id: UInt32 { windowId }
 }

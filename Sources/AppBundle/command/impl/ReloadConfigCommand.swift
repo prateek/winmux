@@ -92,10 +92,7 @@ extension LoadedConfig: ConfigReloadCandidate {
     ),
     configPath: { preferredEditableConfigUrl().path },
     loadStateChanged: { ShortcutSettingsModel.shared.updateLoadState($0) },
-    willReload: {
-        FindFocusHighlight.shared.dismiss()
-        WindowTabHintController.shared.reset()
-    },
+    willReload: { FindFocusHighlight.shared.dismiss() },
 )
 
 @MainActor func reloadConfig(forceConfigUrl: URL? = nil) async throws -> Bool {
