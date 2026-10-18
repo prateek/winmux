@@ -86,13 +86,14 @@ Done when every finding is fixed or declined with a reason, and CI is green on t
 
 ## 7. Follow-up builder pass, at most one
 
-Something is **pending** when a Done-when item is unmet, a visible one has no live-run evidence, a CI failure is the change's own, or a finding is too large to fix inline. Every Done-when item ends one of three ways:
+Something is **pending** when a Done-when item is unmet, a visible one has no live-run evidence, a CI failure is the change's own, or a finding is too large to fix inline. Every Done-when item ends one of four ways:
 
 - **met**, with its evidence;
 - **left to Prateek**, because it needs an installed build, a real keyboard or hardware a guest lacks; it becomes a check at Land, as [Items for Prateek](#items-for-prateek) says;
 - **pending**.
+- **met, demo to follow**: the builder's live run showed it, with a capture in `$STATE/captures/`, and step 8 films it. It is ticked in the draft by step 6's last push, and the gate checks the demo. An item whose demo cannot be filmed becomes **left to Prateek**, and its #85 line goes in at Land as Items for Prateek says.
 
-An item a guest could meet and the first pass did not is pending. Landing with it unticked and no follow-up pass is not one of the three.
+An item a guest could meet and the first pass did not is pending. Landing with it unticked and no follow-up pass is not one of the four.
 
 With anything pending, fill **Every pass** and **Follow-up pass** into `$STATE/pass2.prompt.md` with the list and a ruling on each item, written as step 4's rulings are. Launch it with `pass2` names as [Launching a builder pass](reference.md#launching-a-builder-pass) says, then repeat steps 5 and 6 on the new commits.
 
@@ -123,9 +124,9 @@ The **merge gate** holds when all of these do:
 
 - `Build and test` is green on the head.
 - The head contains the tip of `fork/fork`: `git merge-base --is-ancestor fork/fork HEAD` after a fetch. Otherwise merge `fork/fork` in, push and wait for CI; that push carries the merge and nothing else.
-- `make check` passed in the guest on the head itself. A **docs-only** commit, one that changes only Markdown files or `.scratch/`, leaves the result as it was, and the description says so. Run it again after any other commit; it takes a few minutes. A Done-when item that reads "the pull request shows …" can be ticked only once the demos are in the description, after the last code push: tick it in the draft in a docs-only commit, as this step defines one, that carries nothing else, and name it in the description as the next item asks for a commit after filming.
+- `make check` passed in the guest on the head itself. A **docs-only** commit, one that changes only Markdown files or `.scratch/`, leaves the result as it was, and the description says so. Run it again after any other commit; it takes a few minutes.
 - Every finding is fixed or declined with a reason.
-- The description has the demos or says there is nothing to show, and the demos show the head. When a commit lands after filming, film again, unless the commit cannot change what a demo shows; then the description names the filmed commit, the commits since and why no demo changes.
+- The description has the demos or says there is nothing to show, and the demos show the head. An item step 7 classed **met, demo to follow** holds the gate until a demo under its caption shows its claim; a demo that shows it wrong is a finding, as step 8 says, and the fix's push carries the draft as it then stands. When a commit lands after filming, film again, unless the commit cannot change what a demo shows; then the description names the filmed commit, the commits since and why no demo changes.
 - Every Done-when item is met or left to Prateek, as step 7 says.
 - When your harness gives you a reviewer or advisor tool that you would consult before merging and it is unavailable, a second model checks the gate against this list through the `utils-agent:acpx` skill before you merge, and the description says so.
 
