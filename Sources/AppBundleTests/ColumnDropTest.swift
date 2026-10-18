@@ -221,6 +221,35 @@ final class ColumnDropTest: XCTestCase {
         try await checkAbandonedDrop { $0.columns = ColumnState(count: 3) }
     }
 
+    func testCacheReusesWorkspaceKeysWithoutPublishingAnOldContext() async throws {
+        let (workspace, a, _, _) = try await fixture()
+        let other = Workspace.get(byName: "Other")
+        other.columns = ColumnState(count: 3)
+        let gate = ReloadGate()
+        var evaluations = 0, oldRedraws = 0
+        let cache = ColumnDropDecisionCache { _, destination, slot, _, _ in
+            evaluations += 1
+            if destination === workspace, evaluations == 1 { await gate.hold() }
+            return PlacementDecision(slot: slot, target: "focused", overflow: .split, hook: "columns.place")
+        }
+        let oldResult = Task { @MainActor in
+            await cache.decision(window: a, workspace: workspace, slot: 2, incoming: a)
+        }
+        await gate.entered.wait()
+        _ = cache.preview(window: a, workspace: workspace, slot: 2, incoming: a) { oldRedraws += 1 }
+        _ = cache.preview(window: a, workspace: other, slot: 2, incoming: a) {}
+        _ = await cache.decision(window: a, workspace: other, slot: 2, incoming: a)
+        gate.release()
+        let abandoned = await oldResult.value
+        XCTAssertNil(abandoned)
+        XCTAssertEqual(oldRedraws, 0)
+        let reused = cache.preview(window: a, workspace: workspace, slot: 2, incoming: a) {}
+        XCTAssertEqual(reused.overflow, .split)
+        let completed = await cache.decision(window: a, workspace: workspace, slot: 2, incoming: a)
+        XCTAssertEqual(completed?.overflow, .split)
+        XCTAssertEqual(evaluations, 2, "Returning to a key within one drag reuses its first evaluation")
+    }
+
     func testDropAbandonsHookAnswerWhenTheDragIsCancelledDuringEvaluation() async throws {
         try await checkAbandonedDrop { _ in cancelManipulatedWithMouseState() }
     }
