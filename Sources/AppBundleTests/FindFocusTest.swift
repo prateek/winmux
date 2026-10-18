@@ -431,19 +431,58 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertEqual(shown.last, actual)
     }
 
-    func testALayoutDuringTheReadDrawsWhereWinMuxPutTheWindow() async throws {
+    func testALayoutDuringTheReadReadsTheFrameAgain() async throws {
         var shown: [Rect] = []
         let owner = install(show: { shown.append($0) })
         let target = window()
         let moved = Rect(topLeftX: 700, topLeftY: 40, width: 300, height: 200)
+        var reads = 0
         target.beforeAxRect = { [weak target] in
-            target?.lastAppliedLayoutPhysicalRect = moved
-            target?.beforeAxRect = nil
+            reads += 1
+            // AX answers with the old frame, then the layout lands; the second read sees the move.
+            if reads == 1 { target?.lastAppliedLayoutPhysicalRect = moved }
+            if reads == 2 { target?.setAxFrame(moved.topLeftCorner, moved.size) }
         }
         try await mark()
+        XCTAssertEqual(reads, 2)
         XCTAssertEqual(shown.last, moved)
         owner.refresh()
         XCTAssertTrue(owner.isShowing, "the new layout is the mark's baseline")
+    }
+
+    func testARestartDuringALayoutThatEndsTheOldMarkStillDraws() async throws {
+        var shows = 0
+        let owner = install(show: { _ in shows += 1 })
+        let target = window()
+        try await mark()
+        let gate = ReloadGate()
+        target.beforeAxRect = { [weak target] in
+            target?.beforeAxRect = nil
+            await gate.hold()
+        }
+        let request = Task { try await self.mark() }
+        await gate.entered.wait()
+        target.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 700, topLeftY: 40, width: 300, height: 200)
+        owner.refresh()
+        XCTAssertFalse(owner.isShowing)
+        gate.release()
+        let result = try await request.value
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(shows, 2)
+        XCTAssertTrue(owner.isShowing)
+    }
+
+    func testACancelledReadDrawsNothing() async throws {
+        var shows = 0
+        _ = install(show: { _ in shows += 1 })
+        let target = window()
+        target.recordAuthoritativeActualRect(Rect(topLeftX: 20, topLeftY: 30, width: 500, height: 400))
+        target.testAxRectError = CancellationError()
+        do {
+            try await mark()
+            XCTFail("a cancelled read ends the command")
+        } catch is CancellationError {}
+        XCTAssertEqual(shows, 0)
     }
 
     func testAFloatingWindowTiledAgainEndsTheMark() async throws {

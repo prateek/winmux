@@ -53,14 +53,15 @@ final class FindFocusHighlight {
         }
     }
 
-    /// Ends the mark and invalidates a `find-focus` still reading its frame, so a key pressed during
-    /// the read keeps the mark from coming back.
+    /// Ends the mark and invalidates a `find-focus` still reading its frame, so a key pressed while
+    /// a mark is up keeps a restart from drawing.
     func dismiss() {
         generation += 1
         end()
     }
 
-    /// The timed end leaves `generation` alone: a `find-focus` sent as the old mark expires still draws.
+    /// The timed and layout ends leave `generation` alone: a `find-focus` still reading its frame then
+    /// draws, from a fresh read if the layout moved its window.
     private func end() {
         lifetime?.cancel()
         lifetime = nil
@@ -81,7 +82,8 @@ final class FindFocusHighlight {
 
     func refresh() {
         guard isShowing else { return }
-        if window?.lastAppliedLayoutPhysicalRect != appliedRect { dismiss() }
+        guard let window else { return end() }
+        if window.lastAppliedLayoutPhysicalRect != appliedRect { end() }
     }
 }
 
