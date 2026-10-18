@@ -33,7 +33,7 @@ Nothing.
 - [x] With the shipped config, Settings lists every Lens with its Trigger, the Column count per workspace, and the bindings in effect.
 - [x] A config with an error shows the error and the last good config's values.
 - [x] No control in the window writes the config.
-- [ ] The pull request shows the window on the staged desk.
+- [x] The pull request shows the window on the staged desk.
 
 ## Built
 

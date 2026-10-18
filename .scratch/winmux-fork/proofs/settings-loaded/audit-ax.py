@@ -19,7 +19,8 @@ for pane in ['overview', 'lenses', 'shortcuts', 'columns', 'hooks', 'behavior', 
 
 assert (final / 'before.txt').read_bytes() == (final / 'after.txt').read_bytes()
 print('config hash, mtime and defaults: unchanged')
-for name, count in [('lens', 8), ('glyph', 16), ('window', 45), ('empty', 0), ('command', 3)]:
+# The four searches read-only.zsh runs on the shipped config.
+for name, count in [('lens', 8), ('glyph', 16), ('window', 45), ('empty', 0)]:
     text = (final / f'search-{name}.ax').read_text()
     actual = re.search(r'AXStaticText \| (\d+) bindings \| settings-shortcut-count', text)
     assert actual and int(actual[1]) == count, (name, actual)
