@@ -26,9 +26,7 @@ struct WorkspaceSidebarState: Codable, Equatable {
 }
 
 func workspaceSidebarStateUrl() -> URL {
-    let stateHome = ProcessInfo.processInfo.environment["XDG_STATE_HOME"].map { URL(filePath: $0) }
-        ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/state/")
-    return stateHome.appending(path: "winmux").appending(path: "sidebar.json")
+    winMuxStateDirectory().appending(path: "sidebar.json")
 }
 
 /// A missing or unreadable file means no overrides.

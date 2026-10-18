@@ -66,7 +66,12 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
         // Handle subscribe before parseCommand (subscribe doesn't have a Command impl)
         if request.args.first == "subscribe" {
             switch parseSubscribeCmdArgs(request.args.slice(1...).orDie()) {
-                case .cmd(let subscribeArgs): await handleSubscribeAndWaitTillError(connection, subscribeArgs)
+                case .cmd(let subscribeArgs):
+                    if let refusal = await FirstRunSetup.shared.refusal {
+                        await answerToClient(exitCode: 1, stderr: refusal)
+                        return
+                    }
+                    await handleSubscribeAndWaitTillError(connection, subscribeArgs)
                 case .help(let help): await answerToClient(exitCode: 0, stdout: help)
                 case .failure(let err): await answerToClient(exitCode: 1, stderr: err)
             }
@@ -88,6 +93,10 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
         }
         if let err {
             await answerToClient(exitCode: parseFailureExitCode(request.args.slice), stderr: err)
+            continue
+        }
+        if let command, let result = await FirstRunSetup.shared.answerBeforeStartup(command) {
+            await answerToClient(exitCode: result.exitCode, stdout: result.stdout.joined(separator: "\n"), stderr: result.stderr.joined(separator: "\n"))
             continue
         }
         if command?.isExec == true {

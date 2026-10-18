@@ -5,8 +5,9 @@ public let generatedConfigFileName = "winmux.ncl"
 public let legacyConfigFileName = "winmux.toml"
 public let legacyConfigDotfileName = ".winmux.toml"
 
-public func xdgConfigHomeUrl() -> URL {
-    ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"].map { URL(filePath: $0) }
+/// An empty `XDG_CONFIG_HOME` means the default, as the XDG spec says.
+public func xdgConfigHomeUrl(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+    environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(filePath: $0) }
         ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".config/")
 }
 

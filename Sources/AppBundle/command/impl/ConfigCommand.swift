@@ -6,6 +6,10 @@ struct ConfigCommand: Command {
     /*conforms*/ let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
+        run(env, io, permissions: { FirstRunSetup.shared.permissions })
+    }
+
+    @MainActor func run(_ env: CmdEnv, _ io: CmdIo, permissions: () -> SetupPermissions) -> Bool {
         switch args.mode {
             case .getKey(let key):
                 return getKey(io, args: args, key: key)
@@ -25,7 +29,7 @@ struct ConfigCommand: Command {
             case .configPath:
                 return io.out(configUrl.absoluteURL.path)
             case .status:
-                return switch JSONEncoder.winMuxDefault.encodeToString(ConfigHelperStatus(NickelSupervisor.shared.status)) {
+                return switch JSONEncoder.winMuxDefault.encodeToString(ConfigHelperStatus(NickelSupervisor.shared.status, permissions: permissions())) {
                     case .some(let json): io.out(json)
                     case nil: io.err("Can't encode the config helper's status")
                 }
@@ -35,15 +39,17 @@ struct ConfigCommand: Command {
     }
 }
 
-private struct ConfigHelperStatus: Encodable {
+struct ConfigHelperStatus: Encodable {
     let state: String
     let pid: Int32?
     let rss: Int
     let recycles: Int
     let lastError: String?
     let configPath: String?
+    let permissions: SetupPermissions
 
-    init(_ status: NickelStatus) {
+    init(_ status: NickelStatus, permissions: SetupPermissions) {
+        self.permissions = permissions
         state = status.state.rawValue
         pid = status.pid
         rss = status.rss
@@ -53,7 +59,7 @@ private struct ConfigHelperStatus: Encodable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case state, pid, rss, recycles
+        case state, pid, rss, recycles, permissions
         case lastError = "last-error"
         case configPath = "config-path"
     }
@@ -67,6 +73,7 @@ private struct ConfigHelperStatus: Encodable {
         try container.encode(recycles, forKey: .recycles)
         try container.encode(lastError, forKey: .lastError)
         try container.encode(configPath, forKey: .configPath)
+        try container.encode(permissions, forKey: .permissions)
     }
 }
 

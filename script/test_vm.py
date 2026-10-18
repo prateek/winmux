@@ -2,6 +2,7 @@
 import contextlib
 import json
 import os
+import plistlib
 from pathlib import Path
 import runpy
 import shutil
@@ -14,6 +15,46 @@ import tempfile
 import unittest
 
 VM = Path(__file__).resolve().parents[1] / '.claude/skills/vm/vm'
+
+
+class SetupBundleTest(unittest.TestCase):
+    def test_bundle_has_its_own_debug_identity_and_both_framework_rpaths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'
+            debug = source / '.build/debug'
+            debug.mkdir(parents=True)
+            binary = debug / 'WinMuxApp'
+            binary.write_text('debug executable')
+            binary.chmod(0o755)
+            framework = debug / 'Sparkle.framework'
+            framework.mkdir()
+            (framework / 'Sparkle').write_text('framework')
+            tools = root / 'tools'
+            tools.mkdir()
+            for name, content in [('ditto', 'cp -R "$1" "$2"'), ('codesign', 'exit 0')]:
+                tool = tools / name
+                tool.write_text('#!/bin/bash\nset -e\n' + content + '\n')
+                tool.chmod(0o755)
+            app = root / 'WinMux Setup.app'
+            result = subprocess.run(['bash', str(VM.parent / 'setup-bundle.sh'), str(source), str(app)],
+                                    env={**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH']},
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+            self.assertEqual(info['CFBundleIdentifier'], 'com.zimengxiong.winmux.debug')
+            self.assertEqual(info['CFBundleExecutable'], 'WinMuxApp')
+            self.assertTrue(info['LSUIElement'])
+            self.assertEqual((app / 'Contents/MacOS/WinMuxApp').read_text(), 'debug executable')
+            self.assertEqual((app / 'Contents/MacOS/Sparkle.framework/Sparkle').read_text(), 'framework')
+            self.assertEqual((app / 'Contents/Frameworks/Sparkle.framework/Sparkle').read_text(), 'framework')
+
+    def test_bundle_refuses_a_missing_build_without_creating_an_app(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = Path(directory) / 'WinMux.app'
+            result = subprocess.run(['bash', str(VM.parent / 'setup-bundle.sh'), directory, str(app)], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(app.exists())
 
 SHIM = r'''import fcntl, json, os, pathlib, shutil, subprocess, sys, time
 root = pathlib.Path(os.environ['VM_TEST_STATE'])

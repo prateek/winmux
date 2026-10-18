@@ -2,22 +2,9 @@ import AppKit
 import Common
 import PrivateApi
 
-@MainActor
-func checkAccessibilityPermissions() {
-    let options = [axTrustedCheckOptionPrompt: true]
-    if !AXIsProcessTrustedWithOptions(options as CFDictionary) {
-        resetAccessibility() // Because macOS doesn't reset it for us when the app signature changes...
-        terminateApp()
-    }
-}
-
 func requestScreenRecordingPermissionsIfNeeded() {
     guard !CGPreflightScreenCaptureAccess() else { return }
     _ = CGRequestScreenCaptureAccess()
-}
-
-private func resetAccessibility() {
-    _ = try? Process.run(URL(filePath: "/usr/bin/tccutil"), arguments: ["reset", "Accessibility", winMuxAppId])
 }
 
 protocol ReadableAttr: Sendable {

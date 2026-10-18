@@ -175,6 +175,10 @@ func runSubscribe(_ connection: NWConnection, _ args: StrArrSlice, windowId: UIn
     while true {
         switch await connection.readNonAtomic() {
             case .success(let data):
+                if let answer = try? JSONDecoder().decode(ServerAnswer.self, from: data) {
+                    if !answer.stdout.isEmpty { print(answer.stdout) }
+                    exit(answer.exitCode, err: answer.stderr)
+                }
                 if let str = String(data: data, encoding: .utf8) {
                     print(str)
                     fflush(stdout)

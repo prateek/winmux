@@ -73,7 +73,7 @@ extension HotKey {
     pendingTapBindings = [:]
     pressedTapModifiers = []
     cancelPendingTapTriggers()
-    for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
+    for binding in targetBindings.values where mayArrangeWindows && !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
@@ -114,7 +114,7 @@ extension HotKey {
 }
 
 @MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
-    if hotkeysSuspended { return }
+    if hotkeysSuspended || !mayArrangeWindows { return }
     Task {
         if let activeMode {
             broadcastEvent(.bindingTriggered(
@@ -245,6 +245,13 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
         }
     }
     reconcileSystemSymbolicHotkeys()
+}
+
+/// Setup creates no hotkey, so every chord, Cmd-Tab included, reaches the system until Start.
+@MainActor func allowWindowArrangement() async {
+    mayArrangeWindows = true
+    do { try await activateMode(activeMode) }
+    catch { lensLog.error("Hotkeys at Start: \(error.localizedDescription, privacy: .public)") }
 }
 
 @MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {
