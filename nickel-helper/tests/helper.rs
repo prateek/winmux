@@ -1203,7 +1203,7 @@ fn without_bindings_ignores_absent_chords_and_removes_present_ones() {
 
 #[test]
 fn check_hints_only_for_missing_chords_removed_from_defaults() {
-    for (chord, hint) in [("ctrl-w", true), ("never-a-binding", false), ("alt-slash", false)] {
+    for (chord, hint) in [("ctrl-w", true), ("alt-0", true), ("never-a-binding", false), ("alt-slash", false)] {
         let file = std::env::temp_dir().join(format!("winmux-removal-{chord}-{}.ncl", std::process::id()));
         let record = if chord == "alt-slash" { "{}" } else { "d.mode.main.binding" };
         std::fs::write(&file, format!(r#"
@@ -1218,24 +1218,9 @@ fn check_hints_only_for_missing_chords_removed_from_defaults() {
         assert!(error.contains(&format!("missing field `{chord}`")), "{error}");
         assert_eq!(error.contains("is no longer a default binding"), hint, "{error}");
         if hint {
-            assert!(error.starts_with("ctrl-w is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
+            assert!(error.starts_with(&format!("{chord} is no longer a default binding; delete its removal from your config.\n\nerror:")), "{error}");
         }
     }
-}
-
-#[test]
-fn removing_old_tenth_tab_binding_has_migration_hint() {
-    let file = std::env::temp_dir().join(format!("winmux-removal-alt-0-{}.ncl", std::process::id()));
-    std::fs::write(&file, r#"
-        let W = import "winmux/winmux.ncl" in
-        let defaults = import "winmux/defaults.ncl" in
-        (defaults & { mode.main.binding | force = std.record.remove "alt-0" defaults.mode.main.binding }) | W.Config
-    "#).unwrap();
-    let output = run_helper(&["check", &file.to_string_lossy()]);
-    std::fs::remove_file(file).unwrap();
-    assert_eq!(output.status.code(), Some(2));
-    let error = String::from_utf8(output.stderr).unwrap();
-    assert!(error.starts_with("alt-0 is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
 }
 
 fn expected_window_bindings() -> Value {

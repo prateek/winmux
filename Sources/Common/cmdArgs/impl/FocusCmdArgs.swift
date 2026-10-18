@@ -155,9 +155,9 @@ private func parseFocusTargetArg(i: PosArgParserInput) -> ParsedCliArgs<FocusTar
 }
 
 private func parseTabIndexSubArg(i: SubArgParserInput) -> ParsedCliArgs<FocusCmdArgs.TabIndex> {
-    if let arg = i.nonFlagArgOrNil() {
-        if arg == "last" { return .succ(.last, advanceBy: 1) }
-        if let index = UInt32(arg), index > 0 { return .succ(.position(index), advanceBy: 1) }
-    }
-    return .fail("'\(i.superArg)' must be followed by a UInt32 greater than zero or 'last'", advanceBy: 1)
+    let message = "'\(i.superArg)' must be followed by a UInt32 greater than zero or 'last'"
+    guard let arg = i.nonFlagArgOrNil() else { return .fail(message, advanceBy: 0) }
+    if arg == "last" { return .succ(.last, advanceBy: 1) }
+    if let index = UInt32(arg), index > 0 { return .succ(.position(index), advanceBy: 1) }
+    return .fail(message, advanceBy: 1)
 }
