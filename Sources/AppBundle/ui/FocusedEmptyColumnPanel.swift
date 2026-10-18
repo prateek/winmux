@@ -34,6 +34,10 @@ extension Workspace {
     func refresh() {
         guard TrayMenuModel.shared.isEnabled, let rect = focus.workspace.focusedEmptyColumnRect else { orderOut(nil); return }
         setFrame(rect.toAppKitScreenRect.insetBy(dx: 3, dy: 3), display: true)
-        orderFrontRegardless()
+        if MissionControlState.shared.isOpen {
+            orderOut(nil)
+        } else {
+            orderFrontRegardless()
+        }
     }
 }

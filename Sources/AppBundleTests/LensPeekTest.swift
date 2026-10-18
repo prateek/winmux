@@ -202,9 +202,6 @@ final class LensPeekTest: XCTestCase {
         XCTAssertFalse(controller.panel.canBecomeMain)
         XCTAssertTrue(controller.panel.ignoresMouseEvents)
         XCTAssertFalse(controller.panel.hasShadow)
-        XCTAssertTrue(controller.panel.collectionBehavior.contains(.canJoinAllSpaces))
-        XCTAssertTrue(controller.panel.collectionBehavior.contains(.fullScreenAuxiliary))
-        XCTAssertTrue(controller.panel.collectionBehavior.contains(.transient))
         XCTAssertEqual(controller.panel.frame, .zero)
     }
 

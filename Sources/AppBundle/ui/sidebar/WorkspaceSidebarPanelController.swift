@@ -67,7 +67,6 @@ final class WorkspaceSidebarPanel: NSPanelHud {
         isFloatingPanel = true
         isExcludedFromWindowsMenu = true
         animationBehavior = .none
-        collectionBehavior = winMuxOverlayCollectionBehavior
         applyWinMuxLayer(.workspaceSidebar)
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero

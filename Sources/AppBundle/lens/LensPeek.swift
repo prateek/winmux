@@ -194,7 +194,6 @@ final class LensPeekController {
         panel.hasShadow = false
         panel.takesMouse = false
         panel.applyWinMuxLayer(.overlay)
-        panel.collectionBehavior = winMuxOverlayCollectionBehavior
         panel.contentView = NSHostingView(rootView: LensPeekView(drawing: drawing, capture: capture))
         panel.onMouseDown = { [weak self] in _ = self?.model?.endZoomForClick() }
         capture.completed = { [weak self] ms in

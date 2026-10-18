@@ -71,6 +71,10 @@ extension WindowTabStripPanelController {
 
         let strips = windowTabStripsWithTransientResizeApplied(TrayMenuModel.shared.windowTabStrips)
         let activeIds = Set(strips.map(\.id))
+        if MissionControlState.shared.isOpen {
+            refreshHiddenChrome(activeIds: activeIds)
+            return
+        }
         if let mouseInteractionChromeMode {
             refreshSuppressedChrome(mode: mouseInteractionChromeMode, strips: strips, activeIds: activeIds)
             return
@@ -134,7 +138,7 @@ extension WindowTabStripPanelController {
 
         transientResizeTabGroupId = transientStrip.id
         transientResizeTabGroupStrip = transientStrip
-        if hiddenPassiveTabGroupChromeIds.contains(transientStrip.id) {
+        if MissionControlState.shared.isOpen || hiddenPassiveTabGroupChromeIds.contains(transientStrip.id) {
             orderOutPanels(id: transientStrip.id)
             return true
         }

@@ -104,6 +104,7 @@ enum GlobalObserver {
     static func initObserver() {
         guard !isInitialized else { return }
         isInitialized = true
+        MissionControlState.shared.startObserving()
         DoubleSidedWindowGesture.shared.install()
 
         notificationObserverTokens.append(DistributedNotificationCenter.default().addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"), object: nil, queue: .main, using: onNotif))

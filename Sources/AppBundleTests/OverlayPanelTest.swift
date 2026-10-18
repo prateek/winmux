@@ -17,19 +17,26 @@ final class OverlayPanelTest: XCTestCase {
         checkOverlay(NSPanelHud())
     }
 
-    func testSidebarStaysOutOfSystemWindowOverviews() {
-        checkOverlay(WorkspaceSidebarPanel.shared)
-    }
-
-    func testLensAndItsLandingStayOutOfSystemWindowOverviews() {
-        let panel = SwitcherPalettePanel(emit: { _ in })
-        checkOverlay(panel)
-        checkOverlay(panel.gridLandingPanel)
+    func testNormalLevelChromeKeepsItsLevelAndTransientPolicy() {
+        let owner = NSObject()
+        let id = ObjectIdentifier(owner)
+        focus.workspace.columns = ColumnState(count: 2)
+        TrayMenuModel.shared.isEnabled = true
+        ColumnDividerPanelController.shared.refresh()
+        let divider = NSApp.windows.first { $0.isVisible && $0.level == .normal && $0.frame.width == 6 } as! NSPanel
+        let panels: [NSPanel] = [WindowTabStripPanel(id: id), WindowTabGroupVisualPanel(id: id), FocusedEmptyColumnPanel.shared, divider]
+        for panel in panels {
+            checkOverlay(panel)
+            XCTAssertEqual(panel.level, .normal)
+        }
+        focus.workspace.columns = nil
+        ColumnDividerPanelController.shared.refresh()
     }
 
     func testFlipAnimationStaysOutOfSystemWindowOverviewsWithoutChangingItsInputOrLevel() {
         let panel = DoubleSidedWindowController.makeAnimationPanel(frame: CGRect(x: 10, y: 20, width: 300, height: 200))
         checkOverlay(panel)
+        XCTAssertTrue(panel is NSPanelHud)
         XCTAssertEqual(panel.level, .floating)
         XCTAssertTrue(panel.ignoresMouseEvents)
         XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel))
