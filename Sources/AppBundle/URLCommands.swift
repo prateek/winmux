@@ -5,23 +5,24 @@ import Common
     guard let trigger = command as? TriggerBindingCommand else {
         return urlCommandRefusal(kind: command.info.kind, args: command.args)
     }
-    // A binding's commands run past the runner's gate, so a URL may trigger only a binding
-    // whose every command a URL could run directly. A missing binding runs and reports itself.
-    // TriggerBindingCommand.run checks again under `isURLCommand`, against the binding it runs.
-    for inner in trigger.bindingCommands ?? [] {
+    // A missing binding runs and reports itself.
+    return urlBindingRefusal(trigger.args.binding.val, trigger.bindingCommands ?? [])
+}
+
+/// A binding's commands run past the runner's gate, so a URL may trigger only a binding whose every
+/// command a URL could run directly. TriggerBindingCommand.run checks again with the commands it runs.
+func urlBindingRefusal(_ binding: String, _ commands: [any Command]) -> String? {
+    for inner in commands {
         let reason = inner is TriggerBindingCommand
-            ? "trigger-binding is refused in a URL: it runs another binding"
-            : urlCommandRefusal(kind: inner.info.kind, args: inner.args)
-        if let reason {
-            return "trigger-binding \(trigger.args.binding.val) is refused in a URL, because its binding runs a command a URL cannot: \(reason)"
-        }
+            ? "its binding runs another binding"
+            : urlCommandRefusal(kind: inner.info.kind, args: inner.args).map { inner in
+                let parts = inner.components(separatedBy: " is refused in a URL: ")
+                return "its binding runs \(parts[0]) (\(parts.last ?? inner))"
+            }
+        if let reason { return "trigger-binding \(binding) is refused in a URL: \(reason)" }
     }
     return nil
 }
-
-/// True while a command a URL asked for runs, so a command that runs others can hold them to the URL's gate.
-@TaskLocal
-var isURLCommand: Bool = false
 
 @MainActor
 struct URLCommandService {
@@ -100,8 +101,8 @@ final class URLAppleEventHandler: NSObject {
     init(service: URLCommandService? = nil) {
         self.service = service ?? URLCommandService(enabled: { config.urlScheme }, waitForStartup: { await urlStartupSignal.wait() }, execute: { arguments in
             let now = LensTimebase.now()
-            return await $isURLCommand.withValue(true) { await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
-                traceOrigin: LensTraceOrigin(start: now, received: now, source: "URL"), event: { .url($0) }, gate: urlCommandRefusal, refuseHelp: true) }
+            return await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
+                traceOrigin: LensTraceOrigin(start: now, received: now, source: "URL"), event: { .url($0) }, gate: urlCommandRefusal, refuseHelp: true)
         })
         super.init()
     }
@@ -111,7 +112,7 @@ final class URLAppleEventHandler: NSObject {
         if result.exitCode == 0 {
             urlLog.info("URL \(text, privacy: .public) finished with exit 0: \(result.stdout, privacy: .public)")
         } else {
-            urlLog.error("URL \(text, privacy: .public) refused or failed with exit \(result.exitCode): \(result.stderr, privacy: .public) \(result.stdout.isEmpty ? "" : "stdout: \(result.stdout)", privacy: .public)")
+            urlLog.error("URL \(text, privacy: .public) refused or failed with exit \(result.exitCode). stderr: \(result.stderr, privacy: .public) stdout: \(result.stdout, privacy: .public)")
         }
     }
 

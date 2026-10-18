@@ -231,22 +231,24 @@ final class URLCommandTest: XCTestCase {
         await fulfillment(of: [finished], timeout: 1)
     }
 
-    func testTriggerBindingRechecksTheBindingItRunsUnderAURL() async throws {
-        let (allowed, errors) = parseConfig("""
+    func testTriggerBindingRechecksTheBindingItRunsWhenTheRunnerHasAGate() async throws {
+        let previous = mayArrangeWindows
+        mayArrangeWindows = true
+        defer { mayArrangeWindows = previous }
+        let (parsed, errors) = parseConfig("""
         [mode.main.binding]
-        alt-t = 'workspace 2'
+        alt-t = 'reload-config --dry-run'
         """)
         XCTAssertTrue(errors.isEmpty, "\(errors)")
-        config = allowed
-        let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", "alt-t"]).cmdOrNil)
-        XCTAssertNil(urlCommandRefusal(command))
-        let (rebound, _) = parseConfig("""
-        [mode.main.binding]
-        alt-t = 'exec-and-forget touch /tmp/winmux-url-test-must-not-exist'
-        """)
-        config = rebound
-        let result = try await $isURLCommand.withValue(true) { try await command.run(.defaultEnv, .emptyStdin) }
-        XCTAssertEqual(result.exitCode, 1)
-        XCTAssertTrue(result.stderr.joined().contains("refused in a URL"), "\(result.stderr)")
+        config = parsed
+        let arguments = ["trigger-binding", "--mode", "main", "alt-t"]
+        // A gate that lets everything through stands in for a config reload between the gate and the run:
+        // the binding is checked again as it runs.
+        let gated = await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
+            traceOrigin: .internalNow(), gate: { _ in nil })
+        XCTAssertEqual(gated.exitCode, 1)
+        XCTAssertTrue(gated.stderr.contains("reload-config --dry-run"), gated.stderr)
+        let socket = await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil, traceOrigin: .internalNow())
+        XCTAssertFalse(socket.stderr.contains("refused in a URL"), socket.stderr)
     }
 }

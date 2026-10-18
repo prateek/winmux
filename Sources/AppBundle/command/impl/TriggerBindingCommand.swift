@@ -20,8 +20,8 @@ struct TriggerBindingCommand: Command {
         guard let commands = bindingCommands else {
             return io.err("Binding '\(args.binding.val)' is not presented in mode '\(args.mode)'")
         }
-        // The config can be reloaded between a URL's gate and this run, so check what runs now.
-        if isURLCommand, let refusal = urlCommandRefusal(self) { return io.err(refusal) }
+        // The config can be reloaded between a URL's gate and this run, so check what runs.
+        if env.isFromURL, let refusal = urlBindingRefusal(args.binding.val, commands) { return io.err(refusal) }
         // refreshSession is not needed since commands are already run in refreshSession
         return try await commands.runCmdSeq(env, io)
     }

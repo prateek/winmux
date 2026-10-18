@@ -65,7 +65,8 @@ func executeExternalCommand(
     do {
         let result = try await runLightSession(event(command.args), token,
                                   shouldSchedulePostRefresh: !command.canSkipPostCommandRefresh) {
-            let env = CmdEnv(windowId: windowId, workspaceName: workspace)
+            // Only the URL caller passes a gate.
+            let env = CmdEnv(windowId: windowId, workspaceName: workspace, isFromURL: gate != nil)
             let result = try await $lensTraceOrigin.withValue(traceOrigin) { try await command.run(env, CmdStdin(stdin)) }
             return answer(result.exitCode, stdout: result.stdout.joined(separator: "\n"), stderr: result.stderr.joined(separator: "\n"))
         }
