@@ -19,7 +19,7 @@ struct WindowTabItemView: View {
                 .mask { titleFadeMask }
         }
         .foregroundStyle(tabForegroundStyle)
-        .padding(.horizontal, 10)
+        .padding(.horizontal, windowTabItemHorizontalPadding)
         .frame(width: width, height: height, alignment: .leading)
         .background {
             RoundedRectangle(cornerRadius: windowTabStripInnerCornerRadius, style: .continuous)
@@ -45,19 +45,21 @@ struct WindowTabItemView: View {
     }
 }
 
-/// The title fades out under the close button instead of reflowing, so hovering does not move text.
-func closeButtonTitleFadeWidth(isActive: Bool, isHovered: Bool) -> CGFloat {
-    isActive || isHovered ? 26 : 0
+/// The part of the title's frame the close button covers, which the title leaves clear. The title
+/// fades out before it instead of reflowing, so hovering does not move text.
+func closeButtonTitleClearWidth(isActive: Bool, isHovered: Bool) -> CGFloat {
+    guard isActive || isHovered else { return 0 }
+    return windowTabCloseButtonSize + windowTabCloseButtonTrailingInset - windowTabItemHorizontalPadding
 }
 
 extension WindowTabItemView {
     var titleFadeMask: some View {
-        let fade = closeButtonTitleFadeWidth(isActive: tab.isActive, isHovered: isHovered)
+        let clear = closeButtonTitleClearWidth(isActive: tab.isActive, isHovered: isHovered)
         return HStack(spacing: 0) {
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
-                .frame(width: fade / 2)
-            Color.clear.frame(width: fade / 2)
+                .frame(width: clear > 0 ? windowTabTitleFadeGradientWidth : 0)
+            Color.clear.frame(width: clear)
         }
     }
 }

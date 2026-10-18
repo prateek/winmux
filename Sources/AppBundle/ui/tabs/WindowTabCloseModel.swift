@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct WindowTabWidthHold: Equatable {
+struct WindowTabWidthHold {
     let width: CGFloat
     let stripWidth: CGFloat
     let tabCount: Int
@@ -19,17 +19,9 @@ struct WindowTabClosePointer {
 /// How long a background close keeps focus where it was, for a window the app closes after the tab's wait.
 let windowTabBackgroundCloseLifetime: TimeInterval = 5
 
-/// The tab under the pointer once the strip has laid out, so a tab that slides under a still
-/// pointer gets its close button without waiting for the pointer to move.
-func windowTabHoverAfterLayout(
-    _ hovered: UInt32?,
-    pointer: CGPoint?,
-    frames: [UInt32: CGRect],
-    viewport: CGRect,
-    dragging: Bool,
-) -> UInt32? {
-    if dragging { return nil }
-    guard let pointer else { return hovered.flatMap { frames[$0] == nil ? nil : $0 } }
+/// The tab under the pointer, in the strip view's coordinate space; none while a drag is in progress.
+func windowTabHover(pointer: CGPoint?, frames: [UInt32: CGRect], viewport: CGRect, dragging: Bool) -> UInt32? {
+    guard !dragging, let pointer else { return nil }
     return windowTabAtPoint(pointer, frames: frames, viewport: viewport)
 }
 
@@ -39,10 +31,12 @@ final class WindowTabCloseModel: ObservableObject {
 
     @Published private(set) var closingWindowIds: Set<UInt32> = []
     @Published private(set) var widthHolds: [ObjectIdentifier: WindowTabWidthHold] = [:]
-    private(set) var backgroundCloses: [UInt32: Date] = [:]
+    /// Background closes by window id, with the system uptime of the click.
+    private(set) var backgroundCloses: [UInt32: TimeInterval] = [:]
 
-    func begin(_ windowId: UInt32, pointer: WindowTabClosePointer?, now: Date = .now) -> Bool {
+    func begin(_ windowId: UInt32, pointer: WindowTabClosePointer?, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
         guard closingWindowIds.insert(windowId).inserted else { return false }
+        backgroundCloses = backgroundCloses.filter { now - $0.value < windowTabBackgroundCloseLifetime }
         if focus.windowOrNil?.windowId == windowId {
             backgroundCloses.removeValue(forKey: windowId)
         } else {
@@ -63,9 +57,13 @@ final class WindowTabCloseModel: ObservableObject {
     }
 
     /// Consumes the window's background-close record; true when its collection should leave focus alone.
-    func shouldPreserveFocusOnCollection(_ windowId: UInt32, focusedWindowId: UInt32?, now: Date = .now) -> Bool {
+    func shouldPreserveFocusOnCollection(
+        _ windowId: UInt32,
+        focusedWindowId: UInt32?,
+        now: TimeInterval = ProcessInfo.processInfo.systemUptime,
+    ) -> Bool {
         guard let closedAt = backgroundCloses.removeValue(forKey: windowId) else { return false }
-        return now.timeIntervalSince(closedAt) < windowTabBackgroundCloseLifetime && focusedWindowId != windowId
+        return now - closedAt < windowTabBackgroundCloseLifetime && focusedWindowId != windowId
     }
 
     func forgetBackgroundClose(_ windowId: UInt32) {
@@ -103,11 +101,10 @@ func closeWindowFromTabStrip(
     return Task { @MainActor in
         defer { model.finish(windowId) }
         let result = await window.requestClose(timeout: 1, tabStripSession: token)
-        // Nothing is closing after a refusal, and a window with a sheet comes forward.
-        if result == .refused || result == .sheetSeen { model.forgetBackgroundClose(windowId) }
         guard let token: RunSessionGuard = .isServerEnabled else { return }
         try await runLightSession(.menuBarButton, token) {
             if result == .sheetSeen, Window.get(byId: windowId) === window {
+                model.forgetBackgroundClose(windowId)
                 focusWindowFromTabStrip(windowId, fallbackWorkspace: fallbackWorkspace)
             }
         }

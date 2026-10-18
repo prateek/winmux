@@ -253,7 +253,7 @@ final class WindowTabCloseTest: XCTestCase {
         model.finish(2)
     }
 
-    func testHoverFollowsTheLivePointerAfterEachLayout() {
+    func testHoverIsTheTabUnderThePointerAfterEachLayout() {
         func frames(_ ids: [UInt32], width: CGFloat = 150, origin: CGFloat = 5) -> [UInt32: CGRect] {
             Dictionary(uniqueKeysWithValues: ids.enumerated().map {
                 ($0.element, CGRect(x: origin + CGFloat($0.offset) * (width + 4), y: 4, width: width, height: 26))
@@ -262,38 +262,46 @@ final class WindowTabCloseTest: XCTestCase {
         let viewport = CGRect(x: 2, y: 0, width: 900, height: 36)
         let pointer = CGPoint(x: 280, y: 15)
         var order: [UInt32] = [1, 2, 3, 4, 5]
-        var hovered: UInt32? = 2
         // A still pointer over the closed tab's slot hovers each tab that slides into it.
         for next: UInt32 in [3, 4, 5] {
             order.remove(at: 1)
-            hovered = windowTabHoverAfterLayout(hovered, pointer: pointer, frames: frames(order), viewport: viewport, dragging: false)
-            XCTAssertEqual(hovered, next)
+            XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames(order), viewport: viewport, dragging: false), next)
         }
-        // The pointer, not the slot it was in at the click, decides: it moved to the last tab.
-        XCTAssertEqual(windowTabHoverAfterLayout(2, pointer: CGPoint(x: 160 + 154, y: 15), frames: frames([1, 3, 4]), viewport: viewport, dragging: false), 4)
         // A scrolled strip: frames shift, and the tab under the pointer follows them.
-        XCTAssertEqual(windowTabHoverAfterLayout(nil, pointer: pointer, frames: frames([1, 2, 3], origin: -149), viewport: viewport, dragging: false), 3)
-        XCTAssertNil(windowTabHoverAfterLayout(3, pointer: CGPoint(x: 950, y: 15), frames: frames([1, 3]), viewport: viewport, dragging: false))
-        XCTAssertNil(windowTabHoverAfterLayout(3, pointer: pointer, frames: frames([1, 3]), viewport: viewport, dragging: true))
-        // Without a pointer reading, a hover on a tab that is gone clears and one still present stays.
-        XCTAssertNil(windowTabHoverAfterLayout(9, pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false))
-        XCTAssertEqual(windowTabHoverAfterLayout(3, pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false), 3)
+        XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames([1, 2, 3], origin: -149), viewport: viewport, dragging: false), 3)
+        XCTAssertNil(windowTabHover(pointer: CGPoint(x: 950, y: 15), frames: frames([1, 3]), viewport: viewport, dragging: false))
+        XCTAssertNil(windowTabHover(pointer: pointer, frames: frames([1, 3]), viewport: viewport, dragging: true))
+        // No pointer over the strip (it left, or the strip ignores the mouse or is covered): no hover.
+        XCTAssertNil(windowTabHover(pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false))
     }
 
-    func testBackgroundCloseRecordExpiresAndARefusalForgetsIt() async throws {
-        let (_, windows) = group()
+    func testBackgroundCloseRecordExpiresOnTheUptimeClock() async throws {
+        _ = group()
         let model = WindowTabCloseModel.shared
-        XCTAssertTrue(model.begin(2, pointer: nil, now: Date(timeIntervalSinceNow: -(windowTabBackgroundCloseLifetime + 1))))
+        let uptime = ProcessInfo.processInfo.systemUptime
+        XCTAssertTrue(model.begin(2, pointer: nil, now: uptime - windowTabBackgroundCloseLifetime - 1))
         model.finish(2)
         XCTAssertFalse(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
         XCTAssertNil(model.backgroundCloses[2])
         XCTAssertTrue(model.begin(2, pointer: nil))
         model.finish(2)
         XCTAssertTrue(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
+        // An expired record is pruned by the next close rather than kept until its window goes.
+        XCTAssertTrue(model.begin(3, pointer: nil, now: uptime - windowTabBackgroundCloseLifetime - 1))
+        model.finish(3)
+        XCTAssertTrue(model.begin(4, pointer: nil))
+        model.finish(4)
+        XCTAssertNil(model.backgroundCloses[3])
+    }
 
+    func testARefusedPressKeepsItsBackgroundRecordBecauseAnAxTimeoutIsAlsoARefusal() async throws {
+        let (_, windows) = group()
         windows[2].closeResult = .notClosed(.appRefused)
         try await closeWindowFromTabStrip(3, fallbackWorkspace: "tabs")?.value
-        XCTAssertNil(model.backgroundCloses[3])
+        XCTAssertNotNil(WindowTabCloseModel.shared.backgroundCloses[3])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+        // The app closes it later after all: focus stays where it was.
+        windows[2].unbindAndFocusAfterClosure()
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
     }
 
@@ -328,11 +336,13 @@ final class WindowTabCloseTest: XCTestCase {
         XCTAssertEqual(model.widthHolds[id]?.width, 160)
     }
 
-    func testOnlyVisibleCloseButtonsFadeTheTitle() {
-        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: false, isHovered: false), 0)
-        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: true, isHovered: false), 26)
-        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: false, isHovered: true), 26)
-        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: true, isHovered: true), 26)
+    func testATitleLeavesClearOnlyTheCloseButtonsPart() {
+        XCTAssertEqual(closeButtonTitleClearWidth(isActive: false, isHovered: false), 0)
+        for (active, hovered) in [(true, false), (false, true), (true, true)] {
+            let clear = closeButtonTitleClearWidth(isActive: active, isHovered: hovered)
+            // The button spans the tab's last size + inset points; the title's frame ends one padding in.
+            XCTAssertEqual(clear, windowTabCloseButtonSize + windowTabCloseButtonTrailingInset - windowTabItemHorizontalPadding)
+        }
     }
 
     func testCloseSchedulesOnlyTheLightSessionsPostRefresh() async throws {

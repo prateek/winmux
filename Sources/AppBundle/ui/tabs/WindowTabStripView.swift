@@ -13,6 +13,8 @@ struct WindowTabStripView: View {
     @ObservedObject var closeModel = WindowTabCloseModel.shared
     @State var draggingTabId: UInt32?
     @State var hoveredTabId: UInt32?
+    @State var stripPointer: CGPoint?
+    @State var tabRegions = WindowTabHitRegions()
     @State var dragTranslationX: CGFloat = 0
     @State var hasCommittedToDetach = false
     @State var pendingReorderDrop: WindowTabPendingReorderDrop?
@@ -197,18 +199,22 @@ extension WindowTabStripView {
         .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: activeWindowId)
         .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: context.tabWidth)
         .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: context.tabOrder)
-        .onHover { hovering in
-            if !hovering { closeModel.pointerLeftStrip(strip.id) }
+        .onContinuousHover(coordinateSpace: .named("window-tab-strip-panel")) { phase in
+            switch phase {
+                case .active(let point):
+                    stripPointer = point
+                case .ended:
+                    stripPointer = nil
+                    closeModel.pointerLeftStrip(strip.id)
+            }
+            updateHoveredTab()
         }
         .onPreferenceChange(WindowTabFramesPreferenceKey.self) { regions in
             onTabFramesChanged(regions.frames, context.tabWidth, regions.viewport)
-            hoveredTabId = windowTabHoverAfterLayout(
-                hoveredTabId,
-                pointer: pointerLocation(),
-                frames: regions.frames,
-                viewport: regions.viewport,
-                dragging: draggingTabId != nil || hasCommittedToDetach,
-            )
+            tabRegions = regions
+            // A tab can slide under a still pointer, which sends no hover event.
+            stripPointer = pointerLocation()
+            updateHoveredTab()
         }
         .onChange(of: context.tabOrder) { newOrder in
             clearPendingReorderDropIfModelApplied(currentOrder: newOrder)
@@ -346,6 +352,7 @@ extension WindowTabStripView {
         hoveredTabId = nil
         dragTranslationX = 0
         hasCommittedToDetach = false
+        updateHoveredTab()
     }
 }
 
@@ -472,16 +479,14 @@ extension WindowTabStripView {
         self.pendingReorderDrop = nil
     }
 
-    func updateHoveredTab(_ windowId: UInt32, hovering: Bool) {
-        guard draggingTabId == nil, !hasCommittedToDetach else {
-            hoveredTabId = nil
-            return
-        }
-        if hovering {
-            hoveredTabId = windowId
-        } else if hoveredTabId == windowId {
-            hoveredTabId = nil
-        }
+    /// The one writer of `hoveredTabId`: the tab under the pointer, from the strip's hover and its layout.
+    func updateHoveredTab() {
+        hoveredTabId = windowTabHover(
+            pointer: stripPointer,
+            frames: tabRegions.frames,
+            viewport: tabRegions.viewport,
+            dragging: draggingTabId != nil || hasCommittedToDetach || isWindowTabStripDragInProgress(),
+        )
     }
 }
 
@@ -539,9 +544,6 @@ extension WindowTabStripView {
                     value: WindowTabHitRegions(frames: [tab.windowId: proxy.frame(in: .named("window-tab-strip-panel"))]),
                 )
             }
-        }
-        .onHover { hovering in
-            updateHoveredTab(tab.windowId, hovering: hovering)
         }
         .contextMenu {
             Button("Remove Tab From Stack") {

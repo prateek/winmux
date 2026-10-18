@@ -11,13 +11,13 @@ struct WindowTabCloseButton: View {
             Image(systemName: "xmark")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(foreground)
-                .frame(width: 20, height: 20)
+                .frame(width: windowTabCloseButtonSize, height: windowTabCloseButtonSize)
                 .background(Circle().fill(foreground.opacity(isHovered ? 0.18 : 0)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Close \(title)")
         .onHover { isHovered = $0 }
-        .padding(.trailing, 5)
+        .padding(.trailing, windowTabCloseButtonTrailingInset)
     }
 }
