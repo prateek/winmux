@@ -9,11 +9,6 @@ import Foundation
             Darwin.exit(AXIsProcessTrustedWithOptions([axTrustedCheckOptionPrompt: true] as CFDictionary) ? 0 : 1)
         default: break
     }
-    do { try resumeFirstRunLaunchIfNeeded() }
-    catch {
-        fputs("WinMux could not resume its pending setup: \(error.localizedDescription)\n", stderr)
-        Darwin.exit(1)
-    }
 }
 
 @MainActor public func initAppBundle() {

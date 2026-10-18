@@ -93,19 +93,23 @@ tool call and drive the UI through other `vm ssh` calls while it records:
 app="$HOME/demo/WinMux Setup.app"
 screencapture -x -v -V 300 "$HOME/takes/first-run/setup.mov" &
 recorder=$!
-open --env XDG_CONFIG_HOME="$HOME/demo/setup-config" \
-  --env XDG_STATE_HOME="$HOME/demo/setup-state" \
-  --env WINMUX_NICKEL_HELPER="$HOME/winmux/nickel-helper/target/release/winmux-nickel" "$app"
+launchctl setenv XDG_CONFIG_HOME "$HOME/demo/setup-config"
+launchctl setenv XDG_STATE_HOME "$HOME/demo/setup-state"
+launchctl setenv WINMUX_NICKEL_HELPER "$HOME/winmux/nickel-helper/target/release/winmux-nickel"
+open "$app"
 wait "$recorder"
 ```
+
+`launchctl setenv`, not `open --env`: macOS's Quit & Reopen starts the new
+process with launchd's environment, and only `launchctl setenv` reaches it.
+Undo it when the takes are done, with `launchctl unsetenv` for each of the
+three, so a later `open` in the guest gets the default directories.
 
 Stage the standing desk first with `desk/stage-desk.sh`. The wrapper copies the
 debug executable and Sparkle framework, declares the debug bundle identifier and
 ad-hoc signs the bundle. LaunchServices gives it its own responsible-process
 identity; running the executable over ssh inherits the image's grants instead.
-The assigned Tahoe guest supports `open --env`. On an older guest, use
-`launchctl setenv` for these variables before `open`, and `launchctl unsetenv`
-afterwards; never change the host environment for this purpose.
+Never change the host environment for this purpose.
 
 Film the welcome window, each Settings button and its correct pane. Answer the
 native Accessibility alert's **Open System Settings** button too; an alert can
@@ -125,13 +129,9 @@ Do not fill a failed reopen with `open`. Only after proving the new process is
 running may `open -a` bring its existing setup window forward. Close Settings
 before Start so it does not become part of the tiled desk.
 
-macOS drops custom launch options on its own reopen. `WinMuxEntry` restores a
-pending launch before SwiftUI and config loading by re-executing with the
-original arguments and environment. The resume record is volatile shared
-memory; the pending marker and decline still use only `setup.json`. Start
-clears the resume record. Deleting the pending state file invalidates it for a
-second take. An explicit differing XDG launch keeps its own config and still
-honours the pending Go gate.
+The pending marker and decline live only in `setup.json`, which the reopened
+process reads from the `launchctl setenv` state directory. Deleting that file
+starts a second take from scratch.
 Film **Continue without Screen Recording** as a separate supported path: it
 leads to the same go step and remembers the choice on later launches.
 

@@ -53,12 +53,10 @@ defaults remain unchanged. The go text follows `restore-windows-on-quit`.
 The cold bundled guest run registers both native permission rows and uses the
 real toggles and password sheets, with no TCC database writes. A fresh child
 reads a Screen Recording grant the parent cannot yet use. Both WinMux's relaunch
-and macOS's Quit & Reopen return at go. The system path drops custom launch
-options, so a volatile per-user resume record restores the original arguments
-and environment before SwiftUI and config loading. Start clears it; pending and
-decline still use one persistent JSON file. A differing explicit XDG launch
-keeps its own config and still honours the pending go gate. The sidebar also
-waits for Start. Host and pinned-version guest checks cover these paths.
+and macOS's Quit & Reopen return at go, since the pending marker is in the
+state file the reopened process reads. macOS's reopen drops launch options and
+an `open --env` environment, so a take with its own XDG directories sets them
+with `launchctl setenv`. The sidebar also waits for Start. Host and pinned-version guest checks cover these paths.
 
 - [ ] Installed, downloaded/quarantined build and Gatekeeper first launch.
 - [ ] Second display and real sleep, wake or unlock.
