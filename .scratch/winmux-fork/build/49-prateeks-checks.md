@@ -135,6 +135,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On the installed build with several windows on screen (Columns on, if you use them), press Option-semicolon, then `c`, on your own keyboard. Pass: every screen dims except the focused window, which gets an accent border, for about a second before it fades; the windowing mode stays on, and `h` right away moves focus with no mark left behind. Then run it again and press any key or click at once. Pass: the mark goes immediately. Say here if the look is wrong: the dim, the border colour, or the length.
 - [ ] With two displays, focus a window on the second display and run `winmux find-focus`. Pass: both displays dim, and the border is on that window on the second display.
 
+**Close a window from its WinMux tab**
+- [ ] On the installed build, make a tab group of five windows, hover a background tab and click its ×, then click three times in one place, at the active tab's × or a hovered tab's ×, with your own mouse or trackpad. Pass: each click closes one window, the next tab's × lands under the pointer without the tabs widening, and the tabs widen only once the pointer leaves the strip. Then middle-click a tab with a real mouse's middle button. Pass: that window closes. Say here if the hold or the animation feels wrong.
+- [ ] Put an unsaved document from an app you use (TextEdit, Pages, an editor) in a tab group as a background tab and click its ×. Pass: its tab stays, it comes to the front with the save sheet, and Cancel leaves it in the group.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

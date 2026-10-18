@@ -103,12 +103,13 @@ Done when nothing is pending. Anything still pending after this pass and your ow
 The demos are filmed once, from the commit that will merge, so they show the fixes too. Finish the review's fixes before the storyboard goes out: the demos are then the fixes' live check, and a fix after filming costs a fresh guest, a `make check` and a whole filming.
 
 1. Write `$STATE/storyboard.md` yourself, as the `demo` skill's step 1 says: you have read the issue, the diff and the review, and the storyboard is where you decide what a reviewer needs to see.
-2. Fill **Every pass** and **Demo pass** into `$STATE/demo.prompt.md`, naming each thing no live run has seen since the builder's last one. The storyboard, `demos.md` and the captures live in `$STATE`, not on the branch, so filming adds no commit. Launch it with `demo` names as [Launching a builder pass](reference.md#launching-a-builder-pass) says.
-3. Check every demo the builder made as the `demo` skill's step 5 says, and each take's reported ending against its **Watch**.
+2. When the storyboard films the rich set, the guest must be at 1920 × 1080 before the demo pass starts: `$VM stop relay-<n>`, then `$VM up relay-<n> 1920x1080`, from your own shell. Never leave that restart to the builder: a guest it restarts from its own shell dies with that shell, as one did in #125's demo pass.
+3. Fill **Every pass** and **Demo pass** into `$STATE/demo.prompt.md`, naming each thing no live run has seen since the builder's last one. The storyboard, `demos.md` and the captures live in `$STATE`, not on the branch, so filming adds no commit. Launch it with `demo` names as [Launching a builder pass](reference.md#launching-a-builder-pass) says.
+4. Check every demo the builder made as the `demo` skill's step 5 says, and each take's reported ending against its **Watch**.
    - A take that misses its **Watch** because of the filming is filmed again: launch the demo pass once more, with the list.
    - A take that shows the change is wrong is a finding. Fix it as step 6 says, then film every demo again from the new head. If the second filming still shows it wrong, that is a stop.
    - A demo that cannot be filmed stays in the Done-when table with its reason.
-4. Attach the GIFs with `gh attach --repo prateek/winmux <pull request number> <files>` and put the captions from `$STATE/demos.md` into the description.
+5. Attach the GIFs with `gh attach --repo prateek/winmux <pull request number> <files>` and put the captions from `$STATE/demos.md` into the description.
 
 When the last builder pass filmed takes with `film` or `trace-film`, event logs included, from code that is unchanged at the head, you may render the demos from those takes instead of launching a demo pass; the description names the filmed commit.
 

@@ -47,11 +47,10 @@ Fourteen new behavior tests cover confirmation, sheets, timeout, retained bindin
 
 The 1280 × 720 standing-desk run adds Ghostty windows to make five tabs. One inactive-button close removes only its target and preserves focus. Three clicks at one point close three windows, leave two tabs at their held width, and moving out re-widens them. Middle-click targets its window and ignores the overflow gutter. An unsaved TextEdit document stays at its index with its save sheet visible and focused, both from the background and while active; Cancel leaves it managed. One script produces identical ordinary/no-button CLI close results on the base and feature trees. Reproduction tools are in `../proofs/close-tab/`; pull-request media is supplied by the demo pass.
 
-## Checks for Prateek
+## Checks needing the installed build or hardware
 
-- [ ] Installed-build behavior.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+- [ ] Installed-build behavior with a real mouse or trackpad, including a real middle button.
+- [ ] A save sheet from an app other than TextEdit.
 
 ## Sources
 
