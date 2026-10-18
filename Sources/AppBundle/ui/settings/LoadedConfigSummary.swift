@@ -43,6 +43,7 @@ struct LoadedConfigSummary {
     let bindings: [Binding]
     let columns: [Columns]
     let hooks: [Hook]
+    var file: URL? { load.loaded?.file ?? load.defaultsFile }
 
     var loadExplanation: String {
         if let loaded = load.loaded {

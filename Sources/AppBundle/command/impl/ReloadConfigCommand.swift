@@ -92,6 +92,7 @@ extension LoadedConfig: ConfigReloadCandidate {
     ),
     configPath: { preferredEditableConfigUrl().path },
     loadStateChanged: { ShortcutSettingsModel.shared.updateLoadState($0) },
+    defaultsFile: defaultConfigUrl,
 )
 
 @MainActor func reloadConfig(forceConfigUrl: URL? = nil) async throws -> Bool {

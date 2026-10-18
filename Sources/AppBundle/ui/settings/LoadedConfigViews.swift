@@ -11,7 +11,7 @@ struct LoadedOverviewView: View {
                 Text("Loaded \(loaded.time.formatted(date: .abbreviated, time: .standard))").foregroundStyle(.secondary)
             } else {
                 Text("WinMux's built-in defaults").font(.headline)
-                Text(defaultConfigUrl.path).font(.caption).textSelection(.enabled)
+                if let file = summary.file { Text(file.path).font(.caption).textSelection(.enabled) }
                 Text(summary.loadExplanation).foregroundStyle(.secondary)
             }
             Divider()

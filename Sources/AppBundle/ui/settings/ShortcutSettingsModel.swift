@@ -7,10 +7,12 @@ public final class ShortcutSettingsModel: ObservableObject {
     @Published var settingsRevision = 0
     @Published var presentationRevision = 0
     @Published var summary: LoadedConfigSummary
-    private var loadState = ConfigLoadState()
+    private var loadState: ConfigLoadState
 
     private init() {
-        summary = .build(config, load: .init(), workspaceNames: Workspace.all.map(\.name))
+        let state = ConfigLoadState(defaultsFile: defaultConfigUrl)
+        loadState = state
+        summary = .build(config, load: state, workspaceNames: Workspace.all.map(\.name))
     }
 
     func reload() {

@@ -143,6 +143,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         configPath: @escaping () -> String,
         loadStateChanged: @escaping (ConfigLoadState) -> Void = { _ in },
         now: @escaping () -> Date = Date.init,
+        defaultsFile: URL? = nil,
     ) {
         self.load = load
         self.helper = helper
@@ -154,6 +155,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.configPath = configPath
         self.loadStateChanged = loadStateChanged
         self.now = now
+        self.loadState.defaultsFile = defaultsFile
     }
 
     /// The application runs in the caller's task, with the caller's task-locals and cancellation.

@@ -14,4 +14,5 @@ struct ConfigLoadState: Equatable {
     }
     var loaded: Loaded?
     var failure: Failure?
+    var defaultsFile: URL?
 }

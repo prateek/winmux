@@ -12,6 +12,19 @@ private final class SummaryReloadValues {
 
 @MainActor
 final class LoadedConfigSummaryTest: XCTestCase {
+    func testFileProvenanceIncludesTheBuiltInFileWithoutReadingGlobalConfig() {
+        let fallback = URL(filePath: "/bundle/default-config.json")
+        let personal = URL(filePath: "/config/defaults.ncl")
+        let time = Date(timeIntervalSince1970: 1234)
+        var state = ConfigLoadState(defaultsFile: fallback)
+        XCTAssertEqual(LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: []).file, fallback)
+        state.loaded = .init(file: personal, time: time, shippedDefaults: false)
+        let summary = LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: [])
+        XCTAssertEqual(summary.file, personal)
+        XCTAssertEqual(summary.load.loaded?.time, time)
+        XCTAssertEqual(summary.load.loaded?.shippedDefaults, false, "a person's file can be named defaults.ncl")
+    }
+
     func testRichDeskConfigResolvesThreeAndTwoColumnsThroughRealHelper() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Build the helper") }
         let supervisor = NickelSupervisor()
