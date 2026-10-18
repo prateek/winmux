@@ -52,4 +52,4 @@ if (root / "release-version.txt").exists():
     assert text("release-workspace.txt") == "2\n"
     assert text("release-pid-before.txt") == text("release-pid-after.txt")
     assert "finished with exit 0" in text("release-url.log")
-print("PASS: CLI/URL examples, Escape, unchanged refusal snapshots, hot reload, FIFO, socket parity, placement, Column count, failed-command logging and cold setup refusal")
+print("PASS: CLI/URL examples, Escape, unchanged refusal snapshots, hot reload, FIFO, socket parity, Column count, failed-command logging and cold setup refusal")

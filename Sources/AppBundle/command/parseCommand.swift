@@ -12,10 +12,7 @@ func parseCommand(_ raw: String) -> ParsedCmd<any Command> {
 }
 
 func parseCommand(_ args: [String]) -> ParsedCmd<any Command> {
-    if args.first == "exec-and-forget" {
-        return .cmd(ExecAndForgetCommand(args: ExecAndForgetCmdArgs(bashScript: args.dropFirst().joined(separator: " "))))
-    }
-    return parseCmdArgs(args.slice).map { $0.toCommand() }
+    parseCmdArgs(args.slice).map { $0.toCommand() }
 }
 
 func expectedActualTypeError(expected: TOMLType, actual: TOMLType) -> String {

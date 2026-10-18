@@ -106,20 +106,20 @@ final class URLCommandTest: XCTestCase {
     func testEveryKindHasAnExplicitURLPolicy() {
         let refused: Set<CmdKind> = [.subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors,
                                     .listModes, .listExecEnvVars, .listLenses, .listColumns, .debugWindows,
-                                    .debugLensTrace, .doctor, .config, .agent]
+                                    .debugLensTrace, .doctor, .config, .agent, .place]
         for kind in CmdKind.allCases {
             XCTAssertEqual(urlCommandRefusal(kind: kind, args: nil) != nil, refused.contains(kind), kind.rawValue)
         }
     }
 
     func testParsedVariantsRefuseOnlyTheirInputOrOutputForms() throws {
-        for words in [["place", "--dry-run", "--window-id", "42"], ["place", "--json"],
+        for words in [["place", "--dry-run", "--window-id", "42"], ["place", "--dry-run", "--json", "--window-id", "42"],
                       ["workspace", "next", "--stdin"], ["move-node-to-workspace", "next", "--stdin"],
                       ["lens", "--filter", "-"], ["agent", "skill"], ["config", "status"]] {
             let command = try XCTUnwrap(parseCommand(words).cmdOrNil, words.description)
             XCTAssertNotNil(urlCommandRefusal(command), words.description)
         }
-        for words in [["place"], ["column-count", "3"], ["workspace", "2"], ["workspace", "next", "--no-stdin"],
+        for words in [["column-count", "3"], ["workspace", "2"], ["workspace", "next", "--no-stdin"],
                       ["lens", "overview"], ["lens", "--filter", "all"], ["mode", "window"], ["reload-config"], ["enable", "on"]] {
             let command = try XCTUnwrap(parseCommand(words).cmdOrNil, words.description)
             XCTAssertNil(urlCommandRefusal(command), words.description)

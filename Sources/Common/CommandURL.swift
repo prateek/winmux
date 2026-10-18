@@ -32,10 +32,8 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
     let refused: Bool
     switch kind {
         case .subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors, .listModes,
-             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent:
+             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place:
             refused = true
-        case .place:
-            refused = (args as? PlaceCmdArgs).map { $0.dryRun || $0.json } ?? false
         case .workspace:
             refused = (args as? WorkspaceCmdArgs)?.useStdin == true
         case .moveNodeToWorkspace:

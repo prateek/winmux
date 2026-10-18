@@ -207,7 +207,7 @@ final class DefaultConfigTest: XCTestCase {
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw XCTSkip("Run swift build") }
         for args in [["lens"], ["list-lenses", "--bad"], ["summon", "--window-id", "bad"],
                      ["focus-column", "0"], ["move-node-to-column", "0"], ["column-width", "1"],
-                     ["compact", "extra"], ["list-columns", "--bad"], ["column-count", "0"], ["place", "--dry-run"],
+                     ["compact", "extra"], ["list-columns", "--bad"], ["column-count", "0"], ["place"],
                      ["config", "check", "--bad"], ["config", "convert", "--bad"], ["config", "schema", "--bad"]] {
             XCTAssertEqual(try cli(executable, args), 2, args.joined(separator: " "))
         }

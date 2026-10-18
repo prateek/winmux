@@ -62,12 +62,14 @@ final class ExternalCommandTest: XCTestCase {
         XCTAssertTrue(query.stdout.contains("permissions"))
     }
 
-    func testSocketExecAndForgetRefusalAfterSetup() async {
+    func testSocketExecAndForgetIsAParseFailureAfterSetup() async {
         let previous = mayArrangeWindows
         mayArrangeWindows = true
         defer { mayArrangeWindows = previous }
-        let result = await answer(["exec-and-forget", "echo forbidden"])
-        XCTAssertEqual(result.exitCode, 1)
-        XCTAssertEqual(result.stderr, "exec-and-forget is prohibited in CLI")
+        let args = ["exec-and-forget", "echo forbidden"]
+        let result = await answer(args)
+        XCTAssertEqual(result.exitCode, parseFailureExitCode(args.slice))
+        XCTAssertEqual(result.stderr, parseCommand(args).unwrap().2)
+        XCTAssertNotNil(parseCommand(args).unwrap().2)
     }
 }

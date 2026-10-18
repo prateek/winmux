@@ -110,17 +110,10 @@ struct ColumnCountCommand: Command {
 
 struct PlaceCommand: Command {
     let args: PlaceCmdArgs
-    var shouldResetClosedWindowsCache: Bool { !args.dryRun && !args.json }
-    func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+    let shouldResetClosedWindowsCache = false
+    func run(_ env: CmdEnv, _ io: CmdIo) async -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io), let window = target.windowOrNil else { return io.err("Can't find the window") }
         let ws = focus.workspace
-        if !args.dryRun && !args.json {
-            guard ws.columns != nil else {
-                window.bind(to: bindingDataForNewTilingWindow(ws, window: window))
-                return true
-            }
-            return try await ColumnPolicy.place(window, on: ws)
-        }
         guard ws.columns != nil else { return io.out(args.json ? "{\"column\":null,\"hook\":null}" : "Columns off; ordinary tree placement") }
         let decision = await ColumnPolicy.decision(window: window, workspace: ws)
         if args.json { return io.out(decision.json.prettyPrinted) }

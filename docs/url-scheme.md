@@ -8,7 +8,7 @@ open 'winmux://run/lens/overview'
 open 'winmux://run/workspace/2'
 ```
 
-These run `winmux mode window`, `winmux lens overview` and `winmux workspace 2`. Encode a space as `%20`, a literal slash inside an argument as `%2F`, and a percent sign as `%25`. For example, `winmux://run/move-node-to-workspace/My%20Desk` passes `My Desk` as one argument. A plus sign stays a plus sign.
+These run `winmux mode window`, `winmux lens overview` and `winmux workspace 2`. Encode a space as `%20`, a literal slash inside an argument as `%2F`, and a percent sign as `%25`. A plus sign stays a plus sign.
 
 The CLI still validates each argument. Percent-encoding does not make an otherwise invalid command or workspace id valid.
 
@@ -18,8 +18,7 @@ The scheme and `run` host are case-insensitive. User names, passwords, ports, qu
 
 A URL has no stdin or terminal to print into. WinMux refuses:
 
-- Help (`--help` or `-h`), `subscribe`, every `list-*` command, `debug-windows`, `debug-lens-trace`, `doctor`, `config` and every `agent` subcommand.
-- `place --dry-run` and `place --json`. Plain `place` places the focused window; `column-count <count>` sets the count.
+- Help (`--help` or `-h`), `subscribe`, every `list-*` command, `debug-windows`, `debug-lens-trace`, `doctor`, `config`, `place` (it only explains a placement) and every `agent` subcommand.
 - `workspace --stdin`, `move-node-to-workspace --stdin` and `lens --filter -`.
 
 All other commands use the same command runner as the CLI socket, including its disabled-server, first-run and `exec-and-forget` refusals. `enable on` can enable a disabled server. Incidental output from a successful command, such as `reload-config`, goes to the unified log at info level. Refusals and failed commands go to error level. Inspect them with:

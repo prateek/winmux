@@ -56,6 +56,8 @@ diff <(printf '%s\n' "$(sed 's/^- \[x\]/- [ ]/' live.md)") <(printf '%s\n' "$(ca
 
 It drops trailing newlines from both. A ticked box is not a difference: GitHub ticks an umbrella's list, and Prateek ticks his checks. Then update the body from the draft rendered at the merge.
 
+The build umbrella's child list is the exception to rendering `{{CHILDREN}}`. #55's list is in build order, kept by hand: it is not the order the sub-issues API returns, and it leaves out #48, #49 and #51, which the prose names. Rendering it from the API reorders it. Compare only the prose with the draft, and add a new child's line to the live list by hand.
+
 #84 and #85 are edited in place and never rendered over: add your line to the live body and the same line to the draft, and leave every tick as it is.
 
 ## Cleaning up
