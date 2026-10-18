@@ -10,21 +10,23 @@ The prototype's twelve openings ordered the row 0.785–11.291 ms after the firs
 
 ## Decisions
 
-- **The system's switcher is not replaced, disabled or drawn over.** Native Cmd-Tab opens and navigates it. The panel sits above its AX frame. Choosing the row explicitly leaves the switcher by posting Escape with Command; the row then owns its lifetime until release or cancellation. Nothing is drawn over the switcher.
+- **The system's switcher is not replaced or drawn over.** Native Cmd-Tab opens and navigates it, and the row sits above its AX frame.
+- **Entering the row leaves the switcher.** Cmd-A closes the system's switcher by posting Escape with Command, and the row stays on its own until Command is released or Escape cancels it. This changes the prototype issue's Decision that the row is removed when the switcher closes; it is Prateek's to accept, and this issue waits on his answer.
+- **Once entered, the row owns the keyboard until Command is released.** Tab, Shift-Tab and the arrows move in the row and do not reopen the system's switcher. Every other Command chord is consumed too, so Cmd-Q or Cmd-W cannot reach the app being switched away from.
 - **One process per row.** Match the selected icon to its pid, and offer only that pid's windows. Two processes have separate icons and separate rows. Suppress an unresolved icon rather than combine processes. Unique titles worked in the prototype; duplicate-icon association through observed activation order needs explicit validation, including at startup and after relaunch.
 - **With nothing chosen, release does what the system does.** No focus or cancellation event is issued by WinMux.
 - **Cmd-A enters a nonempty row.** Tab, Shift-Tab and arrows then move among its windows; Command release focuses once. Escape cancels without focus. Entry closes the system switcher without switching apps, and swallowed Cmd-Tab must not reopen it.
 - **Hide the row under Secure Input.** The native switcher remains fully available. There is no display-only row with an unusable entry key.
 - **Off by default**, behind one setting. The prototype itself ships no setting or behavior.
 - **Extend MissionControlState's Dock observer.** Share Dock lifetime, launch readiness and retry handling with its existing observer. Do not introduce a second tracking subsystem.
-- **The event tap owns paired events.** Record swallowed key-downs and consume exactly their key-ups across release and cancellation. Pass modifier events and unrelated keys. Do no synchronous cross-process AX or window-list work in the callback. A stale focus cannot commit into a newer session.
+- **The event tap owns paired events.** Decide on a key's first, non-autorepeat key-down, and consume a key-up only for a key-down that was consumed; reset the pairing when macOS disables and re-enables the tap. Pass modifier events, and every key while no row is entered. No AX or window-list call runs on the tap's run loop, the Dock polling and observer callbacks included. A stale focus cannot commit into a newer session.
 - **Use WinMux's in-process model and focus path.** Do not run the debug CLI or clone the prototype's window snapshot parser. Prepare the snapshot at opening Cmd-Tab and discard quick taps. The prototype's CLI costs do not establish a number for the integrated path.
 - **Use original implementation and assets.** Copy no GPL-3 DockDoor code or asset.
 
 ## Defaults chosen for you
 
-- **Setting:** `system-switcher-window-row = false`. Enabling it does not bind or take Cmd-Tab away from macOS; it takes effect only while the system switcher owns that gesture.
-- **Entry:** Cmd-A matched by character through WinMux's binding rules, including non-US layouts. If the snapshot is pending, pass the key and apply entry when a nonempty row appears; empty results pass it with no entry.
+- **Setting:** `system-switcher-window-row = false`. Enabling it registers no Cmd-Tab binding and leaves Cmd-Tab to macOS until the person enters a row; only then, for the rest of that Command hold, does the row take Tab.
+- **Entry:** Cmd-A matched by character through WinMux's binding rules, including non-US layouts. Cmd-A is taken only while a nonempty row is on screen; before that, or over an empty row, it reaches the front app as it would without WinMux, and is not applied later.
 - **Presentation:** text Tiles with title and workspace, a 16-point gap above the native frame, no thumbnails. Keep a row within the selected screen's usable width. Make overflow keyboard-accessible.
 - **Identity:** use an unambiguous process association where the platform supplies one. If duplicate titles/URLs need an activation-order association, validate it against native selection and suppress it while incomplete or uncertain.
 - **Pointer:** keyboard-first. A click cancels initially; it must never leave a stranded row. Native hover may change the target before entry. After entry the switcher is closed, so pointer crossing cannot change its highlight.

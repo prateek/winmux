@@ -1,6 +1,8 @@
 # A window row above the system's Cmd-Tab
 
-The row orders **1.692 ms behind the first readable system highlight at the median** (0.785–11.291 ms, twelve openings). Five frame-timestamped openings show it **0, 1, 0, 0 and 1 frames behind the visible switcher**. A single Safari process still flashes its shown-workspace window before the hidden-workspace choice when release is left to the Dock. Leaving the switcher with Command-Escape on Cmd-A removes that intermediate switch in the measured alternative. **Build it with that handoff.**
+The row orders **1.692 ms behind the first readable system highlight at the median** (0.785–11.291 ms, twelve openings). Five frame-timestamped openings show it **0, 1, 0, 0 and 1 frames behind the visible switcher**. A single Safari process still flashes its shown-workspace window before the hidden-workspace choice when release is left to the Dock. Leaving the switcher with Command-Escape on Cmd-A removes that intermediate switch in the measured alternative. **Build it with that handoff**, if Prateek accepts that the row outlives the switcher once entered; see below.
+
+The row is not on screen 150 ms after the key, the budget the first pass judged it by: Tab to row ordered is 173.8–191.6 ms. That budget is the strip's, for a view WinMux owns. The system's own switcher is first readable 172–180 ms after Tab here, so no row above it can arrive sooner, and the number that matters is how far it trails the switcher.
 
 This is a standalone guest prototype. It changes no shipped WinMux behavior, adds no test or setting, and copies no DockDoor source or asset. The proposed feature remains off by default. Its draft is [A window row above the system switcher](../../build/114-a-window-row-above-the-system-switcher.md).
 
@@ -48,7 +50,7 @@ For duplicate names/URLs the prototype records application activations and assoc
 
 ## Timing relative to the system
 
-The snapshot starts on the opening Cmd-Tab key-down observed by the event tap. Its start stamp is immediately before launching the CLI, rather than after the first AX read. Process setup accounts for a measured 13.808–17.731 ms before that launch stamp; the snapshot still finishes well before the Dock is readable. One snapshot is used for the entire session, including later Tab and Shift-Tab changes.
+The snapshot starts on the opening Cmd-Tab key-down observed by the event tap. Its start stamp is taken just before the CLI process is launched, rather than after the first AX read. That stamp falls 13.808–17.731 ms after the Tab's event timestamp: event delivery to the tap and a dispatch to a background queue, which an integrated feature would also pay. The snapshot still finishes well before the Dock is readable. One snapshot is used for the entire session, including later Tab and Shift-Tab changes.
 
 The accepted twelve openings, in milliseconds from the opening event's CGEvent timestamp:
 
@@ -120,13 +122,13 @@ With `--detach`, Cmd-A posts Escape with the Command flag at the HID tap, marks 
 
 The observed release → chosen focus was **252.275 ms**. The CLI dispatch/return occupied **173.393 ms** within that interval; it returned before the independently observed focus settled. The rest includes scheduling, asynchronous workspace/focus work and probe sampling. A built in-process feature would not pay the external CLI hop. **No in-process timing was measured or is claimed.** The film shows the source desk transitioning directly to the chosen workspace, with no workspace-2 window in between. It is still a visible workspace transition.
 
-This fits the Decision that the system's switcher is not replaced, disabled or drawn over: Cmd-Tab opens and navigates the system's own UI. The person explicitly leaves it by choosing the row. The retained row occupies its previous rectangle above the switcher's former position; nothing is drawn over the system switcher.
+This changes one of the issue's Decisions. Cmd-Tab still opens and navigates the system's own switcher, and nothing is drawn over it, but the issue also says WinMux removes the row when the switcher closes. Here Cmd-A closes the switcher and the row stays, and for the rest of that Command hold Tab moves within the row instead of reopening the switcher. Whether to accept that is Prateek's call; the draft issue waits on it.
 
 ![Safari row above the native switcher, hidden-workspace Tile chosen](row-chosen.png)
 
 ![The independent row after Cmd-A has closed the native switcher](row-after-entry.png)
 
-The image filenames are retained from the first pass; both images now show the corrected Safari hero, cropped from the accepted films and under 400 KB each.
+Both images show the corrected Safari hero, cropped from the accepted films and under 400 KB each.
 
 ## Keyboard and lifetime contract
 
@@ -134,9 +136,9 @@ The nonactivating NSPanel never becomes key or activates the prototype. Its Tile
 
 Cmd-A enters only a nonempty row. While a snapshot is pending it passes through and queues entry for when a nonempty row appears; it does not consume a key for an unavailable action. A controlled 400 ms delivery delay (`--slow-snapshot`) exercised that pending path. An empty Finder row swallowed Cmd-A before the fix; the fixed take passed it and made no focus call.
 
-After entry, only Tab and arrows are consumed. Every consumed key-down records its keycode in a set, and exactly its key-up is consumed, even if release or Escape ended the UI in between. Modifier events always pass. Escape synchronously ends the first approach's session or the independent row. A delayed focus captures its session token and skips if a newer opening has started.
+After entry, Tab, the arrows, a repeated Cmd-A and, in the independent row, Escape are consumed. Every consumed key-down records its keycode in a set, and the next key-up of that keycode is consumed, even if release or Escape ended the UI in between. Pairing is by keycode, not by event: an autorepeat swallowed after a passed key-down, or a key-up lost while macOS had the tap disabled, still unpairs a key. In the independent row every other Command chord passes to the app being switched away from, so Cmd-Q there quits that app. The draft issue rules both out for the feature. Modifier events always pass. Escape synchronously ends the first approach's session or the independent row. A delayed focus captures its session token and skips if a newer opening has started.
 
-The tap callback performs no synchronous cross-process AX or window-list queries. Entry's front-app sampling is queued to the next main turn. An in-row step updates only selection and redraw state. Every queried AX element has a 1.0-second messaging timeout; the Dock root has one before notification registration. Snapshot parsing reads stdout alone and skips nonnumeric ids.
+The tap callback itself makes no synchronous cross-process AX or window-list query, but the 5 ms poll and the observer callbacks do, on the same main run loop, so a slow Dock still delays the tap. A feature runs the AX work off the tap's run loop. Entry's front-app sampling is queued to the next main turn. An in-row step updates only selection and redraw state. Every queried AX element has a 1.0-second messaging timeout; the Dock root has one before notification registration. Snapshot parsing reads stdout alone and skips nonnumeric ids.
 
 Input logging is limited to opening/session Tab and consumed keys, including paired key-up cleanup. There is no stream of ordinary app keys, character data or arbitrary modifier events. Activation and focus observations are separately named. Bare Command holds do not poll the Dock.
 
