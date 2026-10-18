@@ -1,12 +1,41 @@
 import AppKit
 import Common
 import Network
+import os
 
 func startUnixSocketServer() {
-    try? FileManager.default.removeItem(atPath: socketPath)
+    let path = Result {
+        let path = try socketPath()
+        try prepareSocketDirectory(baseDirectory: darwinUserTemporaryDirectory(), expectedOwner: geteuid())
+        return path
+    }.getOrDie()
+    startSocketListener(path: path, required: true)
+    startSocketListener(path: legacySocketPath(), required: false)
+}
+
+private let socketLog = Logger(subsystem: winMuxAppId, category: "socket")
+
+private func startSocketListener(path: String, required: Bool) {
+    if required {
+        try? FileManager.default.removeItem(atPath: path)
+    } else {
+        removeLegacySocketEntry(path: path, expectedOwner: geteuid())
+    }
     let params = NWParameters.tcp
-    params.requiredLocalEndpoint = .unix(path: socketPath)
-    let listener = Result { try NWListener(using: params) }.getOrDie()
+    params.requiredLocalEndpoint = .unix(path: path)
+    let listener: NWListener
+    do {
+        listener = try NWListener(using: params)
+    } catch {
+        socketListenerFailed(path: path, required: required, error: error)
+        return
+    }
+    listener.stateUpdateHandler = { [weak listener] state in
+        if case .failed(let error) = state {
+            socketListenerFailed(path: path, required: required, error: error)
+            listener?.cancel()
+        }
+    }
     listener.newConnectionHandler = { connection in
         Task {
             defer { connection.cancel() }
@@ -17,19 +46,26 @@ func startUnixSocketServer() {
     listener.start(queue: .global())
 }
 
+private func socketListenerFailed(path: String, required: Bool, error: Error) {
+    let message = "Cannot listen on socket \(path): \(error.localizedDescription)"
+    if required { die(message) }
+    socketLog.error("Legacy listener unavailable: \(message, privacy: .public)")
+    eprint("Legacy listener unavailable: \(message)")
+}
+
 func toggleReleaseServerIfDebug(_ state: EnableCmdArgs.State) async {
     if serverArgs.isReadOnly { return }
     if !isDebug { return }
-    let socketFile = "/tmp/\(stableWinMuxAppId)-\(unixUserName).sock"
-    let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)
-    defer { connection.cancel() }
-    if await connection.startBlocking().error != nil { // Can't connect, WinMux.app is not running
+    let path = Result { try socketPath(appId: stableWinMuxAppId) }.getOrDie()
+    for socketFile in [path, legacySocketPath(appId: stableWinMuxAppId)] {
+        let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)
+        defer { connection.cancel() }
+        if await connection.startBlocking().error != nil { continue }
+        let req = ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil)
+        _ = await connection.writeAtomic(req)
+        _ = await connection.readNonAtomic()
         return
     }
-
-    let req = ClientRequest(args: ["enable", state.rawValue], stdin: "", windowId: nil, workspace: nil)
-    _ = await connection.writeAtomic(req)
-    _ = await connection.readNonAtomic()
 }
 
 private let serverVersionAndHash = "\(winMuxAppVersion) \(gitHash)"
