@@ -124,7 +124,7 @@ This fits the Decision that the system's switcher is not replaced, disabled or d
 
 ![Safari row above the native switcher, hidden-workspace Tile chosen](row-chosen.png)
 
-![The independent row after Cmd-A has closed the native switcher](row-textedit.png)
+![The independent row after Cmd-A has closed the native switcher](row-after-entry.png)
 
 The image filenames are retained from the first pass; both images now show the corrected Safari hero, cropped from the accepted films and under 400 KB each.
 

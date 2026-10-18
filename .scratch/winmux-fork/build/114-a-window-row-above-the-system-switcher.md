@@ -48,4 +48,4 @@ The prototype's twelve openings ordered the row 0.785–11.291 ms after the firs
 ## Sources
 
 - **Prototype: a row of windows above the system's Cmd-Tab**, the follow-up prototype README and captured measurements, 2026-10-18.
-- Prateek's follow-up rulings: compare with the native switcher, use one process's windows, try an explicit row handoff and ship the Secure Input hide policy.
+- The relay driver's rulings on the prototype's first result: compare with the native switcher, use one process's windows, try an explicit row handoff and hide the row under Secure Input.
