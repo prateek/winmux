@@ -391,6 +391,19 @@ final class FocusCommandTest: XCTestCase {
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
     }
 
+    func testLastPrefersTheEnclosingGroupOverASingleTabLayoutInsideIt() async throws {
+        let root = Workspace.get(byName: name).rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let single = TilingContainer(parent: group, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        let inner = TestWindow.new(id: 1, parent: single)
+        TestWindow.new(id: 2, parent: group)
+        let last = TestWindow.new(id: 3, parent: group)
+        XCTAssertTrue(inner.focusWindow())
+        let result = try await FocusCommand(args: .init(rawArgs: [], tabIndex: .last)).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(focus.windowOrNil?.windowId, last.windowId)
+    }
+
     func testLastNestedTabResolvesMostRecentWindow() async throws {
         let root = Workspace.get(byName: name).rootTilingContainer
         let group = TilingContainer(parent: root, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)

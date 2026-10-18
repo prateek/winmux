@@ -162,7 +162,9 @@ struct FocusCommand: Command {
 
 @MainActor
 private func tabWindowToFocus(_ target: LiveFocus, _ tabIndex: FocusCmdArgs.TabIndex) -> Window? {
-    guard let group = currentTabGroupData(target, includeSingleTab: tabIndex == .last)?.group else { return nil }
+    guard let focusedWindow = target.windowOrNil,
+          let group = focusedWindow.nearestWindowTabGroup ?? (tabIndex == .last ? focusedWindow.nearestTabLayout : nil)
+    else { return nil }
     let tab = switch tabIndex {
         case .position(let index): group.children.getOrNil(atIndex: Int(index) - 1)
         case .last: group.children.last
@@ -176,12 +178,18 @@ private func tabWindowToFocus(_ group: TilingContainer, _ zeroBasedIndex: Int) -
     return targetTab.mostRecentWorkspaceFocusableWindowRecursive ?? targetTab.tabRepresentativeWindow
 }
 
+/// A tab layout holding one window is no tab group, but `last` still names its one tab.
+@MainActor private extension Window {
+    var nearestTabLayout: TilingContainer? {
+        parentsWithSelf.lazy.compactMap { $0 as? TilingContainer }.first { $0.layout == .tabGroup }
+    }
+}
+
 @MainActor
-private func currentTabGroupData(_ target: LiveFocus, includeSingleTab: Bool = false) -> (group: TilingContainer, currentTab: TreeNode)? {
+private func currentTabGroupData(_ target: LiveFocus) -> (group: TilingContainer, currentTab: TreeNode)? {
     guard
         let focusedWindow = target.windowOrNil,
-        let tabGroup = focusedWindow.parentsWithSelf.lazy.compactMap({ $0 as? TilingContainer })
-            .first(where: { $0.isWindowTabGroup || (includeSingleTab && $0.layout == .tabGroup) }),
+        let tabGroup = focusedWindow.nearestWindowTabGroup,
         let currentTab = focusedWindow.directChild(in: tabGroup)
     else { return nil }
     return (tabGroup, currentTab)

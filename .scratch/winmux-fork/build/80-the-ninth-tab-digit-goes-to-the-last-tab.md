@@ -32,7 +32,7 @@ Nothing.
 
 ## Built and checked
 
-`FocusCmdArgs.TabIndex` represents a positive position or `last`. The latter resolves the focused window's nearest tab-layout container's last child, including a one-child group, using the same MRU/representative resolution as a position. A position past the end still fails without changing focus. The shipped main mode has 40 bindings; Option-0 is free. Old `std.record.remove "alt-0"` removals get the existing migration hint. Conversion and first-run TOML bootstrap preserve explicit user chords, including ninth- and tenth-position bindings; the upstream conversion expectation and fixture are unchanged. The Rust exact-short-list expectation also needed its digit range changed to match the new defaults.
+`FocusCmdArgs.TabIndex` represents a positive position or `last`. The latter resolves the last child of the focused window's nearest tab group, or of a one-window tab layout when no group encloses it, using the same MRU/representative resolution as a position. A position past the end still fails without changing focus. The shipped main mode has 40 bindings; Option-0 is free. Old `std.record.remove "alt-0"` removals get the existing migration hint. Conversion and first-run TOML bootstrap preserve explicit user chords, including ninth- and tenth-position bindings; the upstream conversion expectation and fixture are unchanged. The Rust exact-short-list expectation also needed its digit range changed to match the new defaults.
 
 Host and Swift-6.4 guest `make check` pass: 1,610 Swift tests, 88 Rust integration tests and 171 script tests (the guest skips the host-only committed-hash assertion by design). Tests cover parsing, incompatible options, one/twelve tabs, nested-child MRU resolution, an out-of-range position, no tab group, exact default commands and the removal hint.
 
@@ -40,9 +40,7 @@ At 1280 × 720, an import-free/defaults-only debug guest run with twelve owned w
 
 ## Checks that remain Prateek's
 
-- [ ] Installed-build use with a real keyboard and the reconciled personal config.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+- [ ] After the dotfiles change for Option-9 and Option-0, on the installed build with a real keyboard: Option-9 in a tab group of more than nine focuses the last tab, and Option-0 reaches the focused app.
 
 ## Sources
 

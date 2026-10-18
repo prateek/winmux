@@ -148,7 +148,7 @@ Cmd-Tab and Cmd-Shift-Tab then open WinMux's recent-window strip instead of Appl
 
 ## For people upgrading
 
-`alt-0` is no longer a default and `alt-9` now focuses the last tab; a config that wants the old tenth-tab chord merges `mode.main.binding.alt-0 = "focus --tab-index 10"`, and a config that carries its own `alt-9` line, as every file converted from an upstream TOML does, keeps focusing the ninth tab until that line changes to `focus --tab-index last`.
+`alt-0` is no longer a default and `alt-9` now focuses the last tab; a config that wants the old tenth-tab chord merges `mode.main.binding.alt-0 = "focus --tab-index 10"`, and a config that carries its own `alt-9` line, as a file converted from upstream's default TOML does, keeps focusing the ninth tab until that line changes to `focus --tab-index last`.
 
 The shipped binding mode is now `window`; there is no default `lens` binding mode or alias. A config merging `mode.lens.binding.x = "focus left"` over defaults still loads: it creates a user-defined `lens` binding mode that the default Trigger never enters. Reading `defaults.mode.lens.binding` fails with a missing-field error; the helper prints a rename hint above Nickel's diagnostic. Change that read to `defaults.mode.window.binding`.
 
