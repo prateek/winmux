@@ -1,6 +1,5 @@
 import AppKit
 import Common
-import MASShortcut
 import SwiftUI
 
 /// Shows the config file as it is on disk. Editing happens in the user's own editor.
@@ -67,14 +66,18 @@ func shortcutSettingsWindow() -> NSWindow? {
 }
 
 @MainActor
-func presentShortcutSettingsWindow(_ window: NSWindow) {
-    let fixedSize = NSSize(width: 760, height: 620)
-    window.styleMask.remove(.resizable)
-    window.minSize = fixedSize
-    window.maxSize = fixedSize
-    window.setContentSize(fixedSize)
+/// `place` sizes and centres a window opened afresh; one already shown stays where the person put it.
+func presentShortcutSettingsWindow(_ window: NSWindow, place: Bool = true) {
+    if place {
+        let fixedSize = NSSize(width: 900, height: 620)
+        window.styleMask.remove(.resizable)
+        window.minSize = fixedSize
+        window.maxSize = fixedSize
+        window.setContentSize(fixedSize)
+        window.center()
+    }
     NSApp.activate(ignoringOtherApps: true)
-    window.center()
+    if window.isMiniaturized { window.deminiaturize(nil) }
     window.makeKeyAndOrderFront(nil)
     window.orderFrontRegardless()
 }

@@ -67,9 +67,10 @@ struct ReloadTestDependencies {
         session: { _ in XCTFail("Unconfigured reload adapter: saves.session"); return false },
     )
     var configPath: () -> String = { XCTFail("Unconfigured reload adapter: configPath"); return "/unconfigured" }
+    var loadStateChanged: (ConfigLoadState) -> Void = { _ in }
 
     func owner() -> ConfigReloader<ReloadCandidate> {
-        ConfigReloader(load: load, helper: helper, apply: apply, report: report, watch: watch, emit: emit, saves: saves, configPath: configPath)
+        ConfigReloader(load: load, helper: helper, apply: apply, report: report, watch: watch, emit: emit, saves: saves, configPath: configPath, loadStateChanged: loadStateChanged)
     }
 }
 
@@ -105,6 +106,7 @@ final class ReloadProbe {
     var nextSave = "save"
     var runningApplications = 0
     var overlapped = false
+    var loadStates: [ConfigLoadState] = []
 
     func owner() -> ConfigReloader<ReloadCandidate> {
         var dependencies = ReloadTestDependencies()
@@ -150,6 +152,7 @@ final class ReloadProbe {
             session: { operation in self.sessions += 1; return try await operation() },
         )
         dependencies.configPath = { "/config/requested.ncl" }
+        dependencies.loadStateChanged = { self.loadStates.append($0) }
         return dependencies.owner()
     }
 }

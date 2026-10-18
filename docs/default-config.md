@@ -6,6 +6,15 @@ With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new
 
 `url-scheme` is a Bool, default `true`. Set it to `false` to refuse `winmux://` URL commands; a config reload applies to the next URL. [URL commands](url-scheme.md) has the form, the refused commands and who can use it.
 
+## Settings shows what is loaded
+
+Open **Settings…** from the menu bar to see the loaded file and time, Lenses and their Triggers, searchable bindings in every mode, Columns per workspace, hooks, Behavior and Appearance. Search accepts config notation such as `cmd` and modifier glyphs such as `⌘`. Filter functions stay in the config helper and appear on the Lenses that use them.
+
+Settings edits nothing. **Open Config** opens the config file in its default editor, creating a starter only if no file exists. **Config File** shows the text on disk; **Reload From Disk** refreshes that display without applying it. Save a valid edit to apply it when `reload-on-save` is on, or use the menu's Reload config action. A failed load displays its diagnostic above every pane and keeps the last good values; a failed first load displays the built-in defaults. A later successful load clears the banner while Settings stays open. Double-sided windows is switched from the menu bar menu; Settings shows its current state.
+
+## Importing defaults
+
+
 A config imports defaults explicitly. This import-only config has the same static settings as a fresh install:
 
 ```nickel

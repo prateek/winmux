@@ -6,8 +6,8 @@ import XCTest
 final class DoubleSidedWindowsTest: XCTestCase {
     func testBodyClickTargetsPairButDoesNotPassThroughOtherWindows() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
+        let saved = UserDefaults.standard.object(forKey: ExperimentalUISettings.doubleSidedWindowsKey)
+        defer { UserDefaults.standard.set(saved, forKey: ExperimentalUISettings.doubleSidedWindowsKey) }
         var settings = ExperimentalUISettings()
         settings.doubleSidedWindows = true
         config.windowTabs.enabled = true
@@ -51,8 +51,8 @@ final class DoubleSidedWindowsTest: XCTestCase {
 
     func testPairReturnsToTabsWhenThirdWindowJoins() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
+        let saved = UserDefaults.standard.object(forKey: ExperimentalUISettings.doubleSidedWindowsKey)
+        defer { UserDefaults.standard.set(saved, forKey: ExperimentalUISettings.doubleSidedWindowsKey) }
         var settings = ExperimentalUISettings()
         settings.doubleSidedWindows = true
         config.windowTabs.enabled = true
@@ -80,9 +80,9 @@ final class DoubleSidedWindowsTest: XCTestCase {
 
     func testDefaultAndFullscreenKeepExistingBehavior() {
         setUpWorkspacesForTests()
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
-        UserDefaults.standard.removeObject(forKey: "doubleSidedWindows")
+        let saved = UserDefaults.standard.object(forKey: ExperimentalUISettings.doubleSidedWindowsKey)
+        defer { UserDefaults.standard.set(saved, forKey: ExperimentalUISettings.doubleSidedWindowsKey) }
+        UserDefaults.standard.removeObject(forKey: ExperimentalUISettings.doubleSidedWindowsKey)
         XCTAssertFalse(ExperimentalUISettings().doubleSidedWindows)
         config.windowTabs.enabled = true
         let group = Workspace.get(byName: "pair").rootTilingContainer

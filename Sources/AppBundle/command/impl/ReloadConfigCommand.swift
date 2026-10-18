@@ -91,6 +91,7 @@ extension LoadedConfig: ConfigReloadCandidate {
         },
     ),
     configPath: { preferredEditableConfigUrl().path },
+    loadStateChanged: { ShortcutSettingsModel.shared.updateLoadState($0) },
 )
 
 @MainActor func reloadConfig(forceConfigUrl: URL? = nil) async throws -> Bool {
@@ -128,7 +129,8 @@ extension LoadedConfig: ConfigReloadCandidate {
 /// reload rather than individual Settings controls, so GUI edits, config-editor saves, and
 /// filesystem auto-reloads share the same live-update behavior.
 @MainActor private func applyReloadedConfigurationToRunningApp() {
-    ShortcutSettingsModel.shared.reload()
+    // Settings follows the reloader's load state, published when an applied load finishes or a load fails; a
+    // dry run, or a load a later request supersedes, changes nothing Settings shows.
     WorkspaceSidebarPanel.refreshAll()
     WindowTabStripPanelController.shared.refresh()
     SecureInputPanel.shared.refresh()

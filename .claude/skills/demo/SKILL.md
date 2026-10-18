@@ -19,6 +19,8 @@ Read the pull request's diff and its issue's **Done when** list. Cut the work in
 - A **Watch** that names a count gets it from a run of the query on the same desk, not from a guess: in the relay, the match counts the first pass wrote in `captures/index.md`.
 - Choose windows by their minimum width. Safari will not go narrower than 574 points, so at 1280 by 720 it cannot be the window that lands in a quarter-width Column; Ghostty can.
 - Notes will not go below 709 by 300 points at 1280 by 720, so a storyboard cannot place it smaller.
+- A failed config save opens WinMux's Config Error dialog over everything, Settings included. A take whose **Watch** is something behind it, such as Settings' error banner, closes the dialog as a step in the take, or shows that state as a still.
+- Notes strips custom-scheme links such as `winmux://`, so a claim about clicking one cannot be staged in a note. Use `open` typed in Ghostty, or a page Safari serves.
 - The debug build's menu bar item can draw a blank icon while its hit area still opens the menu. Find the item and its Quit from a screenshot, not from the icon.
 - A grid packs the standing desk's four windows into one row at 1280 by 720, so `j` and `k` have nowhere to go. A take that moves vertically needs a Lens with `sections = 'workspace` and `grid.sections-arrangement = 'rows`, which puts each workspace on a row of its own.
 - A list, grid or strip opens on the entry after the focused one, and an arrow or `h` `j` `k` `l` at an edge keeps the selection. Write a **Watch** from that starting entry, not from the focused window.

@@ -1,6 +1,5 @@
 import AppKit
 import Common
-import MASShortcut
 import SwiftUI
 
 public let shortcutSettingsWindowId = "\(winMuxAppName).shortcutSettings"
@@ -9,53 +8,37 @@ public let shortcutSettingsWindowId = "\(winMuxAppName).shortcutSettings"
 public func getShortcutSettingsWindow(model: ShortcutSettingsModel) -> some Scene {
     SwiftUI.Window("WinMux Settings", id: shortcutSettingsWindowId) {
         ShortcutSettingsView(model: model)
-            .frame(width: 760, height: 620)
-            .onAppear {
-                NSApp.setActivationPolicy(.accessory)
-            }
+            .frame(width: 900, height: 620)
+            .onAppear { NSApp.setActivationPolicy(.accessory) }
     }
 }
 
 @MainActor
 public func openShortcutSettingsWindow(_ openWindow: OpenWindowAction) {
-    ShortcutSettingsModel.shared.reload()
-    if let existingWindow = shortcutSettingsWindow() {
-        presentShortcutSettingsWindow(existingWindow)
-    } else {
+    let existing = shortcutSettingsWindow()
+    let shown = existing.map { $0.isVisible || $0.isMiniaturized } ?? false
+    ShortcutSettingsModel.shared.prepareForPresentation(alreadyShown: shown)
+    if let window = existing { presentShortcutSettingsWindow(window, place: !shown) }
+    else {
         openWindow(id: shortcutSettingsWindowId)
         DispatchQueue.main.async {
-            if let createdWindow = shortcutSettingsWindow() {
-                presentShortcutSettingsWindow(createdWindow)
-            }
+            if let window = shortcutSettingsWindow() { presentShortcutSettingsWindow(window) }
         }
     }
 }
 
-enum SettingsSidebarItem: Hashable, Identifiable {
-    case shortcuts
-    case workspaces
-    case behavior
-    case appearance
-    case configuration
-    case reference
-
+enum SettingsSidebarItem: String, CaseIterable, Identifiable {
+    case overview = "Overview", lenses = "Lenses", shortcuts = "Shortcuts", columns = "Columns"
+    case hooks = "Hooks and Filters", behavior = "Behavior", appearance = "Appearance"
+    case configuration = "Config File", reference = "Configuration Reference"
     var id: Self { self }
-
-    var label: String {
-        switch self {
-            case .shortcuts: "Shortcuts"
-            case .workspaces: "Workspaces"
-            case .behavior: "Behavior"
-            case .appearance: "Appearance"
-            case .configuration: "Configuration"
-            case .reference: "Configuration Reference"
-        }
-    }
-
     var icon: String {
         switch self {
+            case .overview: "info.circle"
+            case .lenses: "rectangle.stack"
             case .shortcuts: "keyboard"
-            case .workspaces: "rectangle.3.group"
+            case .columns: "rectangle.split.3x1"
+            case .hooks: "arrow.triangle.branch"
             case .behavior: "arrow.triangle.2.circlepath"
             case .appearance: "sidebar.left"
             case .configuration: "doc.text"
@@ -66,165 +49,88 @@ enum SettingsSidebarItem: Hashable, Identifiable {
 
 struct ShortcutSettingsView: View {
     @ObservedObject var model: ShortcutSettingsModel
-    @State private var selectedItem: SettingsSidebarItem? = .shortcuts
+    @State private var selectedItem: SettingsSidebarItem? = .overview
 
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedItem) {
-                ForEach([SettingsSidebarItem.shortcuts, .workspaces, .behavior, .appearance, .configuration, .reference]) { item in
-                    NavigationLink(value: item) {
-                        Label(item.label, systemImage: item.icon)
-                    }
+                ForEach(SettingsSidebarItem.allCases) { item in
+                    NavigationLink(value: item) { Label(item.rawValue, systemImage: item.icon) }
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 220)
+            .navigationSplitViewColumnWidth(235)
         } detail: {
             VStack(spacing: 0) {
-                if selectedItem != .reference {
-                    ConfigFileBar()
+                if let failure = model.summary.load.failure {
+                    ConfigLoadFailureBanner(summary: model.summary, failure: failure)
                     Divider()
                 }
-                switch selectedItem {
-                    case .shortcuts:
-                        ShortcutSettingsShortcutsView(model: model)
-                    case .workspaces:
-                        ShortcutSettingsWorkspacePane(model: model)
-                    // These panes copy the config into their own state when they are created, so a
-                    // new revision creates them again.
-                    case .behavior:
-                        ShortcutBehaviorSettingsView(model: model).id(model.settingsRevision)
-                    case .appearance:
-                        ShortcutAppearanceSettingsView(model: model).id(model.settingsRevision)
-                    case .configuration:
-                        ShortcutAdvancedView(model: model)
-                    case .reference:
-                        ShortcutConfigurationReferenceView()
-                    case nil:
-                        Text("Select an item")
+                Group {
+                    switch selectedItem {
+                        case .overview: LoadedOverviewView(summary: model.summary)
+                        case .lenses: LoadedLensesView(summary: model.summary)
+                        case .shortcuts: LoadedShortcutsView(summary: model.summary)
+                        case .columns: LoadedColumnsView(summary: model.summary)
+                        case .hooks: LoadedHooksView(summary: model.summary)
+                        case .behavior: ShortcutBehaviorSettingsView(model: model).id(model.settingsRevision)
+                        case .appearance: ShortcutAppearanceSettingsView(model: model).id(model.settingsRevision)
+                        case .configuration: ShortcutAdvancedView(model: model)
+                        case .reference: ShortcutConfigurationReferenceView()
+                        case nil: Text("Select an item")
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                Divider()
+                HStack {
+                    Text("Settings shows the loaded configuration. Edit the file to make changes.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open Config") { openConfigFile() }
+                }.padding(12)
             }
-            .navigationTitle(selectedItem?.label ?? "")
+            .navigationTitle(selectedItem?.rawValue ?? "Settings")
         }
+        .onChange(of: model.presentationRevision) { selectedItem = .overview }
     }
 }
 
-/// Every pane shows what the config file holds. WinMux never writes to that file, so the bar
-/// sends the user to it.
-private struct ConfigFileBar: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("These settings are read from your config file. To change one, edit the file and reload.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button("Open config") { openConfigFile() }
-                .controlSize(.small)
-        }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-    }
-}
-
-struct ShortcutSettingsShortcutsView: View {
-    @ObservedObject var model: ShortcutSettingsModel
-
-    var body: some View {
-        ShortcutCategoryView(model: model, category: .managed)
-    }
-}
-
-struct ShortcutSettingsWorkspacePane: View {
-    @ObservedObject var model: ShortcutSettingsModel
-
-    var body: some View {
-        ShortcutCategoryView(model: model, category: .common)
-    }
-}
-
-struct ShortcutCategoryView: View {
-    @ObservedObject var model: ShortcutSettingsModel
-    let category: ShortcutSettingsModel.Category
-
+struct SettingsPage<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                let sections = model.sections.filter { $0.category == category && $0.id != "managed-move" }
-                ForEach(sections) { section in
-                    ShortcutSectionView(model: model, section: section)
-                }
-            }
-            .padding(18)
+            VStack(alignment: .leading, spacing: 16) {
+                Text(title).font(.title2.bold())
+                content
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(20)
         }
     }
 }
 
-struct ShortcutSectionView: View {
-    @ObservedObject var model: ShortcutSettingsModel
-    let section: ShortcutSettingsModel.Section
+struct SettingsValueRow: View {
+    let label: String
+    let value: String
+    init(_ label: String, _ value: String) { self.label = label; self.value = value }
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            Text(label).frame(maxWidth: .infinity, alignment: .leading)
+            Text(value).foregroundStyle(.secondary).multilineTextAlignment(.trailing).textSelection(.enabled)
+        }
+    }
+}
 
+private struct ConfigLoadFailureBanner: View {
+    let summary: LoadedConfigSummary
+    let failure: ConfigLoadState.Failure
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if section.id != "managed-focus" {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.title)
-                        .font(.headline)
-                    if let summary = section.summary {
-                        Text(summary)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            if section.id == "managed-focus" {
-                ManagedDirectionalShortcutsView(model: model)
-            } else if section.id == "managed-move" {
-                EmptyView()
-            } else if section.id == "managed-splits" {
-                CompassPad(model: model, title: "Split", prefix: "split") {
-                    SplitDemoView()
-                }
-            } else if section.id == "workspaces" {
-                WorkspaceShortcutSectionView(model: model)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(section.actions.indices, id: \.self) { index in
-                        let action = section.actions[index]
-                        ShortcutRow(model: model, action: action)
-                        if index < section.actions.count - 1 {
-                            Divider().padding(.leading, 12)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-struct ShortcutRow: View {
-    @ObservedObject var model: ShortcutSettingsModel
-    let action: ShortcutSettingsModel.Action
-
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(action.title)
-                    .font(.system(size: 13, weight: .medium))
-                if let subtitle = action.subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            ShortcutRecorderView(shortcut: model.shortcutValue(for: action.id))
-            .frame(width: 140, height: 22)
-        }
-        .padding(.vertical, 6)
+            Text("Config failed to \(failure.applying ? "apply" : "load") · \(failure.time.formatted(date: .omitted, time: .standard))").font(.headline)
+            ScrollView {
+                Text(failure.diagnostic).font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+            }.frame(maxHeight: 100)
+            Text(summary.loadExplanation).font(.caption)
+        }.padding(12).frame(maxWidth: .infinity, alignment: .leading).background(Color.orange.opacity(0.12))
     }
 }

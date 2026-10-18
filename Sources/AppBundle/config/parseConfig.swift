@@ -9,6 +9,7 @@ struct LoadedConfig {
     let config: Config
     let url: URL
     let helper: LoadedNickelConfig
+    let shippedDefaults: Bool
 }
 
 /// Has a fresh helper load the config file, or the shipped defaults when there is no config file.
@@ -43,7 +44,7 @@ func readConfig(forceConfigUrl: URL? = nil) async -> Result<LoadedConfig, String
         ?? defaultConfigUrl
     let (parsedConfig, errors) = parseConfig(loaded.settings)
     if errors.isEmpty {
-        return .success(LoadedConfig(config: parsedConfig, url: configUrl, helper: loaded))
+        return .success(LoadedConfig(config: parsedConfig, url: configUrl, helper: loaded, shippedDefaults: customConfigUrl == nil))
     } else {
         supervisor.discard(loaded)
         let msg = """

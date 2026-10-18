@@ -1,5 +1,5 @@
 {
-  "originHash" : "cec12b498083b59d10148a183f4c4606ec650c4bd17b1f8ce42c8d3da0750b7e",
+  "originHash" : "b6bdd472b4c8c421c34870edd878ab355240fefcdcda95e252233f732b4495d2",
   "pins" : [
     {
       "identity" : "antlr4",
@@ -17,14 +17,6 @@
       "state" : {
         "revision" : "4b555f0354e6c280917bae8a598a258efe87ab98",
         "version" : "2.0.1"
-      }
-    },
-    {
-      "identity" : "masshortcut",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/rxhanson/MASShortcut",
-      "state" : {
-        "revision" : "2f9fbb3f959b7a683c6faaf9638d22afad37a235"
       }
     },
     {
