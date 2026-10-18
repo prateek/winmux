@@ -416,12 +416,12 @@ final class FocusCommandTest: XCTestCase {
         group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
         let rect = Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100)
         TestWindow.new(id: 1, parent: group, rect: rect)
-        let second = TestWindow.new(id: 2, parent: group, rect: rect)
-        TestWindow.new(id: 3, parent: group, rect: rect)
+        TestWindow.new(id: 2, parent: group, rect: rect)
+        let third = TestWindow.new(id: 3, parent: group, rect: rect)
         TestWindow.new(id: 4, parent: workspace, rect: Rect(topLeftX: 500, topLeftY: 0, width: 100, height: 100))
         let commands = [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), .new(tabRelative: .tabNext)]
         for command in commands {
-            XCTAssertTrue(second.focusWindow())
+            XCTAssertTrue(third.focusWindow())
             _ = try await command.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(focus.windowOrNil?.windowId, 3, "\(command.args)")
         }

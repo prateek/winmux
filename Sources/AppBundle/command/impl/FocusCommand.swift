@@ -9,6 +9,7 @@ struct FocusCommand: Command {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         // todo bug: floating windows break mru
         // A floating window bound into the tree could land inside a tab group and become a tab.
+        // Tab targets skip it; directions and dfs still bind it there (prateek/winmux#242).
         let seesFloatingAsTiling = args.floatingAsTiling && !args.target.addressesTabs
         let floatingWindows = seesFloatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
         defer {
