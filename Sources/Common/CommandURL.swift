@@ -29,19 +29,22 @@ public func parseCommandURL(_ url: URL) -> Result<[String], CommandURLRefusal> {
 }
 
 public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
-    let refused: Bool
+    let prints = "\(kind.rawValue) is refused in a URL: it prints a result"
+    func readsStdin(_ form: String) -> String { "\(kind.rawValue) \(form) is refused in a URL: it reads stdin" }
     switch kind {
         case .subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors, .listModes,
-             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place, .execAndForget:
-            refused = true
+             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place:
+            return prints
+        case .execAndForget:
+            return "exec-and-forget is refused in a URL: it runs a shell command"
         case .workspace:
-            refused = (args as? WorkspaceCmdArgs)?.useStdin == true
+            return (args as? WorkspaceCmdArgs)?.useStdin == true ? readsStdin("--stdin") : nil
         case .moveNodeToWorkspace:
-            refused = (args as? MoveNodeToWorkspaceCmdArgs)?.useStdin == true
+            return (args as? MoveNodeToWorkspaceCmdArgs)?.useStdin == true ? readsStdin("--stdin") : nil
         case .lens:
-            refused = (args as? LensCmdArgs)?.filter == "-"
+            return (args as? LensCmdArgs)?.filter == "-" ? readsStdin("--filter -") : nil
         case .reloadConfig:
-            refused = (args as? ReloadConfigCmdArgs)?.dryRun == true
+            return (args as? ReloadConfigCmdArgs)?.dryRun == true ? "reload-config --dry-run is refused in a URL: it prints a result" : nil
         case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .columnCount, .balanceSizes,
              .close, .closeAllWindowsButCurrent, .enable, .flattenWorkspaceTree,
              .focus, .focusBackAndForth, .focusMonitor, .fullscreen, .joinWith, .layout,
@@ -49,7 +52,6 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
              .moveNodeToProject, .moveWorkspaceToMonitor, .openSidebar, .palette, .project,
              .resize, .split, .stackWith, .sections, .summon, .summonWorkspace, .swap, .triggerBinding,
              .volume, .workspaceBackAndForth:
-            refused = false
+            return nil
     }
-    return refused ? "\(kind.rawValue) is refused in a URL: it reads stdin or prints a result" : nil
 }

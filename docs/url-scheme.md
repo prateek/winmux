@@ -20,8 +20,8 @@ A URL has no stdin or terminal to print into. WinMux refuses:
 
 - Help (`--help` or `-h`), `subscribe`, every `list-*` command, `debug-windows`, `debug-lens-trace`, `doctor`, `config`, `place` (it only explains a placement), `reload-config --dry-run` and every `agent` subcommand.
 - `workspace --stdin`, `move-node-to-workspace --stdin` and `lens --filter -`.
-- `exec-and-forget`, as on the CLI.
-- `trigger-binding` for a binding that runs `exec-and-forget` or another `trigger-binding`. A binding is otherwise a list of commands a URL could run itself.
+- `exec-and-forget`, which runs a shell command. The CLI refuses it too.
+- `trigger-binding` for a binding that runs any command in this list, or another `trigger-binding`. WinMux checks the binding again when it runs, so a config reload in between cannot change what a URL runs.
 
 All other commands use the same command runner as the CLI socket, including its disabled-server and first-run refusals. `enable on` can enable a disabled server. Incidental output from a successful command, such as `reload-config`, goes to the unified log at info level. Refusals and failed commands go to error level. Inspect them with:
 
@@ -37,6 +37,8 @@ Set the top-level Bool `url-scheme = false` in the Nickel config. Its default is
 
 ## Who can use it
 
-Anything that can open a URL as you can run any command a URL allows. That reaches further than the CLI socket, which only programs already running as you can use (see [The CLI socket moves out of `/tmp`, and the docs say who can use it](https://github.com/prateek/winmux/issues/124)): a web page, an email or a chat message can hold a `winmux://` link, and a page can open one when you click. Browsers ask before opening another app's scheme, and some let you allow a site for good. WinMux adds no confirmation dialog. The worst a link can do is what the commands above can: switch workspaces, move, resize or close windows, change modes, reload the config or turn the server off. A link cannot name a shell command to run. The config's own hooks, such as `on-mode-changed`, still run after a command from a URL as they do after the same command from the CLI, so a hook that runs `exec-and-forget` runs its script.
+Anything that can open a URL as you can run any command a URL allows. That reaches further than the CLI socket, which only programs already running as you can use (see [The CLI socket moves out of `/tmp`, and the docs say who can use it](https://github.com/prateek/winmux/issues/124)): a web page, an email or a chat message can hold a `winmux://` link. Browsers ask before opening another app's scheme. Some let you allow a site for good, and after that any script on the site can open `winmux://` links without asking again. WinMux adds no confirmation dialog of its own.
+
+A link can run every command not refused above, with the effect it has from the CLI. That includes closing windows (`close`, `close-all-windows-but-current`), setting the volume, moving the pointer, minimizing or full-screening windows, summoning windows, changing modes, reloading the config, turning the server off, and triggering a binding that passes the check above. A link cannot name a shell command to run. The config's own hooks, such as `on-mode-changed`, still run after a command from a URL as they do after the same command from the CLI, so a hook that runs `exec-and-forget` runs its script.
 
 Only open command links you trust. Turn `url-scheme` off if you do not use them.

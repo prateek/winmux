@@ -136,8 +136,8 @@ final class URLCommandTest: XCTestCase {
                 traceOrigin: .internalNow(), gate: urlCommandRefusal, refuseHelp: true, didRun: { answer in runs += 1; return answer })
         })
         for (input, reason) in [("winmux://run/list-windows/--all", "list-windows is refused in a URL"),
-                                ("winmux://run/workspace/next/--stdin", "workspace is refused in a URL"),
-                                ("winmux://run/reload-config/--dry-run", "reload-config is refused in a URL"),
+                                ("winmux://run/workspace/next/--stdin", "workspace --stdin is refused in a URL"),
+                                ("winmux://run/reload-config/--dry-run", "reload-config --dry-run is refused in a URL"),
                                 ("winmux://run/workspace/--help", "help is refused in a URL"),
                                 ("winmux://run/mode/-h", "help is refused in a URL"),
                                 ("winmux://nope/workspace/2", "Expected run host"),
@@ -213,7 +213,7 @@ final class URLCommandTest: XCTestCase {
         }
     }
 
-    func testFirstRunSetupReleasesWaitingURLsWhenItWaitsForThePerson() async throws {
+    func testFirstRunSetupReleasesWaitingURLsWhileItWaitsAndHoldsThemAgainAfterGo() async throws {
         let signal = URLStartupSignal()
         let shown = expectation(description: "setup shown")
         let file = FileManager.default.temporaryDirectory.appending(path: "url-setup-\(UUID().uuidString).json")
@@ -222,10 +222,31 @@ final class URLCommandTest: XCTestCase {
         let setup = FirstRunSetup(readGrants: { grants }, stateUrl: file, present: { _ in shown.fulfill() }, startupSignal: signal)
         let run = Task { await setup.run() }
         await fulfillment(of: [shown], timeout: 1)
-        await signal.wait()
+        XCTAssertEqual(signal.state, .waitingForPerson)
         grants = PermissionGrants(accessibility: true, screenRecording: true)
         setup.go()
-        await run.value
+        XCTAssertEqual(signal.state, .starting)
+        let finished = expectation(description: "setup run finished")
+        Task { await run.value; finished.fulfill() }
+        await fulfillment(of: [finished], timeout: 1)
     }
 
+    func testTriggerBindingRechecksTheBindingItRunsUnderAURL() async throws {
+        let (allowed, errors) = parseConfig("""
+        [mode.main.binding]
+        alt-t = 'workspace 2'
+        """)
+        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        config = allowed
+        let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", "alt-t"]).cmdOrNil)
+        XCTAssertNil(urlCommandRefusal(command))
+        let (rebound, _) = parseConfig("""
+        [mode.main.binding]
+        alt-t = 'exec-and-forget touch /tmp/winmux-url-test-must-not-exist'
+        """)
+        config = rebound
+        let result = try await $isURLCommand.withValue(true) { try await command.run(.defaultEnv, .emptyStdin) }
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertTrue(result.stderr.joined().contains("refused in a URL"), "\(result.stderr)")
+    }
 }

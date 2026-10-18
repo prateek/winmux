@@ -13,18 +13,16 @@ struct TriggerBindingCommand: Command {
     }
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
-        return if let mode = config.modes[args.mode] {
-            if let binding = mode.bindings.values.first(where: { $0.descriptionWithKeyNotation == args.binding.val }) {
-                // refreshSession is not needed since commands are already run in refreshSession
-                try await binding.commands.runCmdSeq(env, io)
-            } else if let seqBinding = mode.sequenceBindings.values.first(where: { $0.descriptionWithKeyNotation == args.binding.val }) {
-                try await seqBinding.commands.runCmdSeq(env, io)
-            } else {
-                io.err("Binding '\(args.binding.val)' is not presented in mode '\(args.mode)'")
-            }
-        } else {
-            io.err("Mode '\(args.mode)' doesn't exist. " +
+        guard config.modes[args.mode] != nil else {
+            return io.err("Mode '\(args.mode)' doesn't exist. " +
                 "Available modes: \(config.modes.keys.joined(separator: ","))")
         }
+        guard let commands = bindingCommands else {
+            return io.err("Binding '\(args.binding.val)' is not presented in mode '\(args.mode)'")
+        }
+        // The config can be reloaded between a URL's gate and this run, so check what runs now.
+        if isURLCommand, let refusal = urlCommandRefusal(self) { return io.err(refusal) }
+        // refreshSession is not needed since commands are already run in refreshSession
+        return try await commands.runCmdSeq(env, io)
     }
 }
