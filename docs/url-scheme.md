@@ -10,6 +10,8 @@ open 'winmux://run/workspace/2'
 
 These run `winmux mode window`, `winmux lens overview` and `winmux workspace 2`. Encode a space as `%20`, a literal slash inside an argument as `%2F`, and a percent sign as `%25`. For example, `winmux://run/move-node-to-workspace/My%20Desk` passes `My Desk` as one argument. A plus sign stays a plus sign.
 
+The CLI still validates each argument. Percent-encoding does not make an otherwise invalid command or workspace id valid.
+
 The scheme and `run` host are case-insensitive. User names, passwords, ports, queries, fragments, missing arguments, empty segments (including a trailing slash) and invalid UTF-8 escapes are refused. URLs run one at a time in arrival order. During ordinary startup they wait until WinMux is ready; while first-run setup waits for the person, they are refused.
 
 ## Commands with input or output

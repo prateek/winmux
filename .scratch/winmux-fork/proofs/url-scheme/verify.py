@@ -23,8 +23,9 @@ assert cli["presentation"] == url["presentation"] == "miniatures"
 for key in ["active", "hold", "search", "selectedId", "state", "presentation"]:
     assert cli["session"][key] == url["session"][key], key
 assert cli["session"]["active"] is True
-assert trace("overview-cli-closed.json")["session"]["active"] is False
-assert trace("overview-url-closed.json")["session"]["active"] is False
+closed = {item["id"]: item for item in json.loads(text("overview-closed.json"))}
+assert closed[cli["id"]]["session"]["active"] is False
+assert closed[url["id"]]["session"]["active"] is False
 for index in range(1, 8):
     assert text(f"refusal-{index}-windows.txt") == text("refusals-before-windows.txt")
     assert text(f"refusal-{index}-workspace.txt") == text("refusals-before-workspace.txt")
@@ -38,8 +39,17 @@ for reason in ["Empty argument segment", "Expected run host", "reads stdin or pr
     assert any("Error" in line and reason in line for line in log.splitlines()), reason
 assert "Already enabled" in log
 assert log.rfind("URL winmux://run/workspace/2 finished with exit 0") < log.rfind("URL winmux://run/workspace/1 finished with exit 0")
-assert "Error" in text("nonzero.log") and "Invalid <window-id>" in text("nonzero.log")
+assert "Error" in text("final-url.log") and "Invalid <window-id>" in text("final-url.log")
+assert "help is refused in a URL" in text("final-url.log")
+assert "Ghostty|floating" in text("place-before.txt")
+assert "Ghostty|h_tiles" in text("place-after.txt")
+assert len(json.loads(text("column-count.json"))) == 3
+assert json.loads(text("columns-off.json")) == []
 cold = json.loads(text("cold-status.json"))
 assert cold["permissions"]["setup"] == "waiting-for-permissions"
 assert "waiting for Accessibility" in text("cold.log")
-print("PASS: CLI/URL examples, Escape, unchanged refusal snapshots, hot reload, FIFO, socket parity, failed-command logging and cold setup refusal")
+if (root / "release-version.txt").exists():
+    assert text("release-workspace.txt") == "2\n"
+    assert text("release-pid-before.txt") == text("release-pid-after.txt")
+    assert "finished with exit 0" in text("release-url.log")
+print("PASS: CLI/URL examples, Escape, unchanged refusal snapshots, hot reload, FIFO, socket parity, placement, Column count, failed-command logging and cold setup refusal")

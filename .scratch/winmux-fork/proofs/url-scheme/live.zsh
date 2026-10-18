@@ -54,12 +54,14 @@ sleep 3
 shot overview-cli
 cliclick kp:esc
 sleep 2
+"$W" debug-lens-trace --json --last 1 > "$out/overview-cli-closed.json"
 sendURL 'winmux://run/lens/overview'
 sleep 1
 "$W" debug-lens-trace --json --last 1 > "$out/overview-url.json"
 shot overview-url
 cliclick kp:esc
 sleep 2
+"$W" debug-lens-trace --json --last 2 > "$out/overview-closed.json"
 "$W" list-windows --all --format '%{window-id}|%{app-name}|%{window-title}|%{workspace}' > "$out/after-overview-windows.txt"
 shot no-extra-window
 
