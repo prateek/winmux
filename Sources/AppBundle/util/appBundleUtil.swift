@@ -22,7 +22,8 @@ private struct AppServerTerminationHandler: TerminationHandler {
             systemSymbolicHotkeys.restoreAndShutDown()
             persistFrozenWorldForRestartIfPossible()
             await restoreWindowsOnQuit()
-            await toggleReleaseServerIfDebug(.on)
+            // A setup relaunch's replacement has already turned the release build off again.
+            if await !isRelaunchingForSetup { await toggleReleaseServerIfDebug(.on) }
         }
     }
 }

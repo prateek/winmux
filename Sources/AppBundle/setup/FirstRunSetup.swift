@@ -93,9 +93,6 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func answerBeforeStartup(_ command: any Command) async -> CmdResult? {
-        if waiting, let command = command as? ConfigCommand, case .status = command.args.mode {
-            await refreshPermissions()
-        }
         guard let refusal else { return nil }
         if let command = command as? ConfigCommand {
             switch command.args.mode {

@@ -97,14 +97,18 @@ final class FirstRunTest: XCTestCase {
     }
 
     func testTwoProbesInFlightCannotUndoASeenGrant() async {
-        var answers = [true, false]
+        var probes: [CheckedContinuation<Bool, Never>] = []
         let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: false) },
-                                 probeScreenRecording: { await Task.yield(); return answers.removeFirst() })
+                                 probeScreenRecording: { await withCheckedContinuation { probes.append($0) } })
         setup.waiting = true
         setup.markScreenRecordingRequested()
-        async let first: Void = setup.refreshPermissions()
-        async let second: Void = setup.refreshPermissions()
-        _ = await (first, second)
+        let first = Task { await setup.refreshPermissions() }
+        let second = Task { await setup.refreshPermissions() }
+        while probes.count < 2 { await Task.yield() }
+        probes[0].resume(returning: true)
+        await first.value
+        probes[1].resume(returning: false)
+        await second.value
         XCTAssertEqual(setup.permissions.screenRecording, "granted-relaunch-needed")
     }
 

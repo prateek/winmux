@@ -250,7 +250,8 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 /// Setup creates no hotkey, so every chord, Cmd-Tab included, reaches the system until Start.
 @MainActor func allowWindowArrangement() async {
     mayArrangeWindows = true
-    try? await activateMode(activeMode)
+    do { try await activateMode(activeMode) }
+    catch { lensLog.error("Hotkeys at Start: \(error.localizedDescription, privacy: .public)") }
 }
 
 @MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {
