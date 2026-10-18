@@ -129,7 +129,7 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] With Settings open, save a typo into `winmux.ncl`. Pass: a banner with the error appears at the top without reopening Settings, the values below it are still yours, and saving the fix clears it.
 
 **The CLI socket moves out of `/tmp`, and the docs say who can use it**
-- [ ] On the installed build after Sparkle updates WinMux and before `brew upgrade --cask --greedy winmux` (Sparkle updates the app but not the cask's `winmux`), run the older `winmux list-workspaces --all` from the cask. Pass: it prints your workspaces. Then upgrade the cask, run `winmux --version` and `ls -ld "$(getconf DARWIN_USER_TEMP_DIR)com.zimengxiong.winmux"`. Pass: client and server versions match, and the directory reads `drwx------` with your name.
+- [ ] On the installed build after Sparkle updates WinMux and before `brew upgrade --cask --greedy winmux` (Sparkle updates the app but not the cask's `winmux`), run the older `winmux list-workspaces --all` from the cask. Pass: it prints your workspaces. Then upgrade the cask, quit and reopen WinMux, and run `winmux --version` and `ls -ld "$(getconf DARWIN_USER_TEMP_DIR)com.zimengxiong.winmux"`. Pass: client and server versions match, and the directory reads `drwx------` with your name.
 
 ## From the first build
 

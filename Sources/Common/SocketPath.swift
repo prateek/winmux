@@ -75,9 +75,9 @@ public func removeLegacySocketEntry(path: String, expectedOwner: uid_t) {
 
 public func socketConnectionFailureMessage(_ reason: String, legacyPath: String = legacySocketPath()) -> String {
     let message = "Can't connect to WinMux server. Is WinMux.app running?\n\(reason)"
-    // The entry outlives every app that bound it, so only a listener there means an older app.
+    // The entry outlives every app that bound it, so only a listener there counts.
     return unixSocketAnswers(path: legacyPath)
-        ? message + "\nAn older WinMux.app is still running. Restart it so this CLI can reach it."
+        ? message + "\nWinMux answers only on the legacy socket: an app from before the move is running, or this one lost its socket. Restart WinMux.app."
         : message
 }
 

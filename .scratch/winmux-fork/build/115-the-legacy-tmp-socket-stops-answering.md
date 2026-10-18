@@ -11,8 +11,8 @@ While it stays, the old path keeps what the move was for out of reach: `/tmp` is
 ## Decisions
 
 - **The listener goes once an installed CLI cannot be older than the app**: the cask's `binary` points into the app bundle, so Sparkle updates both, or the release that removes the listener tells the person to run `brew upgrade --cask --greedy winmux`. Which of the two is Prateek's choice.
-- **The app stops listening on the old path**, and the named legacy symbol and its listener are removed.
-- **The CLI's restart hint for an older app stays** while an app from before the move can still be running. It reads a file at the old path and connects to nothing there.
+- **The app stops listening on the old path**, and its listener is removed. At start it still removes an old-path socket it owns, which an earlier build left behind.
+- **The CLI's restart hint stays** while an app from before the move can still be running: when the new path does not answer and the old one does, the error says to restart WinMux. `legacySocketPath` stays for the hint and the cleanup.
 - **The debug build's toggle of the release app's server** stops trying the release app's old path.
 
 ## Depends on
@@ -23,7 +23,7 @@ While it stays, the old path keeps what the move was for out of reach: `/tmp` is
 
 - [ ] No `NWListener` binds the old path, checked in a test or by its absence from `Sources`.
 - [ ] `docs/cli.md` no longer says the old path answers.
-- [ ] A live run in a guest shows `ls /tmp/*.sock` empty of WinMux's socket while the debug app answers `env -i winmux --version`.
+- [ ] A live run in a guest shows nothing answering on the old path, and no WinMux socket there after a start, while the debug app answers `env -i winmux --version`.
 
 ## Sources
 

@@ -118,7 +118,7 @@ final class SocketPathTest: XCTestCase {
             XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: socketFile), original)
             XCTAssertEqual(listen(fd, 1), 0)
             XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: socketFile),
-                           original + "\nAn older WinMux.app is still running. Restart it so this CLI can reach it.")
+                           original + "\nWinMux answers only on the legacy socket: an app from before the move is running, or this one lost its socket. Restart WinMux.app.")
         }
     }
 

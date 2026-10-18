@@ -27,7 +27,7 @@ private func startSocketListener(path: String, required: Bool) {
     do {
         listener = try NWListener(using: params)
     } catch {
-        socketListenerFailed(path: path, required: required, error: error)
+        socketListenerFailed(path: path, fatal: required, error: error)
         return
     }
     // Fatal only while binding: a listener that fails later costs the CLI, not the window manager.
@@ -37,7 +37,7 @@ private func startSocketListener(path: String, required: Bool) {
             case .ready:
                 isBinding.withLock { $0 = false }
             case .failed(let error):
-                socketListenerFailed(path: path, required: required && isBinding.withLock { $0 }, error: error)
+                socketListenerFailed(path: path, fatal: required && isBinding.withLock { $0 }, error: error)
                 listener?.cancel()
             default:
                 break
@@ -53,11 +53,11 @@ private func startSocketListener(path: String, required: Bool) {
     listener.start(queue: .global())
 }
 
-private func socketListenerFailed(path: String, required: Bool, error: Error) {
+private func socketListenerFailed(path: String, fatal: Bool, error: Error) {
     let message = "Cannot listen on socket \(path): \(error.localizedDescription)"
-    if required { die(message) }
-    socketLog.error("Legacy listener unavailable: \(message, privacy: .public)")
-    eprint("Legacy listener unavailable: \(message)")
+    if fatal { die(message) }
+    socketLog.error("Listener unavailable: \(message, privacy: .public)")
+    eprint("Listener unavailable: \(message)")
 }
 
 func toggleReleaseServerIfDebug(_ state: EnableCmdArgs.State) async {
