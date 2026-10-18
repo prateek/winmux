@@ -72,6 +72,12 @@ func dump(_ element: AXUIElement, depth: Int = 0) {
     static func main() async throws {
         _ = NSApplication.shared
         let args = CommandLine.arguments
+        let usage = "usage: parking save <json> | apply <json> <baseline|offscreen|small|minimize|show> <actual-json> | capture <id> <png> | ax"
+        let argumentCounts = ["ax": 2, "save": 3, "apply": 5, "capture": 4]
+        guard args.count >= 2, let count = argumentCounts[args[1]], args.count == count else {
+            print(usage)
+            exit(2)
+        }
         switch args[1] {
         case "ax":
             let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first!
@@ -116,7 +122,7 @@ func dump(_ element: AXUIElement, depth: Int = 0) {
             let rep = NSBitmapImageRep(cgImage: image)
             try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: args[3]))
             print("image", image.width, image.height)
-        default: fatalError("save <json> | apply <json> <baseline|offscreen|small|minimize|show> <actual-json> | capture <id> <png> | ax")
+        default: print(usage); exit(2)
         }
     }
 }

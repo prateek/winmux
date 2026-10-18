@@ -4,13 +4,16 @@ export PATH=/opt/homebrew/bin:$PATH
 label=$1
 W=$2/.build/debug/winmux
 out=$HOME/takes/mission-control/$label
+mkdir -p "$out"
 $W workspace 2
 sleep 3
-$W focus --window-id 192
+target=$($W list-windows --all --json | python3 -c 'import json,sys; print(next(w["window-id"] for w in json.load(sys.stdin) if w["window-title"] == "Lenses and Search"))')
+$W focus --window-id "$target"
 sleep 2
 cliclick m:1880,1070
-screencapture -x -v -V 24 "$out/interaction.mov" &
+screencapture -x -v "$out/interaction.mov" &
 recorder=$!
+trap 'kill -INT "$recorder" 2>/dev/null || true; wait "$recorder" || true' EXIT
 sleep 2
 cliclick c:920,60
 sleep 2
@@ -37,4 +40,6 @@ cliclick m:1880,1070
 screencapture -x "$out/interaction-end.png"
 $W list-windows --all --json > "$out/interaction-windows-end.json"
 $W list-columns > "$out/interaction-columns-end.txt"
-wait "$recorder"
+kill -INT "$recorder"
+wait "$recorder" || true
+trap - EXIT

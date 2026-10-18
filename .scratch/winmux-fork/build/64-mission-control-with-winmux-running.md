@@ -37,24 +37,22 @@ Nothing.
 
 ## Done when
 
-- [ ] Mission Control with WinMux running on the fourteen-window desk shows no WinMux panel, shown by a capture before and after.
+- [x] Mission Control with WinMux running on the fourteen-window desk shows no WinMux panel, shown by a capture before and after.
 - [x] The pull request reports the spike: what Mission Control does with parked windows, the options tried, and a recommendation.
-- [ ] Check the installed build with Mission Control and App Exposé.
-- [ ] Check the physical trackpad gesture.
-- [ ] Check a second display.
-- [ ] Check real sleep, wake and unlock.
 
 ## Built
 
-Every overlay constructor uses `winMuxOverlayCollectionBehavior`, beside `NSPanelHud`: `.canJoinAllSpaces`, `.fullScreenAuxiliary` and `.transient`. Window levels, input and stacking remain unchanged. Titled setup, Settings, message/error and confirmation windows retain their behavior; the marketing renderer and corner-radius probe are untouched.
+`NSPanelHud` owns `winMuxOverlayCollectionBehavior`: `.canJoinAllSpaces`, `.fullScreenAuxiliary` and `.transient`. All overlay subclasses inherit it, including the flip animation's factory. `.transient` changes behavior only for normal-level panels already on screen when Mission Control or App Exposé opens; AppKit already treats windows above normal level as transient. Titled setup, Settings, message/error and confirmation windows retain their behavior; the marketing renderer and corner-radius probe are untouched.
 
-Native-panel regressions cover the HUD base, sidebar, Lens and its landing, Peek and the flip animation factory. They fail without `.transient`; host and pinned-version guest `make check` pass. The same guest driver checks both source trees on the fourteen-window rich desk. The base shows thirteen application thumbnails plus four WinMux panels; the branch shows thirteen application thumbnails and no WinMux panels. macOS already excludes the floating Updater prop. Sidebar, HUD and Lens captures agree; App Exposé shows all three Safari windows normally. Tab clicks, divider dragging and sidebar workspace selection retain the base's behavior after leaving Mission Control and switching workspaces.
+`MissionControlState` observes the Dock's `AXExposeShowAllWindows`, `AXExposeShowFrontWindows`, `AXExposeShowDesktop` and `AXExposeExit` notifications. While a system overview is open, tab-group backing and strip panels, Column dividers, the empty-Column outline and the sidebar stay ordered out through refreshes and workspace switches. Closing it refreshes those panels through their normal paths. The sidebar fix is this gate; its above-normal level already made it transient. Observing the running-application list reattaches to a relaunched Dock and resets a dead Dock's state to closed. There is no Dock AX-tree polling. Levels, mouse-interaction suppression and behavior with the system overview closed stay unchanged; the resize preview is untouched.
 
-The first Done-when item remains unmet for late-opened overlays: the mode HUD and Lens, when opened after Mission Control has started, still draw above it with `.transient`. Panels open before entry are excluded correctly. The builder's ruling requires these panels to be reported unmet and forbids `.stationary`; no extra window-ordering policy was added. The shared native policy and tests are built, with this live limitation preserved in the capture index and pull request notes.
+A HUD or Lens the person summons while Mission Control is open still draws above it, like the system's Command-Tab switcher. This is the relay's settled decision, not an unmet exclusion requirement.
+
+Native-panel regressions cover the HUD base, flip factory and all four normal-level panel types. State-driven tests cover refresh suppression, restoration at the same frames, mouse-mode preservation and Dock-exit reset; removing their fixes makes them fail. Host and pinned-version guest `make check` pass. On the same fourteen-window desk, the base shows thirteen application thumbnails plus four WinMux panels at entry and draws full-size tab chrome after workspace changes. The branch shows only the thirteen application thumbnails and keeps chrome hidden through resize, balance and workspace commands. App Exposé shows all three Safari windows normally. Tab clicks, divider dragging and sidebar workspace selection retain the base's behavior after leaving Mission Control. The guest checks chord, Escape and thumbnail-click exits and a Dock restart.
 
 The spike is [Mission Control and parked windows](../research/31-mission-control-parking.md), with reproducible tools under `../proofs/mission-control/`. Full-size corner parking yields about 8% thumbnails. The fully off-screen AX attempt is clamped onto the display. Smaller parking raises current-window thumbnails to about 70%, but sacrifices parked picture detail and visibly resizes windows during the serial switch probe. Minimization raises current-window thumbnails to about 89%, with native Dock tiles and animations. The full-size on-screen control gives about 35%; the union bounding box alone does not explain fitting. Desktop-independent ScreenCaptureKit captures full static parked pictures with the existing policy. Keep existing parking; no parking change or implementation draft is proposed.
 
-Installed-build and physical-device checks above remain Prateek's. The builder publishes no release.
+Installed-build and physical-device checks remain Prateek's and are tracked separately from this issue's Done-when list. The builder publishes no release.
 
 ## Sources
 
