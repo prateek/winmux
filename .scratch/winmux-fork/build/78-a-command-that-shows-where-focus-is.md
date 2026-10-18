@@ -32,7 +32,7 @@ Nothing.
 
 - [x] `winmux find-focus` marks the focused window on the staged desk and clears within two seconds.
 - [x] It marks the right window when the focused one is in a tab group and when it floats.
-- [ ] The pull request has a clip.
+- [x] The pull request has a clip.
 
 ## Built
 
