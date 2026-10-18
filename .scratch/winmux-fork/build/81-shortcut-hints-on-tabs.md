@@ -8,7 +8,7 @@ A tab group's tabs are reached by digit, and nothing shows which digit is which.
 
 ## Decisions
 
-- **Its own issue, built after Hints shown while a key is held.** Lens hints remain instant and per Lens. Tab hints have a fixed half-second delay, follow `window-tabs.enabled`, and add no setting; `hints-key` does not apply to tabs.
+- **Its own issue, built after Hints shown while a key is held**, sharing that issue's delay and its setting. That one draws on Tiles in a Lens; this draws on the tab strip. As built, that issue has no delay (a Lens shows its hints the moment the key goes down) and its setting is per Lens, so there was nothing to share: tab hints wait a fixed half second, follow `window-tabs.enabled`, and add no setting, and `hints-key` does not apply to tabs.
 - **The hints come from the bindings in effect**, not from an assumed modifier.
 - **Only the addressed tab group shows hints**, with exactly the binding's modifiers held. A single-command `focus --tab-index` binding qualifies regardless of its other flags; sequences and multi-command bindings do not.
 - **A quick chord spoils the hold until every modifier is released.** Once hints are showing, tab keys and clicks keep them showing. Opening a Lens, changing binding mode, reloading, disabling WinMux or suspending hotkeys hides them.
