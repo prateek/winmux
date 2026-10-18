@@ -300,6 +300,29 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertEqual(helper.calls.count, 1)
     }
 
+    func testLateDragSampleAfterMouseUpKeepsColumnDecisionUntilApply() async throws {
+        let (workspace, a, _, rect) = try await fixture()
+        let helper = ControlledPolicyHooks()
+        PolicyHooks.setOverrideForTests(helper)
+        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
+        helper.answers["columns.place"] = .success(.object(["column": .string("focused"), "overflow": .string("split")]))
+        _ = await ColumnDropDecisionCache.shared.decision(window: a, workspace: workspace, slot: 2, incoming: a)
+        let point = CGPoint(x: 600, y: rect.midY)
+        let destination = try XCTUnwrap(lookup(a, point))
+        MousePointerTracker.shared.note(point: point)
+        _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window,
+                                       detachOrigin: .window, destination: destination)
+        currentlyManipulatedWithMouseWindowId = a.windowId
+        setCurrentMouseManipulationKind(.move)
+        XCTAssertFalse(isLeftMouseButtonDown)
+        refreshPendingWindowDragIntentFromGlobalMouseDrag()
+        XCTAssertEqual(pendingWindowDragIntent?.kind, .column(workspaceName: workspace.name, slot: 2))
+        let applied = try await applyPendingWindowDragIntentWithPolicy()
+        XCTAssertTrue(applied)
+        XCTAssertEqual(workspace.columnSlot(containing: a), 2)
+        XCTAssertEqual(helper.calls.count, 1)
+    }
+
     func testSqueezeSlotAndOwnColumnSplitAndTabStripKeepTheirPaths() async throws {
         let (workspace, a, b, _) = try await fixture()
         workspace.columns!.widths = [0.25, 0.25, 0.25, 0.25]

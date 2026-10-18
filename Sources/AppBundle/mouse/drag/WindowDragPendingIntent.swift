@@ -49,6 +49,9 @@ func updatePendingWindowDragIntent(
 @MainActor
 func refreshPendingWindowDragIntentFromGlobalMouseDrag() {
     WorkspaceSidebarPanel.refreshAll()
+    // A queued drag sample can arrive after mouse-up, before the final apply.
+    if !isLeftMouseButtonDown, getCurrentMouseManipulationKind() == .move,
+       case .column? = pendingWindowDragIntent?.kind { return }
     guard isLeftMouseButtonDown, getCurrentMouseManipulationKind() == .move else {
         clearPendingWindowDragIntent()
         return
