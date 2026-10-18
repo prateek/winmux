@@ -44,15 +44,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     var eatsClicks: Bool { eatenButtons > 0 }
     var session: LensSession? { lifecycle.session }
     var isPaletteActive: Bool { session != nil }
+    var isLensOpen: Bool { lifecycle.isOpen }
 
     init(emit: @escaping (ServerEvent) -> Void) {
         lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
-        lifecycle.show = { [weak self] model in
-            self?.show(model)
-            WindowTabHintController.shared.reconcile()
-        }
+        lifecycle.show = { [weak self] model in self?.show(model) }
+        lifecycle.openChanged = { WindowTabHintController.shared.reconcile() }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
         lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
         lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }

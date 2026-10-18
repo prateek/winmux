@@ -504,7 +504,7 @@ extension WindowTabStripView {
             height: itemHeight,
             isDragSource: draggingTabId == tab.windowId,
             isHovered: hoveredTabId == tab.windowId,
-            hintLabel: tabHints.labels[tab.windowId]
+            hintLabel: tabHints.labels.label(strip: strip.id, window: tab.windowId)
         )
         return Button {
             guard !isClosing, !isWindowTabStripDragInProgress() else { return }

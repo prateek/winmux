@@ -69,7 +69,16 @@ final class LensLifecycle {
     }
 
     private(set) var trace: LensOpeningTrace?
-    private(set) var state: State = .closed
+    private(set) var state: State = .closed {
+        didSet { if isOpen != wasOpen(oldValue) { openChanged() } }
+    }
+    /// From the first `.opening` to `.closed`, before a session is prepared too.
+    var isOpen: Bool { wasOpen(state) }
+    var openChanged: () -> Void = {}
+    private func wasOpen(_ state: State) -> Bool {
+        if case .closed = state { return false }
+        return true
+    }
     var session: LensSession? {
         switch state {
             case .opening(let opening): return opening.prepared
