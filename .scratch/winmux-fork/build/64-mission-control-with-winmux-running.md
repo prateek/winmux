@@ -38,7 +38,23 @@ Nothing.
 ## Done when
 
 - [ ] Mission Control with WinMux running on the fourteen-window desk shows no WinMux panel, shown by a capture before and after.
-- [ ] The pull request reports the spike: what Mission Control does with parked windows, the options tried, and a recommendation.
+- [x] The pull request reports the spike: what Mission Control does with parked windows, the options tried, and a recommendation.
+- [ ] Check the installed build with Mission Control and App Exposé.
+- [ ] Check the physical trackpad gesture.
+- [ ] Check a second display.
+- [ ] Check real sleep, wake and unlock.
+
+## Built
+
+Every overlay constructor uses `winMuxOverlayCollectionBehavior`, beside `NSPanelHud`: `.canJoinAllSpaces`, `.fullScreenAuxiliary` and `.transient`. Window levels, input and stacking remain unchanged. Titled setup, Settings, message/error and confirmation windows retain their behavior; the marketing renderer and corner-radius probe are untouched.
+
+Native-panel regressions cover the HUD base, sidebar, Lens and its landing, Peek and the flip animation factory. They fail without `.transient`; host and pinned-version guest `make check` pass. The same guest driver checks both source trees on the fourteen-window rich desk. The base shows thirteen application thumbnails plus four WinMux panels; the branch shows thirteen application thumbnails and no WinMux panels. macOS already excludes the floating Updater prop. Sidebar, HUD and Lens captures agree; App Exposé shows all three Safari windows normally. Tab clicks, divider dragging and sidebar workspace selection retain the base's behavior after leaving Mission Control and switching workspaces.
+
+The first Done-when item remains unmet for late-opened overlays: the mode HUD and Lens, when opened after Mission Control has started, still draw above it with `.transient`. Panels open before entry are excluded correctly. The builder's ruling requires these panels to be reported unmet and forbids `.stationary`; no extra window-ordering policy was added. The shared native policy and tests are built, with this live limitation preserved in the capture index and pull request notes.
+
+The spike is [Mission Control and parked windows](../research/31-mission-control-parking.md), with reproducible tools under `../proofs/mission-control/`. Full-size corner parking yields about 8% thumbnails. The fully off-screen AX attempt is clamped onto the display. Smaller parking raises current-window thumbnails to about 70%, but sacrifices parked picture detail and visibly resizes windows during the serial switch probe. Minimization raises current-window thumbnails to about 89%, with native Dock tiles and animations. The full-size on-screen control gives about 35%; the union bounding box alone does not explain fitting. Desktop-independent ScreenCaptureKit captures full static parked pictures with the existing policy. Keep existing parking; no parking change or implementation draft is proposed.
+
+Installed-build and physical-device checks above remain Prateek's. The builder publishes no release.
 
 ## Sources
 
