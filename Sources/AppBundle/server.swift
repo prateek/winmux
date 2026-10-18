@@ -79,6 +79,14 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
         }
         let traceOrigin = LensTraceOrigin(start: request.sentAt ?? LensTimebase.now(), received: LensTimebase.now(), source: "CLI")
         let (command, help, err) = parseCommand(request.args).unwrap()
+        guard let token: RunSessionGuard = await .isServerEnabled(orIsEnableCommand: command) else {
+            await answerToClient(
+                exitCode: 1,
+                stderr: "\(winMuxAppName) server is disabled and doesn't accept commands. " +
+                    "You can use 'winmux enable on' to enable the server",
+            )
+            continue
+        }
         if let help {
             await answerToClient(exitCode: 0, stdout: help)
             continue
@@ -89,14 +97,6 @@ private func newConnection(_ connection: NWConnection) async { // todo add exit 
         }
         if let command, let result = await FirstRunSetup.shared.answerBeforeStartup(command) {
             await answerToClient(exitCode: result.exitCode, stdout: result.stdout.joined(separator: "\n"), stderr: result.stderr.joined(separator: "\n"))
-            continue
-        }
-        guard let token: RunSessionGuard = await .isServerEnabled(orIsEnableCommand: command) else {
-            await answerToClient(
-                exitCode: 1,
-                stderr: "\(winMuxAppName) server is disabled and doesn't accept commands. " +
-                    "You can use 'winmux enable on' to enable the server",
-            )
             continue
         }
         if command?.isExec == true {

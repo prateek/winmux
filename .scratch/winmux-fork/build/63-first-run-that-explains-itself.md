@@ -46,9 +46,9 @@ refresh; other commands and subscriptions return an actionable refusal. Help
 and parse errors retain their existing answers. `config status` always names
 both live grants and the setup state. `doctor` already names both grants.
 
-A configured Cmd-Tab takeover applies at config load and remains idle until
-Start, so that configuration consumes Cmd-Tab during setup. Shipped shortcut
-defaults remain unchanged. The go text follows `restore-windows-on-quit`.
+No hotkey is registered until Start, so every chord, a configured Cmd-Tab
+takeover included, reaches the system during setup. Shipped shortcut defaults
+remain unchanged. The go text follows `restore-windows-on-quit`.
 
 The cold bundled guest run registers both native permission rows and uses the
 real toggles and password sheets, with no TCC database writes. A fresh child

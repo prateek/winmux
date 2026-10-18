@@ -17,11 +17,25 @@ final class FirstRunTest: XCTestCase {
         XCTAssertEqual(refreshes, 1)
     }
 
-    func testStatusRefreshDetectsAGrantAfterSetupHasFinishedWithoutScreenRecording() async {
-        var freshGrant = false
+    override func setUp() async throws {
+        isRelaunchingForSetup = false
+    }
+
+    override func tearDown() async throws {
+        isRelaunchingForSetup = false
+        mayArrangeWindows = true
+    }
+
+    func testStatusRefreshProbesForAFreshGrantOnlyAfterThisProcessAskedForScreenRecording() async {
+        var freshGrant = true
         var probes = 0
         let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: false) },
                                  probeScreenRecording: { probes += 1; return freshGrant })
+        await setup.refreshPermissions()
+        XCTAssertEqual(probes, 0)
+        XCTAssertEqual(setup.permissions.screenRecording, "missing")
+        setup.markScreenRecordingRequested()
+        freshGrant = false
         await setup.refreshPermissions()
         XCTAssertEqual(setup.permissions.screenRecording, "missing")
         freshGrant = true
@@ -32,6 +46,51 @@ final class FirstRunTest: XCTestCase {
         await setup.refreshPermissions()
         XCTAssertEqual(setup.permissions.screenRecording, "missing")
         XCTAssertEqual(probes, 3)
+    }
+
+    func testASecondRelaunchWhileTheFirstIsUnderWayLaunchesNothing() async throws {
+        var launches = 0
+        let relaunch = {
+            try await relaunchFirstRunApplication(bundleURL: URL(filePath: "/tmp/WinMux.app"), executableURL: URL(filePath: "/tmp/WinMux"),
+                arguments: [], environment: [:], openBundle: { _, _ in launches += 1 }, runExecutable: { _, _, _ in }, terminate: {})
+        }
+        try await relaunch()
+        try await relaunch()
+        XCTAssertEqual(launches, 1)
+        XCTAssertTrue(isRelaunchingForSetup)
+    }
+
+    func testAFailedRelaunchCanBeTriedAgain() async throws {
+        var attempts = 0
+        let relaunch = {
+            try await relaunchFirstRunApplication(bundleURL: URL(filePath: "/tmp/WinMux.app"), executableURL: URL(filePath: "/tmp/WinMux"),
+                arguments: [], environment: [:], openBundle: { _, _ in attempts += 1; if attempts == 1 { throw CancellationError() } },
+                runExecutable: { _, _, _ in }, terminate: {})
+        }
+        do { try await relaunch(); XCTFail("lost the launch error") } catch {}
+        XCTAssertFalse(isRelaunchingForSetup)
+        try await relaunch()
+        XCTAssertEqual(attempts, 2)
+    }
+
+    func testCommandsBetweenStartAndWindowManagementAreToldToRetry() async throws {
+        mayArrangeWindows = false
+        let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: true) })
+        XCTAssertEqual(setup.refusal, "WinMux is starting. Try again in a moment.")
+        mayArrangeWindows = true
+        XCTAssertNil(setup.refusal)
+    }
+
+    func testTheAccessibilityResetSkipsALaunchWhoseSetupIsPending() {
+        XCTAssertTrue(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: false))
+        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: false, setupPending: true))
+        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: true, setupPending: false))
+        XCTAssertFalse(shouldResetAccessibilityAtLaunch(trusted: true, setupPending: true))
+    }
+
+    func testTheDebugBuildKeepsItsOwnSetupState() {
+        XCTAssertEqual(firstRunStateUrl().lastPathComponent, "setup-debug.json")
+        XCTAssertEqual(firstRunStateUrl().deletingLastPathComponent(), workspaceSidebarStateUrl().deletingLastPathComponent())
     }
 
     func testBundleRelaunchStartsANewInstanceWithArgumentsAndXdgBeforeQuitting() async throws {

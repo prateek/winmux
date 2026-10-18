@@ -6,7 +6,7 @@ Screen Recording can require a relaunch before the granting process can use it. 
 
 Once permissions are ready, the window explains that WinMux will arrange the windows on this screen. It reads `restore-windows-on-quit` from your loaded config: quitting restores the original frames when on, and centres windows when off. **Start WinMux** begins window discovery and arrangement and reveals the sidebar. Closing setup without starting is done with **Quit**. A launch interrupted before Start returns to this step, even if both grants are now present.
 
-An existing install with both grants and no pending setup starts with no window. An existing install with Accessibility alone sees setup at its next launch, until Screen Recording is granted or declined. Config errors still have their own error window. Hotkeys stay idle until Start. Shortcut ownership is applied at config load, so a config that takes over Cmd-Tab consumes it during setup without running its command. The shipped defaults do not take over Cmd-Tab.
+An existing install with both grants and no pending setup starts with no window. An existing install with Accessibility alone sees setup at its next launch, until Screen Recording is granted or declined. Config errors still have their own error window. WinMux registers no hotkey until Start, so every chord, Cmd-Tab included, still reaches the system and your apps while setup waits.
 
 ## CLI during setup
 
@@ -28,4 +28,4 @@ Both permission keys are always present and read live. Accessibility is `granted
 
 ## Saved choice
 
-`$XDG_STATE_HOME/winmux/setup.json`, falling back to `~/.local/state/winmux/setup.json`, stores `pending` and `screenRecordingDeclined`. Start clears `pending`; a recorded decline survives. Granting Screen Recording later requires no change to this file. Deleting the file forgets the choice; setup then follows the current grants. If either launch-time grant is missing, setup waits before window observers and the startup refresh begin. WinMux resets a missing Accessibility grant once at launch to clear a stale signature entry, before its setup button registers the app again.
+`$XDG_STATE_HOME/winmux/setup.json`, falling back to `~/.local/state/winmux/setup.json` (`setup-debug.json` for a debug build, which has grants of its own), stores `pending` and `screenRecordingDeclined`. Start clears `pending`; a recorded decline survives. Granting Screen Recording later requires no change to this file. Deleting the file forgets the choice; setup then follows the current grants. If either launch-time grant is missing, setup waits before window observers and the startup refresh begin. When Accessibility is missing at a launch with no setup pending, WinMux resets its Accessibility entry to clear a stale one from an earlier signature, before its setup button registers the app again. A launch with setup pending keeps the entry the button made.

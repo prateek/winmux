@@ -69,7 +69,7 @@ the untrusted bundle, so that manager cannot move the desk during setup.
 ```sh
 pkill -x WinMuxApp || true
 sleep 3
-rm -f "$HOME/demo/setup-state/winmux/setup.json"
+rm -f "$HOME/demo/setup-state/winmux/setup-debug.json"
 zsh "$HOME/desk/stage-desk.sh"
 pkill -x WinMuxApp || true
 sleep 3
@@ -129,7 +129,7 @@ Do not fill a failed reopen with `open`. Only after proving the new process is
 running may `open -a` bring its existing setup window forward. Close Settings
 before Start so it does not become part of the tiled desk.
 
-The pending marker and decline live only in `setup.json`, which the reopened
+The pending marker and decline live only in `setup-debug.json` (the debug build's name for `setup.json`), which the reopened
 process reads from the `launchctl setenv` state directory. Deleting that file
 starts a second take from scratch.
 Film **Continue without Screen Recording** as a separate supported path: it
@@ -173,7 +173,7 @@ screens and name them in the report; do not click the wallpaper.
 
 For another take, quit WinMux first, reset both permissions with the two
 `tccutil` commands above, and remove only
-`$HOME/demo/setup-state/winmux/setup.json`. Quit the desk apps and Settings at
+`$HOME/demo/setup-state/winmux/setup-debug.json`. Quit the desk apps and Settings at
 the end, repeat those resets, copy out the captures, and report `tart list`.
 Never delete an assigned relay guest.
 

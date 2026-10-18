@@ -38,10 +38,15 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
 
     var step: FirstRunStep { firstRunStep(grants: grants, state: state, screenRecordingRequested: screenRequested) }
 
+    /// Only a request made by this process can leave a grant it cannot read yet; a launch reads
+    /// its own grant correctly, so nothing else needs a child process.
     func refreshPermissions() async {
-        if !readGrants().screenRecording { freshScreenGrant = await probeScreenRecording() }
-        snapshot = grants
+        if screenRequested && !readGrants().screenRecording { freshScreenGrant = await probeScreenRecording() }
+        let value = grants
+        if snapshot != value { snapshot = value }
     }
+
+    func markScreenRecordingRequested() { screenRequested = true }
 
     var permissions: SetupPermissions {
         let value = grants
@@ -70,7 +75,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     var refusal: String? {
-        guard waiting else { return nil }
+        guard waiting else { return mayArrangeWindows ? nil : "WinMux is starting. Try again in a moment." }
         let value = grants
         if !value.accessibility {
             return "WinMux is waiting for Accessibility (System Settings › Privacy & Security › Accessibility). Its setup window shows what to do."
@@ -145,7 +150,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func requestScreenRecording() {
-        screenRequested = true
+        markScreenRecordingRequested()
         enqueueSetupPermissionRequest(request: {
             _ = CGRequestScreenCaptureAccess()
         }, openSettings: {
@@ -188,7 +193,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
             do {
                 try await relaunchFirstRunApplication(
                     bundleURL: Bundle.main.bundleURL,
-                    executableURL: URL(filePath: CommandLine.arguments[0]),
+                    executableURL: winMuxExecutableUrl(),
                     arguments: Array(CommandLine.arguments.dropFirst()),
                     environment: ProcessInfo.processInfo.environment,
                 )
@@ -212,7 +217,7 @@ func enqueueSetupPermissionRequest(request: @escaping @MainActor () async -> Voi
 private func runPermissionProcess(_ argument: String) async -> Bool {
     await withCheckedContinuation { continuation in
         let child = Process()
-        child.executableURL = URL(filePath: CommandLine.arguments[0])
+        child.executableURL = winMuxExecutableUrl()
         child.arguments = [argument]
         child.environment = ProcessInfo.processInfo.environment
         child.standardOutput = FileHandle.nullDevice
@@ -224,4 +229,8 @@ private func runPermissionProcess(_ argument: String) async -> Bool {
             if child.isRunning { child.terminate() }
         }
     }
+}
+
+private func winMuxExecutableUrl() -> URL {
+    Bundle.main.executableURL ?? URL(filePath: CommandLine.arguments[0])
 }

@@ -115,6 +115,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] Start WinMux with a window on display B, unplug B, then quit. Pass: every window is on the remaining display, none off screen.
 - [ ] Log out with WinMux running and windows on two workspaces, then log back in before WinMux starts. Pass: Cmd-Tab is Apple's again, and no window sat in a screen corner at logout.
 
+**A first run that explains itself**
+- [ ] On a Mac account that has never granted WinMux anything (or after `tccutil reset Accessibility com.zimengxiong.winmux` and `tccutil reset ScreenCapture com.zimengxiong.winmux`, with WinMux quit), install the release from the cask, follow the caveats past Gatekeeper, and open it. Pass: the WinMux Setup window appears; each button adds WinMux to its list in System Settings and opens that pane; after both toggles, the window offers a relaunch or macOS offers Quit & Reopen, and either one comes back at "Ready to arrange your windows?"; no window moves until **Start WinMux**, and then they tile. Say here which step needed anything the window did not tell you.
+- [ ] With two displays, the setup window and the first tile after Start. Pass: the setup window is on the main display, and windows on both displays stay put until Start.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
