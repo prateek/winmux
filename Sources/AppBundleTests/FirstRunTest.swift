@@ -119,6 +119,12 @@ final class FirstRunTest: XCTestCase {
         XCTAssertEqual(winMuxStateDirectory(environment: ["XDG_STATE_HOME": "/tmp/s"]), URL(filePath: "/tmp/s/winmux"))
     }
 
+    func testAnEmptyXdgConfigHomeMeansTheDefault() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        XCTAssertEqual(xdgConfigHomeUrl(environment: ["XDG_CONFIG_HOME": ""]), home.appending(path: ".config/"))
+        XCTAssertEqual(xdgConfigHomeUrl(environment: ["XDG_CONFIG_HOME": "/tmp/c"]), URL(filePath: "/tmp/c"))
+    }
+
     func testTheDebugBuildKeepsItsOwnSetupState() {
         #if DEBUG
             XCTAssertEqual(firstRunStateUrl().lastPathComponent, "setup-debug.json")
