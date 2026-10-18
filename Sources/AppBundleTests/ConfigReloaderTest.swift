@@ -25,7 +25,6 @@ final class ConfigReloaderTest: SerialClockTestCase {
         let failed = try XCTUnwrap(probe.loadStates.last)
         XCTAssertEqual(failed.loaded, good.loaded)
         XCTAssertEqual(failed.failure?.diagnostic, "bad field")
-        XCTAssertEqual(failed.failure?.file.path, "/config/bad.ncl")
         XCTAssertEqual(probe.activeConfig, "good")
         _ = await request(owner, "bad", trigger: .fileChange)
         XCTAssertEqual(probe.loadStates.count, 3, "notification dedupe must not dedupe Settings")
@@ -220,14 +219,20 @@ final class ConfigReloaderTest: SerialClockTestCase {
         XCTAssertEqual(probe.events.count, 2)
     }
 
-    func testStartupFallbackAfterFailedApplicationReportsActualBuiltInValues() async throws {
+    func testFailedLoadAfterFailedApplicationStillSaysApplyingDidNotFinish() async throws {
         let probe = ReloadProbe(), owner = probe.owner()
         probe.applyFailure = ReloadTestError.apply
         _ = await request(owner, "partial")
-        await owner.applyStartupFallback { probe.activeConfig = "defaults" }
-        XCTAssertNil(probe.loadStates.last?.loaded)
-        XCTAssertEqual(probe.activeConfig, "defaults")
-        XCTAssertNotNil(probe.loadStates.last?.failure)
+        probe.applyFailure = nil
+        probe.failures["typo"] = "unknown field"
+        _ = await request(owner, "typo")
+        let state = try XCTUnwrap(probe.loadStates.last)
+        XCTAssertEqual(state.loaded?.file.path, "/config/partial.ncl")
+        XCTAssertEqual(state.failure?.diagnostic, "unknown field")
+        XCTAssertEqual(state.failure?.applying, true)
+        XCTAssertTrue(LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: []).loadExplanation.contains("applying it did not finish"))
+        _ = await request(owner, "recovered")
+        XCTAssertNil(probe.loadStates.last?.failure)
     }
 
     func testRequestDuringSuspendedApplicationCompletesInRequestOrder() async throws {

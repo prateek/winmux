@@ -11,7 +11,7 @@ struct LoadedOverviewView: View {
                 Text("Loaded \(loaded.time.formatted(date: .abbreviated, time: .standard))").foregroundStyle(.secondary)
             } else {
                 Text("WinMux's built-in defaults").font(.headline)
-                if let file = summary.file { Text(file.path).font(.caption).textSelection(.enabled) }
+                Text(summary.file.path).font(.caption).textSelection(.enabled)
                 Text(summary.loadExplanation).foregroundStyle(.secondary)
             }
             Divider()
@@ -19,7 +19,7 @@ struct LoadedOverviewView: View {
             SettingsValueRow("Triggers", "\(summary.lenses.reduce(0) { $0 + $1.triggers.count })")
             SettingsValueRow("Bindings in effect", "\(summary.bindings.count)")
             SettingsValueRow("Columns", "\(summary.columns.filter { $0.count != nil }.count) enabled workspace policies · \(summary.columns.count - 1) named workspaces")
-            SettingsValueRow("Hooks", "\(summary.hooks.filter { $0.value != "None" }.count) configured")
+            SettingsValueRow("Hooks", "\(summary.configuredHookCount) configured")
             SettingsValueRow("Filters", "\(summary.lenses.filter { $0.filter != "None" }.count) Lenses with a Filter")
             if let helperError, helperError != summary.load.failure?.diagnostic {
                 Divider()

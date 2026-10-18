@@ -8,11 +8,9 @@ struct ConfigLoadState: Equatable {
     }
     struct Failure: Equatable {
         let diagnostic: String
-        let file: URL
         let time: Date
         var applying = false
     }
     var loaded: Loaded?
     var failure: Failure?
-    var defaultsFile: URL?
 }

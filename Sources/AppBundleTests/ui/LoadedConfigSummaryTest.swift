@@ -13,11 +13,10 @@ private final class SummaryReloadValues {
 @MainActor
 final class LoadedConfigSummaryTest: XCTestCase {
     func testFileProvenanceIncludesTheBuiltInFileWithoutReadingGlobalConfig() {
-        let fallback = URL(filePath: "/bundle/default-config.json")
         let personal = URL(filePath: "/config/defaults.ncl")
         let time = Date(timeIntervalSince1970: 1234)
-        var state = ConfigLoadState(defaultsFile: fallback)
-        XCTAssertEqual(LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: []).file, fallback)
+        var state = ConfigLoadState()
+        XCTAssertEqual(LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: []).file, defaultConfigUrl)
         state.loaded = .init(file: personal, time: time, shippedDefaults: false)
         let summary = LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: [])
         XCTAssertEqual(summary.file, personal)
@@ -28,7 +27,16 @@ final class LoadedConfigSummaryTest: XCTestCase {
     func testRichDeskConfigResolvesThreeAndTwoColumnsThroughRealHelper() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Build the helper") }
         let supervisor = NickelSupervisor()
-        let loaded = try await supervisor.load(projectRootUrl.appending(path: ".claude/skills/demo/desk/rich/winmux.ncl")).get()
+        let file = FileManager.default.temporaryDirectory.appending(path: "settings-columns-\(UUID().uuidString).ncl")
+        try """
+            let W = import "winmux/winmux.ncl" in
+            ((import "winmux/defaults.ncl") & {
+              workspace."2".columns = { count = 3, widths = [0.28, 0.44, 0.28] },
+              workspace."3".columns = { count = 2, widths = [2.0 / 3, 1.0 / 3] },
+            }) | W.Config
+            """.write(to: file, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: file) }
+        let loaded = try await supervisor.load(file).get()
         defer { supervisor.discard(loaded) }
         let parsed = parseConfig(loaded.settings)
         XCTAssertTrue(parsed.errors.isEmpty, "\(parsed.errors)")
@@ -110,6 +118,9 @@ final class LoadedConfigSummaryTest: XCTestCase {
         XCTAssertTrue(summary.hooks.contains { $0.name == "move-boundary · 3" && $0.value.contains("function") })
         XCTAssertTrue(summary.hooks.contains { $0.name == "place · Other workspaces" && $0.value.contains("function") })
         XCTAssertTrue(summary.hooks.contains { $0.name == "place · Other workspaces" && $0.value.contains("inactive: Columns Off") })
+        // The global place hook resolves on all six rows but counts once, beside move-boundary and
+        // the shipped on-focused-monitor-changed.
+        XCTAssertEqual(summary.configuredHookCount, 3)
     }
 
     func testTapSequenceAndMissingLensTriggersUseParsedCommands() throws {
@@ -128,6 +139,7 @@ final class LoadedConfigSummaryTest: XCTestCase {
         XCTAssertEqual(summary.lenses.first { $0.name == "missing" }?.triggers.first?.mode, "extra")
         XCTAssertTrue(summary.lenses.first { $0.name == "search" }!.triggers.contains { $0.mode == "sequence" })
         XCTAssertEqual(summary.bindings.first { $0.mode == "sequence" }?.glyphs, "⎋ → A")
+        XCTAssertEqual(summary.bindings.first { $0.mode == "extra" }?.glyphs, "Left ⌥")
     }
 
     func testUntriggeredDisabledLensAndEmptyHooksAreExplicit() {
@@ -141,6 +153,15 @@ final class LoadedConfigSummaryTest: XCTestCase {
         XCTAssertFalse(summary.lenses[0].enabled)
         XCTAssertTrue(summary.lenses[0].triggers.isEmpty)
         XCTAssertTrue(summary.hooks.allSatisfy { $0.value == "None" })
+        XCTAssertEqual(summary.configuredHookCount, 0)
+    }
+
+    func testExecOnWorkspaceChangeIsOneCommandLine() {
+        var config = Config()
+        config.execOnWorkspaceChange = ["/bin/bash", "-c", "sketchybar --trigger x"]
+        let summary = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
+        XCTAssertEqual(summary.hooks.first { $0.name == "exec-on-workspace-change" }?.value, "/bin/bash -c sketchybar --trigger x")
+        XCTAssertEqual(summary.configuredHookCount, 1)
     }
 
     func testWorkspaceNamedOtherWorkspacesKeepsDistinctColumnAndHookRows() {

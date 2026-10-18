@@ -10,7 +10,7 @@ public final class ShortcutSettingsModel: ObservableObject {
     private var loadState: ConfigLoadState
 
     private init() {
-        let state = ConfigLoadState(defaultsFile: defaultConfigUrl)
+        let state = ConfigLoadState()
         loadState = state
         summary = .build(config, load: state, workspaceNames: Workspace.all.map(\.name))
     }
@@ -30,8 +30,9 @@ public final class ShortcutSettingsModel: ObservableObject {
         openRequestId += 1
     }
 
-    func prepareForPresentation() {
+    /// A window already on screen keeps the pane the person is on.
+    func prepareForPresentation(alreadyVisible: Bool) {
         reload()
-        presentationRevision += 1
+        if !alreadyVisible { presentationRevision += 1 }
     }
 }

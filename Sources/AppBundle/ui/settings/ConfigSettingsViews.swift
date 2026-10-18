@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ShortcutBehaviorSettingsView: View {
     @ObservedObject var model: ShortcutSettingsModel
-    @AppStorage("doubleSidedWindows") private var doubleSidedWindows = false
+    @AppStorage(ExperimentalUISettings.doubleSidedWindowsKey) private var doubleSidedWindows = false
     var body: some View {
         SettingsPage(title: "Behavior") {
             SettingsValueRow("Tile new windows automatically", config.automaticallyTileNewWindows.yesNo)

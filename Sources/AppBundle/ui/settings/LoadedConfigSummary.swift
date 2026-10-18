@@ -2,15 +2,27 @@ import Common
 import Foundation
 
 struct LoadedConfigSummary {
+    enum BindingKind: String { case chord, tap, sequence }
     struct Binding: Identifiable, Equatable {
         let id: String
         let mode: String
         let notation: String
         let command: String
         let lensNames: [String]
-        let kind: String
-        var glyphs: String {
-            kind == "sequence" ? notation.components(separatedBy: "-").map(displayBindingNotation).joined(separator: " → ") : displayBindingNotation(notation)
+        let kind: BindingKind
+        let glyphs: String
+        init(id: String, mode: String, notation: String, command: String, lensNames: [String], kind: BindingKind) {
+            self.id = id
+            self.mode = mode
+            self.notation = notation
+            self.command = command
+            self.lensNames = lensNames
+            self.kind = kind
+            glyphs = switch kind {
+                case .chord: displayBindingNotation(notation)
+                case .tap: displayTapNotation(notation)
+                case .sequence: notation.components(separatedBy: "-").map(displayBindingNotation).joined(separator: " → ")
+            }
         }
     }
     struct Lens: Identifiable {
@@ -48,7 +60,10 @@ struct LoadedConfigSummary {
     let bindings: [Binding]
     let columns: [Columns]
     let hooks: [Hook]
-    var file: URL? { load.loaded?.file ?? load.defaultsFile }
+    /// Hooks that run: each command list that is not empty, `arrive`, and each Column Policy hook
+    /// once however many workspaces resolve to it, and only where Columns are on.
+    let configuredHookCount: Int
+    var file: URL { load.loaded?.file ?? defaultConfigUrl }
 
     var loadExplanation: String {
         if let loaded = load.loaded {
@@ -76,13 +91,13 @@ struct LoadedConfigSummary {
             return lhs < rhs
         }) {
             let mode = config.modes[modeName]!
-            func binding(_ notation: String, _ commands: [any Command], kind: String) -> Binding {
+            func binding(_ notation: String, _ commands: [any Command], kind: BindingKind) -> Binding {
                 Binding(id: "\(modeName):\(kind):\(notation)", mode: modeName, notation: notation,
                         command: commands.prettyDescription, lensNames: commands.compactMap { ($0 as? LensCommand)?.args.name }, kind: kind)
             }
-            let chords = mode.bindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: "chord") }
-            let taps = mode.tapBindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: "tap") }
-            let sequences = mode.sequenceBindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: "sequence") }
+            let chords = mode.bindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: .chord) }
+            let taps = mode.tapBindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: .tap) }
+            let sequences = mode.sequenceBindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: .sequence) }
             bindings += (chords + taps + sequences).sorted { $0.notation == $1.notation ? $0.id < $1.id : $0.notation < $1.notation }
         }
         let names = Set(config.lenses.keys).union(bindings.flatMap(\.lensNames)).sorted()
@@ -106,17 +121,21 @@ struct LoadedConfigSummary {
         var hooks = [Hook(name: "arrive", value: function(config.arrive)),
                      Hook(name: "after-startup-command", value: commands(config.afterStartupCommand)),
                      Hook(name: "after-login-command", value: commands(config.afterLoginCommand)),
-                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.joined(separator: "\n")),
+                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.joined(separator: " ")),
                      Hook(name: "on-focus-changed", value: commands(config.onFocusChanged)),
                      Hook(name: "on-focused-monitor-changed", value: commands(config.onFocusedMonitorChanged)),
                      Hook(name: "on-mode-changed", value: commands(config.onModeChanged))]
+        var configuredHookCount = hooks.count(where: { $0.value != "None" })
+        var activeColumnHooks = Set<String>()
         for row in columns {
             for name in ["place", "move-boundary"] {
                 let path = config.columns.hook(name, workspace: row.workspace ?? unnamed)
                 let value = function(path) + (row.count == nil && path != nil ? " (inactive: Columns Off)" : "")
                 hooks.append(Hook(name: "\(name) · \(row.label)", value: value, id: "\(row.id):\(name)"))
+                if let path, row.count != nil { activeColumnHooks.insert("\(name):\(path)") }
             }
         }
-        return Self(load: load, lenses: lenses, bindings: bindings, columns: columns, hooks: hooks)
+        configuredHookCount += activeColumnHooks.count
+        return Self(load: load, lenses: lenses, bindings: bindings, columns: columns, hooks: hooks, configuredHookCount: configuredHookCount)
     }
 }

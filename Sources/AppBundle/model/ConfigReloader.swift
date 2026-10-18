@@ -143,7 +143,6 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         configPath: @escaping () -> String,
         loadStateChanged: @escaping (ConfigLoadState) -> Void = { _ in },
         now: @escaping () -> Date = Date.init,
-        defaultsFile: URL? = nil,
     ) {
         self.load = load
         self.helper = helper
@@ -155,7 +154,6 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.configPath = configPath
         self.loadStateChanged = loadStateChanged
         self.now = now
-        self.loadState.defaultsFile = defaultsFile
     }
 
     /// The application runs in the caller's task, with the caller's task-locals and cancellation.
@@ -306,7 +304,9 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         reporting.error = message
         if !attempt.dryRun {
             helper.recordFailure(message)
-            loadState.failure = .init(diagnostic: message, file: URL(filePath: reporting.path), time: now(), applying: applying)
+            // A failed load after a failed application leaves the partly applied values running.
+            let stillApplying = applying || loadState.failure?.applying == true
+            loadState.failure = .init(diagnostic: message, time: now(), applying: stillApplying)
             loadStateChanged(loadState)
             report.log(.error, "The config failed to load: \(message)")
         }

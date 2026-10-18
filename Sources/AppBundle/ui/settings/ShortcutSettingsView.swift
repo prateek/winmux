@@ -15,7 +15,7 @@ public func getShortcutSettingsWindow(model: ShortcutSettingsModel) -> some Scen
 
 @MainActor
 public func openShortcutSettingsWindow(_ openWindow: OpenWindowAction) {
-    ShortcutSettingsModel.shared.prepareForPresentation()
+    ShortcutSettingsModel.shared.prepareForPresentation(alreadyVisible: shortcutSettingsWindow()?.isVisible == true)
     if let window = shortcutSettingsWindow() { presentShortcutSettingsWindow(window) }
     else {
         openWindow(id: shortcutSettingsWindowId)
@@ -124,7 +124,6 @@ private struct ConfigLoadFailureBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Config failed to \(failure.applying ? "apply" : "load") · \(failure.time.formatted(date: .omitted, time: .standard))").font(.headline)
-            Text(failure.file.path).font(.caption).textSelection(.enabled)
             ScrollView {
                 Text(failure.diagnostic).font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)

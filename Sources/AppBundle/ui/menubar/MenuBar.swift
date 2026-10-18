@@ -54,7 +54,7 @@ private let winmuxNewIssueURL = "https://github.com/zimengxiong/winmux/issues/ne
 }
 
 private struct DoubleSidedWindowsMenuItem: View {
-    @AppStorage("doubleSidedWindows") private var enabled = false
+    @AppStorage(ExperimentalUISettings.doubleSidedWindowsKey) private var enabled = false
     var body: some View {
         Toggle("Double-sided windows", isOn: Binding(
             get: { enabled },
