@@ -76,5 +76,5 @@ private func parseColumnWidth(i: PosArgParserInput) -> ParsedCliArgs<String> {
 }
 func parsePlaceCmdArgs(_ args: StrArrSlice) -> ParsedCmd<PlaceCmdArgs> {
     parseSpecificCmdArgs(PlaceCmdArgs(rawArgs: args), args)
-        .filter("place requires --dry-run and --window-id") { $0.dryRun && $0.windowId != nil }
+        .filter("place --dry-run requires --window-id") { !$0.dryRun || $0.windowId != nil }
 }

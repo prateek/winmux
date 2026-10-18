@@ -16,6 +16,15 @@ fn library() -> PathBuf {
 }
 
 #[test]
+fn url_scheme_defaults_on_and_requires_bool() {
+    let defaults = evaluate_to_json(r#"import "winmux/defaults.ncl""#, &library()).unwrap();
+    assert_eq!(defaults["url-scheme"], true);
+    let off = evaluate_to_json(r#"((import "winmux/defaults.ncl") & { url-scheme = false }) | (import "winmux/winmux.ncl").Config"#, &library()).unwrap();
+    assert_eq!(off["url-scheme"], false);
+    assert!(evaluate_to_json(r#"{ url-scheme = "false" } | (import "winmux/winmux.ncl").Config"#, &library()).is_err());
+}
+
+#[test]
 fn restore_windows_on_quit_defaults_on_and_requires_bool() {
     let defaults = evaluate_to_json(r#"import "winmux/defaults.ncl""#, &library()).unwrap();
     assert_eq!(defaults["restore-windows-on-quit"], true);

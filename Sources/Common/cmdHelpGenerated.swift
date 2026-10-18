@@ -221,7 +221,7 @@ let column_width_help_generated = "USAGE: column-width [-h|--help] next|prev|<fr
 let compact_help_generated = "USAGE: compact [-h|--help] [--workspace <name>]"
 let list_columns_help_generated = "USAGE: list-columns [-h|--help] [--json] [--workspace <name>]"
 let column_count_help_generated = "USAGE: column-count [-h|--help] <n>|off [--workspace <name>]"
-let place_help_generated = "USAGE: place [-h|--help] --dry-run --window-id <id> [--json]"
+let place_help_generated = "USAGE: place [-h|--help] [--window-id <id>] [--dry-run --window-id <id>] [--json]"
 
 public let debug_lens_trace_help_generated = """
 USAGE: debug-lens-trace [-h|--help] [--json] [--last <n>]

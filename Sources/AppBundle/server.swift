@@ -37,7 +37,7 @@ private let serverVersionAndHash = "\(winMuxAppVersion) \(gitHash)"
 @MainActor
 func executeExternalCommand(
     _ arguments: [String], stdin: String, windowId: UInt32?, workspace: String?,
-    traceOrigin: LensTraceOrigin, gate: ((any Command) -> String?)? = nil,
+    traceOrigin: LensTraceOrigin, gate: ((any Command) -> String?)? = nil, refuseHelp: Bool = false,
     setup: FirstRunSetup = .shared,
     didRun: ((ServerAnswer) -> ServerAnswer)? = nil
 ) async -> ServerAnswer {
@@ -49,7 +49,11 @@ func executeExternalCommand(
         return answer(1, stderr: "\(winMuxAppName) server is disabled and doesn't accept commands. " +
             "You can use 'winmux enable on' to enable the server")
     }
-    if let help { return answer(0, stdout: help) }
+    if let help {
+        return refuseHelp
+            ? answer(1, stderr: "\(arguments.first ?? "command") help is refused in a URL: it prints a result")
+            : answer(0, stdout: help)
+    }
     if let err { return answer(parseFailureExitCode(arguments.slice), stderr: err) }
     guard let command else { die("Unreachable") }
     if let refusal = gate?(command) { return answer(1, stderr: refusal) }
@@ -58,7 +62,8 @@ func executeExternalCommand(
     }
     if command.isExec { return answer(1, stderr: "exec-and-forget is prohibited in CLI") }
     do {
-        let result = try await runLightSession(.socketServer(command.args), token,
+        let event: RefreshSessionEvent = traceOrigin.source == "URL" ? .url(command.args) : .socketServer(command.args)
+        let result = try await runLightSession(event, token,
                                   shouldSchedulePostRefresh: !command.canSkipPostCommandRefresh) {
             let env = CmdEnv(windowId: windowId, workspaceName: workspace)
             let result = try await $lensTraceOrigin.withValue(traceOrigin) { try await command.run(env, CmdStdin(stdin)) }

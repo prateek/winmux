@@ -21,6 +21,10 @@ final class TerminationOnce {
 
 @MainActor
 public final class ApplicationTerminationDelegate: NSObject, NSApplicationDelegate {
+    public func applicationWillFinishLaunching(_ notification: Notification) {
+        URLAppleEventHandler.shared.register()
+    }
+
     public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         // Before startup has registered a window (Accessibility denied, say) there is nothing to
         // restore, and a cleanup would only delete the frozen world a relaunch restores.

@@ -1,0 +1,187 @@
+@testable import AppBundle
+import Common
+import AppKit
+import XCTest
+
+@MainActor
+final class URLCommandTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); TrayMenuModel.shared.isEnabled = true }
+
+    func testRegisteredAppleEventEnqueuesArgumentsWithoutOpeningAWindow() async throws {
+        let received = expectation(description: "Apple event command")
+        let visibleWindows = NSApplication.shared.windows.filter(\.isVisible).map(\.windowNumber)
+        var arguments: [String] = []
+        let handler = URLAppleEventHandler(service: URLCommandService(enabled: { true }, waitForStartup: {}, execute: { words in
+            arguments = words
+            received.fulfill()
+            return ServerAnswer(exitCode: 0, serverVersionAndHash: "test")
+        }))
+        handler.register()
+        defer { NSAppleEventManager.shared().removeEventHandler(forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL)) }
+        let event = NSAppleEventDescriptor(eventClass: AEEventClass(kInternetEventClass), eventID: AEEventID(kAEGetURL),
+            targetDescriptor: nil, returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+        event.setParam(NSAppleEventDescriptor(string: "winmux://run/workspace/2"), forKeyword: keyDirectObject)
+        var reply = AppleEvent()
+        defer { AEDisposeDesc(&reply) }
+        let descriptor = try XCTUnwrap(event.aeDesc)
+        let status = withUnsafeMutablePointer(to: &reply) { reply in
+            NSAppleEventManager.shared().dispatchRawAppleEvent(descriptor, withRawReply: reply, handlerRefCon: UnsafeMutableRawPointer(reply))
+        }
+        XCTAssertEqual(status, OSErr(noErr))
+        await fulfillment(of: [received], timeout: 5)
+        XCTAssertEqual(arguments, ["workspace", "2"])
+        XCTAssertEqual(NSApplication.shared.windows.filter(\.isVisible).map(\.windowNumber), visibleWindows)
+    }
+
+    func testURLSettingDefaultsAndRejectsWrongType() {
+        XCTAssertTrue(defaultConfig.urlScheme)
+        let off = parseConfig(.object(["url-scheme": .bool(false)]))
+        XCTAssertTrue(off.errors.isEmpty)
+        XCTAssertFalse(off.config.urlScheme)
+        XCTAssertFalse(parseConfig(.object(["url-scheme": .string("false")])).errors.isEmpty)
+    }
+
+    func testQueueSerializesArrivalsAcrossSuspensionAndWaitsForStartup() async {
+        let signal = URLStartupSignal()
+        let entered = expectation(description: "first arrived")
+        var events: [String] = []
+        var waits = 0
+        let service = URLCommandService(enabled: { true }, waitForStartup: {
+            waits += 1
+            if waits == 1 { entered.fulfill() }
+            await signal.wait()
+        }, execute: { args in
+            events.append("execute \(args[1])")
+            return ServerAnswer(exitCode: 0, serverVersionAndHash: "test")
+        })
+        let queue = URLCommandQueue { url in
+            events.append("start \(url)")
+            _ = await service.handle("winmux://run/workspace/\(url)")
+            events.append("end \(url)")
+        }
+        queue.enqueue("first")
+        queue.enqueue("second")
+        await fulfillment(of: [entered])
+        XCTAssertEqual(events, ["start first"])
+        signal.set(.ready)
+        await queue.finish()
+        XCTAssertEqual(events, ["start first", "execute first", "end first", "start second", "execute second", "end second"])
+        await signal.wait() // readiness latches for later arrivals
+    }
+
+    func testSetupWaitingReleasesStartupWaitWithoutWaitingForThePerson() async {
+        let signal = URLStartupSignal()
+        signal.set(.waitingForPerson)
+        await signal.wait()
+        let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: false, screenRecording: false) })
+        setup.waiting = true
+        let answer = await executeExternalCommand(["workspace", "2"], stdin: "", windowId: nil, workspace: nil,
+            traceOrigin: .internalNow(), gate: urlCommandRefusal, setup: setup)
+        XCTAssertEqual(answer.stderr, setup.refusal)
+    }
+
+    func testURLSegmentsAreWordsWithoutShellSplitting() throws {
+        for (input, expected) in [
+            ("winmux://run/workspace/2", ["workspace", "2"]),
+            ("WINMUX://RUN/lens/overview", ["lens", "overview"]),
+            ("winmux://run/mode/window", ["mode", "window"]),
+            ("winmux://run/move-node-to-workspace/My%20Desk", ["move-node-to-workspace", "My Desk"]),
+            ("winmux://run/workspace/a%2Fb", ["workspace", "a/b"]),
+            ("winmux://run/workspace/a+b%252Fc", ["workspace", "a+b%2Fc"]),
+            ("winmux://run/workspace/%E2%98%83", ["workspace", "☃"]),
+        ] {
+            XCTAssertEqual(try parseCommandURL(XCTUnwrap(URL(string: input))).get(), expected, input)
+        }
+    }
+
+    func testEveryMalformedComponentIsRefused() throws {
+        for input in ["https://run/workspace/2", "winmux://nope/workspace/2", "winmux://user@run/workspace/2",
+                      "winmux://user:password@run/workspace/2", "winmux://run:80/workspace/2",
+                      "winmux://run/workspace/2?", "winmux://run/workspace/2#", "winmux://run", "winmux://run/",
+                      "winmux://run//workspace", "winmux://run/workspace/2/", "winmux://run/workspace/%FF"] {
+            XCTAssertThrowsError(try parseCommandURL(XCTUnwrap(URL(string: input))).get(), input)
+        }
+    }
+
+    func testEveryKindHasAnExplicitURLPolicy() {
+        let refused: Set<CmdKind> = [.subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors,
+                                    .listModes, .listExecEnvVars, .listLenses, .listColumns, .debugWindows,
+                                    .debugLensTrace, .doctor, .config, .agent]
+        for kind in CmdKind.allCases {
+            XCTAssertEqual(urlCommandRefusal(kind: kind, args: nil) != nil, refused.contains(kind), kind.rawValue)
+        }
+    }
+
+    func testParsedVariantsRefuseOnlyTheirInputOrOutputForms() throws {
+        for words in [["place", "--dry-run", "--window-id", "42"], ["place", "--json"],
+                      ["workspace", "next", "--stdin"], ["move-node-to-workspace", "next", "--stdin"],
+                      ["lens", "--filter", "-"], ["agent", "skill"], ["config", "status"]] {
+            let command = try XCTUnwrap(parseCommand(words).cmdOrNil, words.description)
+            XCTAssertNotNil(urlCommandRefusal(command), words.description)
+        }
+        for words in [["place"], ["column-count", "3"], ["workspace", "2"], ["workspace", "next", "--no-stdin"],
+                      ["lens", "overview"], ["lens", "--filter", "all"], ["mode", "window"], ["reload-config"], ["enable", "on"]] {
+            let command = try XCTUnwrap(parseCommand(words).cmdOrNil, words.description)
+            XCTAssertNil(urlCommandRefusal(command), words.description)
+        }
+    }
+
+    func testURLRefusalsAndHelpNeverExecute() async {
+        var runs = 0
+        let service = URLCommandService(enabled: { true }, waitForStartup: {}, execute: { arguments in
+            await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
+                traceOrigin: .internalNow(), gate: urlCommandRefusal, refuseHelp: true, didRun: { answer in runs += 1; return answer })
+        })
+        for input in ["winmux://run/list-windows", "winmux://run/workspace/--stdin", "winmux://run/workspace/--help",
+                      "winmux://run/mode/-h", "winmux://nope/workspace/2", "winmux://run/no-such-command"] {
+            let result = await service.handle(input)
+            XCTAssertNotEqual(result.exitCode, 0, input)
+            XCTAssertFalse(result.stderr.isEmpty, input)
+        }
+        XCTAssertEqual(runs, 0)
+    }
+
+    func testSettingIsReadForEveryURLAndResultsArePreserved() async {
+        var enabled = false
+        var received: [[String]] = []
+        let service = URLCommandService(enabled: { enabled }, waitForStartup: {}, execute: { args in
+            received.append(args)
+            return ServerAnswer(exitCode: 7, stdout: "output", stderr: "failure", serverVersionAndHash: "test")
+        })
+        let off = await service.handle("winmux://run/workspace/2")
+        XCTAssertTrue(off.stderr.contains("url-scheme"))
+        let malformedOff = await service.handle("winmux://nope/")
+        XCTAssertTrue(malformedOff.stderr.contains("url-scheme"))
+        enabled = true
+        let on = await service.handle("winmux://run/workspace/2")
+        XCTAssertEqual(on.exitCode, 7)
+        XCTAssertEqual(on.stdout, "output")
+        XCTAssertEqual(on.stderr, "failure")
+        XCTAssertEqual(received, [["workspace", "2"]])
+    }
+
+    func testURLDisabledServerGuardAlsoPrecedesParseFailuresAndHelp() async {
+        let previous = TrayMenuModel.shared.isEnabled
+        TrayMenuModel.shared.isEnabled = false
+        defer { TrayMenuModel.shared.isEnabled = previous }
+        let service = URLCommandService(enabled: { true }, waitForStartup: {}, execute: { arguments in
+            await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
+                traceOrigin: .internalNow(), gate: urlCommandRefusal, refuseHelp: true)
+        })
+        for path in ["workspace/2", "no-such-command", "workspace/--help"] {
+            let result = await service.handle("winmux://run/\(path)")
+            XCTAssertEqual(result.exitCode, 1)
+            XCTAssertTrue(result.stderr.contains("server is disabled"), result.stderr)
+        }
+    }
+
+    func testGatePrecedesFirstRunAndExecRefusals() async {
+        var gated = false
+        let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: false, screenRecording: false) })
+        setup.waiting = true
+        let result = await executeExternalCommand(["workspace", "2"], stdin: "", windowId: nil, workspace: nil,
+            traceOrigin: .internalNow(), gate: { _ in gated = true; return "gate refusal" }, setup: setup)
+        XCTAssertTrue(gated)
+        XCTAssertEqual(result.stderr, "gate refusal")
+    }
+}

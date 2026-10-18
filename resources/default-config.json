@@ -466,6 +466,7 @@
   "shortcuts-preset": "none",
   "start-at-login": false,
   "tab-group-padding": 30,
+  "url-scheme": true,
   "window-tabs": {
     "enabled": true,
     "height": 36

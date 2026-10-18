@@ -6,8 +6,35 @@ import XCTest
 final class ColumnCommandsTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
+    func testPlainPlaceUsesFocusedWindowAndColumnPolicyWithoutPrinting() async throws {
+        let ws = focus.workspace
+        ws.columns = ColumnState(count: 3)
+        let window = TestWindow.new(id: 42, parent: ws.rootTilingContainer)
+        ws.normalizeContainers()
+        XCTAssertTrue(window.focusWindow())
+        let result = try await XCTUnwrap(parseCommand("place").cmdOrNil).run(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(result.stdout.isEmpty)
+        XCTAssertNotNil(ws.columnSlot(containing: window))
+    }
+
+    func testPlainPlaceTransfersTheTargetAndUsesOrdinaryTilingWithColumnsOff() async throws {
+        for columns in [false, true] {
+            setUpWorkspacesForTests()
+            let destination = focus.workspace
+            if columns { destination.columns = ColumnState(count: 3) }
+            let source = Workspace.get(byName: "Source")
+            let window = TestWindow.new(id: 42, parent: source.rootTilingContainer)
+            let result = try await XCTUnwrap(parseCommand("place --window-id 42").cmdOrNil).run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(result.exitCode, 0)
+            XCTAssertTrue(result.stdout.isEmpty)
+            XCTAssertTrue(window.nodeWorkspace === destination)
+            XCTAssertEqual(destination.columnSlot(containing: window) != nil, columns)
+        }
+    }
+
     func testCommandSurfaceRejectsBadUsage() {
-        for raw in ["focus-column 0", "focus-column nope", "move-node-to-column -1", "column-width 0", "column-width 1", "column-width nan", "compact extra", "list-columns --bad", "column-count 0", "place --window-id 1", "place --dry-run"] {
+        for raw in ["focus-column 0", "focus-column nope", "move-node-to-column -1", "column-width 0", "column-width 1", "column-width nan", "compact extra", "list-columns --bad", "column-count 0", "place --dry-run"] {
             if case .failure = parseCommand(raw) {} else { XCTFail("Accepted \(raw)") }
         }
     }
@@ -51,7 +78,7 @@ final class ColumnCommandsTest: XCTestCase {
         let executable = projectRoot.appending(path: ".build/debug/winmux")
         guard FileManager.default.isExecutableFile(atPath: executable.path) else { throw XCTSkip("Run swift build") }
         for args in [["focus-column", "0"], ["move-node-to-column", "0"], ["column-width", "1"],
-                     ["compact", "extra"], ["list-columns", "--bad"], ["column-count", "0"], ["place"]] {
+                     ["compact", "extra"], ["list-columns", "--bad"], ["column-count", "0"], ["place", "--dry-run"]] {
             let process = Process(); process.executableURL = executable; process.arguments = args
             process.standardOutput = Pipe(); process.standardError = Pipe()
             try process.run(); process.waitUntilExit()

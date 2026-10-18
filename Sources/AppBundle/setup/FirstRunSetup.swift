@@ -113,6 +113,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
         state.pending = true
         save()
         waiting = true
+        urlStartupSignal.set(.waitingForPerson)
         await withCheckedContinuation {
             continuation = $0
             if let present { present(self) } else { showWindow() }
@@ -171,6 +172,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
         // A state file that cannot be written must not keep WinMux from starting.
         save()
         waiting = false
+        urlStartupSignal.set(.starting)
         window?.orderOut(nil)
         window = nil
         if let previousActivationPolicy { NSApp.setActivationPolicy(previousActivationPolicy) }
