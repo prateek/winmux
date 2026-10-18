@@ -837,7 +837,7 @@ fn default_main_bindings_are_exactly_the_short_list() {
     ].into_iter().map(str::to_owned).collect();
     expected.extend((1..=9).map(|n| format!("ctrl-{n}")));
     expected.extend((1..=9).map(|n| format!("alt-shift-{n}")));
-    expected.extend((0..=9).map(|n| format!("alt-{n}")));
+    expected.extend((1..=9).map(|n| format!("alt-{n}")));
     let actual = reply["result"]["config"]["mode"]["main"]["binding"].as_object().unwrap().keys().cloned().collect();
     assert_eq!(expected, actual);
 }
@@ -1221,6 +1221,21 @@ fn check_hints_only_for_missing_chords_removed_from_defaults() {
             assert!(error.starts_with("ctrl-w is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
         }
     }
+}
+
+#[test]
+fn removing_old_tenth_tab_binding_has_migration_hint() {
+    let file = std::env::temp_dir().join(format!("winmux-removal-alt-0-{}.ncl", std::process::id()));
+    std::fs::write(&file, r#"
+        let W = import "winmux/winmux.ncl" in
+        let defaults = import "winmux/defaults.ncl" in
+        (defaults & { mode.main.binding | force = std.record.remove "alt-0" defaults.mode.main.binding }) | W.Config
+    "#).unwrap();
+    let output = run_helper(&["check", &file.to_string_lossy()]);
+    std::fs::remove_file(file).unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let error = String::from_utf8(output.stderr).unwrap();
+    assert!(error.starts_with("alt-0 is no longer a default binding; delete its removal from your config.\n\nerror:"), "{error}");
 }
 
 fn expected_window_bindings() -> Value {

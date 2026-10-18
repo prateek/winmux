@@ -32,6 +32,7 @@ use nickel_lang_core::{
 pub type Diagnostic = String;
 
 const REMOVED_DEFAULT_BINDINGS: &[&str] = &[
+    "alt-0",
     "cmd-tab", "cmd-shift-tab", "cmd-backtick", "alt-tab", "alt-shift-tab",
     "alt-n", "alt-p", "alt-space", "alt-cmd-1", "alt-cmd-2",
     "alt-cmd-3", "alt-cmd-4", "alt-cmd-5", "alt-cmd-6", "alt-cmd-7",

@@ -346,7 +346,6 @@
   "mode": {
     "main": {
       "binding": {
-        "alt-0": "focus --tab-index 10",
         "alt-1": "focus --tab-index 1",
         "alt-2": "focus --tab-index 2",
         "alt-3": "focus --tab-index 3",
@@ -355,7 +354,7 @@
         "alt-6": "focus --tab-index 6",
         "alt-7": "focus --tab-index 7",
         "alt-8": "focus --tab-index 8",
-        "alt-9": "focus --tab-index 9",
+        "alt-9": "focus --tab-index last",
         "alt-h": "focus left",
         "alt-j": "focus down",
         "alt-k": "focus up",

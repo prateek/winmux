@@ -39,7 +39,11 @@ struct FocusCommand: Command {
                 }
             case .tabIndex(let tabIndex):
                 guard let windowToFocus = tabWindowToFocus(target, tabIndex) else {
-                    return io.err("Can't find tab with index \(tabIndex) in the current tab group")
+                    let message = switch tabIndex {
+                        case .position(let index): "Can't find tab with index \(index) in the current tab group"
+                        case .last: "Can't find the last tab: the focused window is not in a tab group"
+                    }
+                    return io.err(message)
                 }
                 return windowToFocus.focusWindow()
             case .dfsRelative(let nextPrev):
@@ -157,9 +161,13 @@ struct FocusCommand: Command {
 }
 
 @MainActor
-private func tabWindowToFocus(_ target: LiveFocus, _ oneBasedTabIndex: UInt32) -> Window? {
-    guard let group = currentTabGroupData(target)?.group else { return nil }
-    return tabWindowToFocus(group, Int(oneBasedTabIndex) - 1)
+private func tabWindowToFocus(_ target: LiveFocus, _ tabIndex: FocusCmdArgs.TabIndex) -> Window? {
+    guard let group = currentTabGroupData(target, includeSingleTab: tabIndex == .last)?.group else { return nil }
+    let tab = switch tabIndex {
+        case .position(let index): group.children.getOrNil(atIndex: Int(index) - 1)
+        case .last: group.children.last
+    }
+    return tab.flatMap { $0.mostRecentWorkspaceFocusableWindowRecursive ?? $0.tabRepresentativeWindow }
 }
 
 @MainActor
@@ -169,10 +177,11 @@ private func tabWindowToFocus(_ group: TilingContainer, _ zeroBasedIndex: Int) -
 }
 
 @MainActor
-private func currentTabGroupData(_ target: LiveFocus) -> (group: TilingContainer, currentTab: TreeNode)? {
+private func currentTabGroupData(_ target: LiveFocus, includeSingleTab: Bool = false) -> (group: TilingContainer, currentTab: TreeNode)? {
     guard
         let focusedWindow = target.windowOrNil,
-        let tabGroup = focusedWindow.nearestWindowTabGroup,
+        let tabGroup = focusedWindow.parentsWithSelf.lazy.compactMap({ $0 as? TilingContainer })
+            .first(where: { $0.isWindowTabGroup || (includeSingleTab && $0.layout == .tabGroup) }),
         let currentTab = focusedWindow.directChild(in: tabGroup)
     else { return nil }
     return (tabGroup, currentTab)
