@@ -1,152 +1,169 @@
 # A window row above the system's Cmd-Tab
 
-The standalone prototype works on macOS 26.6.2: it reads the system highlight, follows it with window Tiles, takes Cmd-A into the row, and focuses a chosen window on a hidden workspace after the system switches. The recommendation is **drop this approach for now**. The measured opening misses the accepted 150 ms budget, the required focus ordering exposes an intermediate window, and Secure Input removes keyboard entry into the row.
+The row orders **1.692 ms behind the first readable system highlight at the median** (0.785–11.291 ms, twelve openings). Five frame-timestamped openings show it **0, 1, 0, 0 and 1 frames behind the visible switcher**. A single Safari process still flashes its shown-workspace window before the hidden-workspace choice when release is left to the Dock. Leaving the switcher with Command-Escape on Cmd-A removes that intermediate switch in the measured alternative. **Build it with that handoff.**
 
-This directory changes no WinMux behavior. It contains three standalone Swift programs and guest proof drivers, with no added tests, setting, dependency or shipped asset. The feature decision “off by default, behind one setting” remains a condition of any future feature. The prototype has no setting. No DockDoor repository was opened, fetched or cloned, and none of its code or assets was used.
+This is a standalone guest prototype. It changes no shipped WinMux behavior, adds no test or setting, and copies no DockDoor source or asset. The proposed feature remains off by default. Its draft is [A window row above the system switcher](../../build/114-a-window-row-above-the-system-switcher.md).
 
-![TextEdit's three window Tiles above the native switcher](row-textedit.png)
+## Setup and evidence boundary
 
-![Ghostty's workspace 3 window chosen while the native highlight remains on its workspace 1 process](row-chosen.png)
+The guest ran macOS 26.6.2 at 1920 × 1080, using the pinned Swift 6.4 toolchain. Both host and guest `make check` passed before the live run: 1,506 Swift tests and 171 script tests, with one existing guest-only script skip for its synthetic sync commit; helper checks also passed. The first pass separately built base/head trees and compared their native-switcher behavior and fourteen-window inventory. That comparison was not repeated in the follow-up; its changes remain entirely under `.scratch/`.
 
-## What ran
+The rich desk was restaged, then `prepare.sh` installed the literal config without Cmd-Tab, Cmd-Shift-Tab or Cmd-backtick takeover bindings. Doctor reported no held symbolic hotkeys. A cliclick Command hold displayed the native switcher with WinMux running. No permission was granted. The driver-provided guest and disk were retained.
 
-The assigned guest ran at 1920 × 1080, 1×, with Xcode 27's Swift 6.4. Xcode's version is separate from the operating system. Guest `sw_vers` returned:
+The follow-up inventory maps Zed 282, Ghostty 292/pid 11718 and 300/pid 11733, Notes 318, Safari 308/309/310 (all pid 11746), TextEdit 328/329/330, Finder 335, Preview 343, Calculator 348 and Updater 367. Safari 308, “Lenses and Search,” moved from workspace 2 to 3; 309, “Fixed Columns,” and 310, “Subscription events,” stayed on 2. These are fixture ids, not reusable discovery logic.
 
-```text
-ProductName:            macOS
-ProductVersion:         26.6.2
-BuildVersion:           25G83
-```
+External evidence is indexed in `captures/index.md`, under `row2/`. The accepted timing log is `measure.jsonl`; the hero logs/movies are `hero.*` and `detach-hero.*`. Earlier first-pass evidence remains under `captures/row/`. No Search is used by these drivers.
 
-**macOS 27 was not run.** Neither were an installed signed build, a physical keyboard, another display, or real sleep/wake/unlock. Those checks remain unticked in the original issue draft if the idea is reconsidered.
+macOS 27, an installed build, a real keyboard, multiple displays and real sleep/wake/unlock were not run. These remain acceptance work, not reasons to infer failure.
 
-Host and guest `make check` passed before the live run: 1,506 Swift tests and 90 Rust tests each; the Python suite ran 171 tests, with the expected committed-hash check skipped in the synced guest (`.source-commit` represents the host working copy), and none skipped on the host. These checks establish the existing branch's checks, not a test suite for this throwaway program, and do not establish a CI pass.
+## The Dock element
 
-The rich desk staged fourteen windows. The literal `system-desk.ncl` is its config with only the three switcher bindings removed (comments and whitespace also differ). After reload, `doctor` reported `Symbolic hotkeys: held=[] marker=[]`. This stayed true through the live runs. A `cliclick kd:cmd kp:tab w:1500 ku:cmd` hold opened the real system switcher; `cliclick-system-switcher.png` records it before the row ran. There was no need for the alternate driver to rescue a failed hold. Subsequent experiments used the demo skill's `keys` and `film` tools.
-
-One Ghostty window, id 186, was moved from workspace 1 to workspace 3. Its other window, id 178, stayed on workspace 1. Both have title `desk`, but different pids and the same bundle id. Safari's three windows stayed on workspace 2. Full inventories and every take's app/window mapping are in the relay's `captures/index.md`; raw captures and JSONL logs are deliberately outside this public repository.
-
-For the unchanged-build comparison, `ac4b957f` was archived into a second guest directory, built there with `make generate`, `make helper` and `swift build`, and launched separately. `compare-build.sh` ran against both trees. The complete fourteen-window inventories, including workspace assignments, matched byte for byte; both ended focused on window 168 with no symbolic hotkeys held. The archive's doctor hash is `unknown` because its initialized Git repository has no commit; the synced tree reports `ac4b957f`.
-
-## The Dock element, found independently
-
-`dock-probe.swift` obtains the Dock pid from `NSRunningApplication`, creates its AX application element and walks children recursively. This is the relevant part of the real dump; object addresses are omitted:
+An independent AX tree walk found:
 
 ```text
-AXApplication title=Dock position=(0,0) size=(0,0)
-  AXList subrole=nil position=(143,1080) size=(1634,72)
-    AXDockItem subrole=AXApplicationDockItem title=Finder selected=0
-    ... ordinary Dock items ...
-  AXList subrole=AXProcessSwitcherList title=nil
-    position=(269,452) size=(1382,176) selected=nil focused=1
-    AXButton title=Zed      position=(293,476)  size=(128,128) selected=nil
-    AXButton title=TextEdit position=(427,476)  size=(128,128) selected=nil
-    AXButton title=Notes    position=(561,476)  size=(128,128) selected=nil
-    AXButton title=Updater  position=(695,476)  size=(128,128) selected=nil
-    AXButton title=Ghostty  position=(829,476)  size=(128,128) selected=nil
-    ... Calculator, Finder, Preview, Safari, second Ghostty ...
+AXApplication title=Dock
+  AXList subrole=AXProcessSwitcherList frame=(269,452,1382,176)
+    AXButton title=Zed
+    AXButton title=Safari
+    AXButton title=TextEdit
+    AXButton title=Notes
+    AXButton title=Ghostty
+    AXButton title=Ghostty
+    ...
 ```
 
-The children do not expose `AXSelected`; the list exposes **`AXSelectedChildren`**, whose first element's `AXTitle` is the highlighted app. In the first dump it was TextEdit. A second dump read Zed. The list also exposes `AXFrame`; its frame changes with the number of app icons after a Dock restart. The full original dumps preserve role, subrole, title, description, position, size, selected state and value.
+The list's `AXSelectedChildren` supplies the highlighted button. The list supplies its AX frame. Its buttons expose title, role, focus and geometry; they expose **no AXURL or application pid** in this run. `button-attributes.txt` contains the full attribute-name enumeration, including the failed AXURL reads. Ordinary Dock items have AXURL, but their two Ghostty URLs are identical.
 
-An `AXObserver` was attached to the Dock first. The standalone observer run identified these notification senders:
+The Dock application accepts `AXCreated`, `AXSelectedChildrenChanged` and `AXUIElementDestroyed`. The list accepts the last two. Registrations retry independently until all required registrations succeed; an observer existing does not imply successful selection/destruction subscriptions. The 5 ms fallback discovers an armed opening and polls while either list subscription is missing. Once both work, notifications track highlights and disappearance; release has an independent modifier-state check. A bare Command hold never starts discovery. Under Secure Input, the list's AXCreated can arm discovery, but policy suppresses the row and snapshot.
 
-```text
-AXSelectedChildrenChanged role=AXList subrole=AXProcessSwitcherList
-AXCreated                 role=AXList subrole=AXProcessSwitcherList
-AXFocusedUIElementChanged role=AXList subrole=AXProcessSwitcherList
-AXUIElementDestroyed      role=nil    subrole=nil
-```
+Running-application and finished-launching observations reattach after a Dock restart. The follow-up recovered in 313.668 ms idle and 137.432 ms during a hold, from observed exit to registration. The held session closed without focusing and the next gesture showed a row. These are observation intervals, not a guarantee of the earliest retry.
 
-Registration on the Dock succeeds for those four notifications. Registration directly on the list succeeds for `AXSelectedChildrenChanged` and `AXUIElementDestroyed`. Direct list registrations of `AXValueChanged`, `AXFocusedUIElementChanged` and `AXLayoutChanged` return `-25207` (notification unsupported). Invented `AXProcessSwitcherActivated` and `AXProcessSwitcherDeactivated` names are also unsupported. Destroyed elements cannot be read back for their role.
+## Per-process rows
 
-The prototype therefore uses observer callbacks to read highlight changes and disappearance. A 5 ms timer discovers the list while Command is held, checks release independently, and polls active state if no observer could be attached. It does not need continuous tree polling for highlight updates once an observer is attached. Notifications can arrive twice because the prototype registers on both application and list; reads are deduplicated by selected AX element identity, including two Ghostty icons with the same title.
+A unique button title matched a cached `NSRunningApplication.localizedName` to a pid for Safari and the other uniquely named applications. Windows are then filtered **only by that pid**. AXURL matching is implemented but did not work on these switcher buttons.
 
-## Timing
+For duplicate names/URLs the prototype records application activations and associates the duplicate buttons' order with the observed process recency order. It shows no row until every matching process has been observed. This is a measured prototype association, not a public pid attribute or a general guarantee about Dock ordering. A feature must validate that association across its supported systems and suppress an unresolved icon rather than combine processes.
 
-These are the first twelve sessions in `prototype-final.jsonl`, summarized by `summarize.py`. Each session starts on Zed; the driver steps TextEdit → Notes → Ghostty → the second Ghostty process → Shift-Tab back to the first Ghostty. It cancels with Escape between samples. The timer and observer do no CLI work on highlight changes.
+`identity.jsonl`, `ghost1.mov` and `ghost2.mov` verify the seeded fixture in both directions: the first icon showed only 292/pid 11718 and native release selected that pid; the second showed only 300/pid 11733 and native release selected that pid. Both readbacks agree. The first pass's combined Ghostty row was wrong: it offered a window belonging to the other icon's process.
 
-| Measurement | Samples | Minimum | Median | Maximum |
+## Timing relative to the system
+
+The snapshot starts on the opening Cmd-Tab key-down observed by the event tap. Its start stamp is immediately before launching the CLI, rather than after the first AX read. Process setup accounts for a measured 13.808–17.731 ms before that launch stamp; the snapshot still finishes well before the Dock is readable. One snapshot is used for the entire session, including later Tab and Shift-Tab changes.
+
+The accepted twelve openings, in milliseconds from the opening event's CGEvent timestamp:
+
+| Opening | AXCreated callback | First read | Row ordered | Row − read |
 | --- | ---: | ---: | ---: | ---: |
-| Opening Tab timestamp → first successful app read | 12 | 158.005 ms | 166.958 ms | 177.754 ms |
-| Further Tab timestamp → changed highlight read | 36 | 0.942 ms | 2.038 ms | 4.707 ms |
-| Shift-Tab timestamp → changed highlight read | 12 | 0.839 ms | 2.600 ms | 3.407 ms |
-| One CLI window snapshot | 12 | 18.026 ms | 30.129 ms | 34.695 ms |
-| Opening Tab timestamp → first row ordered/displayed by AppKit | 12 | 181.200 ms | 196.964 ms | 213.810 ms |
+| 1 | 176.664 | 173.573 | 176.492 | 2.919 |
+| 2 | 179.534 | 175.985 | 176.931 | 0.947 |
+| 3 | 174.840 | 172.293 | 173.796 | 1.503 |
+| 4 | 179.279 | 173.246 | 175.177 | 1.931 |
+| 5 | 183.256 | 176.324 | 178.207 | 1.882 |
+| 6 | 177.966 | 174.790 | 175.574 | 0.785 |
+| 7 | 181.133 | 177.435 | 178.576 | 1.141 |
+| 8 | 175.462 | 173.616 | 175.032 | 1.416 |
+| 9 | 182.724 | 176.506 | 178.473 | 1.967 |
+| 10 | 194.039 | 180.333 | 191.624 | 11.291 |
+| 11 | 182.456 | 179.502 | 181.520 | 2.017 |
+| 12 | 179.186 | 175.905 | 176.767 | 0.862 |
 
-The origin is the **event tap's received event's `CGEvent.timestamp`**, on the same boot clock as the AX read, rather than the time the callback finally ran. `keys.swift` stamps and posts the event at the HID tap and uses a 15 ms inter-action delay. These synthetic measurements include posting, scheduling and WindowServer delivery and are upper bounds for this driver, not claims about physical keyboard latency. `cliclick` was used for the prerequisite hold and pointer faults, not this sample table; it adds 100 ms between actions.
+| Measurement | Minimum | Median | Maximum |
+| --- | ---: | ---: | ---: |
+| Tab → AXCreated callback | 174.840 | 179.406 | 194.039 |
+| Tab → first read | 172.293 | 175.945 | 180.333 |
+| Tab → row ordered | 173.796 | 176.849 | 191.624 |
+| Row ordered − first read | 0.785 | 1.692 | 11.291 |
+| Snapshot, including process setup | 13.737 | 15.003 | 15.664 |
 
-The last row measures AppKit ordering and drawing, **not a calibrated on-glass presentation time**. The recordings confirm that it appears and follows the apps, but their variable frame rate is unsuitable for claiming a more precise display latency. Even ordering misses the strip's accepted “on screen about 150 ms” budget in every measured opening. Later changes are fast. Integrating with WinMux could remove the external CLI's roughly 30 ms, but no measurement here proves that integration or a 150 ms presentation. The Dock's first readable highlight is itself later than 150 ms in this guest run.
+Later highlight reads took 0.874 / 1.735 / 6.165 ms for 24 Tab changes and 0.872 / 2.060 / 3.677 ms for twelve Shift-Tab changes (minimum / median / maximum). These reads filter the existing snapshot locally.
 
-Exactly one `list-windows --all` snapshot was made in each of the final program's 23 sessions, including navigation, faults and Secure Input. The snapshot requests window id, app name, pid, bundle id, title and workspace, then filters locally. No per-highlight `winmux` commands run. This avoids both the CLI's latency and the known refresh cancellation in **A read-only command drops the refresh it cancels, and a new window stays unmanaged**. New windows appearing mid-session wait for the next session.
+AXCreated is callback receipt, not the Dock's internal creation timestamp. A discovery poll can read the list before its queued notification is delivered. Row ordering is stamped immediately after `orderFrontRegardless`/`displayIfNeeded`, before any front-app sampling. Running-app names and URLs are cached outside this path; repeatedly reading those properties had added about 20 ms to the prototype itself.
 
-## The panel and keyboard contract
+The driver is `keys.swift`, with its normal 15 ms inter-action delay. The opening origin is the event timestamp, not the later callback's arrival. These are synthetic-driver observations. AppKit ordering is not a display-composite acknowledgement.
 
-`window-row.swift` creates a borderless `.nonactivatingPanel`, with `canJoinAllSpaces`, `fullScreenAuxiliary`, `transient`, no hiding on deactivation, and a level one above the screen-saver level. It never becomes key or requests activation. Tiles contain title and workspace; no thumbnail permission or picture work is added. The prototype filters by the selected app's display name, intentionally showing both Ghostty processes together. A future feature would need an unambiguous app/bundle association for unrelated applications with identical names; this prototype does not establish that association.
+`trace-film` and `trace-recorder.swift` supplied the separate film check described in `docs/lens-opening-traces.md`. The recorder preserved immutable frames and receipt timestamps, audited encoded raw timestamps, then repeated idle samples onto a 60 fps timeline. `film-row.py` checks the cadence and proposes first-visible frames from image differences; the neighboring frames were inspected visually, including the preceding frames with neither panel.
 
-The panel's placement uses the switcher list's AX frame and a 16-point gap above it. A Dock window from `CGWindowListCopyWindowInfo` is coded as a fallback; the AX frame worked in all live takes, so the fallback is unverified. Every `row-show` logs both rectangles, overlap, key-window state, windows and front app. All final logs have `intersects=false` and `key=false`. This geometry covers the single 1920 × 1080 display only. More windows than fit in the fixed-width prototype Tiles are outside this experiment.
+| Opening | First switcher frame | First row frame | Gap |
+| --- | ---: | ---: | ---: |
+| 1 | 113 | 113 | 0 frames |
+| 2 | 237 | 238 | 1 frame |
+| 3 | 365 | 365 | 0 frames |
+| 4 | 492 | 492 | 0 frames |
+| 5 | 618 | 619 | 1 frame |
 
-Cmd-A is retained. The **active session event tap** sees Cmd-Tab itself, in both directions, and passes it. The WindowServer's precedence over Carbon hotkeys does not mean that this CGEvent tap cannot observe the event. It swallows only Cmd-A while the list is open and, after entering the row, arrow keys and Tab key-down/key-up pairs. It never changes or swallows `flagsChanged` events. While the switcher is down it returns every event unchanged. All four arrows, Tab and Shift-Tab were exercised in `navigation.mov`.
+Frame numbers are zero-based; one frame is 16.667 ms. The movie, raw movie, both clock files, event log, `film-counts.json` and five inspection sheets are retained. These compare the panels within the same capture and include capture delivery latency; they are not hardware scanout claims.
 
-The owned input canary received Cmd-A before and after the switcher session and selected all its text. During the session it received Command's modifier events but no A event; the prototype logged both swallowed A events. Cmd-A and row navigation kept the native switcher open and its highlight unchanged, visible in `hero.mov` and `navigation.mov`. A row entry initially chooses the first Tile; navigation changes it. Escape remains the system's event and cancels the row's pending focus too.
+A zero-delay quick Cmd-Tab produced one snapshot, `quick-tap-discard` and `snapshot-discard`, with no session-open, row or focus. Pending keys and choice state were cleared. The system may still perform its ordinary quick app switch.
 
-With no Tile chosen, Command release only hides the panel: the prototype issues no focus command. `no-choice.mov` ends on the app the system selected. With a chosen Tile, Command release passes unchanged, hides the row, and schedules a sample of the system result 100 ms later. Only then does it run `focus --window-id` asynchronously.
+## Release, the flash and the alternative
 
-The final hero's boot-clock sequence is:
+The first approach remains the default invocation for comparison. It leaves the Dock up after Cmd-A, passes Command release, waits 100 ms to sample the system result, then issues `focus --window-id`. The corrected hero uses one Safari process, with a shown and a hidden workspace.
 
 ```text
-1294.306847  Command release: selected window 186, workspace 3; modifier passed
-1294.418752  system result: Ghostty pid 8486, desk, frame (989,42,919,1025)
-1294.713789  focus --window-id 186 returned 0; command took 294.982 ms
-1294.874166  post-focus sample: Ghostty pid 8499, desk, frame (65,78,1221,986)
+1553.600555  release; chosen Safari 308 / workspace 3
+1553.733640  system result: Safari pid 11746, Fixed Columns / window 309
+1554.261804  focus CLI returned; 526.203 ms in the command
+1554.291872  independent probe first sampled Lenses and Search / window 308
 ```
 
-Inventory identifies pid 8486 as window 178 on workspace 1, and pid 8499 as window 186 on workspace 3. CLI readback ends on workspace 3 / window 186. The film shows the intermediate workspace-1 window before the hidden-workspace destination, with a transition through the workspace-3 layout. This flash is a finding, not a seamless switch. The 100 ms delay is a prototype choice, not a proven minimum safe delay for a feature.
+The film shows the workspace-2 Fixed Columns layout, then the workspace-3 destination. At +200, +300 and +400 ms it still shows the intermediate workspace; at +600 ms the destination transition is visible. This is a same-process flash, independent of the earlier Ghostty mistake. The probe first sampled the chosen focus at **691.317 ms after release**. The artificial 100 ms delay and front-app sampling are costs of this comparison path.
 
-An app with no listed windows gets **no row**, to avoid offering a dead action. `empty-app.mov` closes Finder's only window, keeps Finder running, highlights Finder and presses Cmd-A. The snapshot contains thirteen other windows, the row stays hidden, and no focus is issued.
+With `--detach`, Cmd-A posts Escape with the Command flag at the HID tap, marks those two events so this tap passes them, and keeps the row alive independently. That closed the native switcher **without switching apps**. Swallowed Tab and Shift-Tab did not reopen it; arrows still changed Tiles. Escape cancels the row; Command release focuses the choice immediately, with no 100 ms system-switch delay.
 
-## Clicks, pointer crossing, Secure Input and the Dock
-
-Clicking a Ghostty Tile once while the switcher was held closed the system switcher, switched nothing, and removed the row. Zed remained focused. This avoids the stranded overlay fault; the prototype deliberately does not implement click selection. Clicking elsewhere inside Zed also closes both overlays. A built feature would need either explicit click cancellation with a clear keyboard-only affordance or an independently validated click action. It must always tie overlay lifetime to the Dock's list, including mouse exits.
-
-Moving the pointer from below the switcher through the icon band and up to the row changed the native highlight from Ghostty to Notes, and the row followed Notes. A feature cannot treat that crossing as a window-selection gesture without first resolving this hazard. Merely making the row ignore mouse input would not prevent the system's icon hover. Do not promise mouse support from this prototype.
-
-`input-probe.swift --secure` called `EnableSecureEventInput()` successfully and remained frontmost with `IsSecureEventInputEnabled() == true`. Under Secure Input the prototype's tap received Command and Shift flag changes but **no Cmd-A or Tab key events**. The Dock continued to handle Tab/Shift-Tab; AX reads and observer callbacks continued to report Zed → Ghostty → Zed, and the row followed. Cmd-A could not enter the row, no Tile was chosen, and Escape removed the row. The canary did not receive an A event either. A feature would need an explicit degraded display-only policy or hide the row under Secure Input; this experiment supplies no working row-entry fallback.
-
-Dock restart was tried idle and during a hold. Running-application-list KVO detects exit and relaunch; `isFinishedLaunching` gates attachment, with a 500 ms retry for a refused observer registration. The first version released its Dock object before invalidating that object's KVO observation and died. The final version invalidates it first and passed both restart takes. On a held restart it cancels the pending choice and orders the row out.
-
-From the final log's observed Dock disappearance to successful observer attachment: **188.741 ms idle, 230.755 ms held**. The idle take deliberately waits three seconds before its next gesture; its next row is ordered 212.037 ms after opening Tab. The held take retries after releasing Command and waiting one second; the next row is ordered 222.244 ms after opening Tab. Those are scheduled trial intervals, not measurements of the earliest possible successful retry. The prototype must see a fresh Command/Tab gesture before reopening after an exit, so a fading old list cannot create a second snapshot session.
-
-## Reproduction and evidence
-
-Run this only in the assigned guest, with the VM skill's environment and permissions already prepared. Set the host's `TART_HOME` to the driver-provided storage directory in every shell. Use the VM script for every guest operation. Do not use Tart's guest agent or grant prompts.
-
-```sh
-VM=.claude/skills/vm/vm
-P=.scratch/winmux-fork/prototypes/32-window-row-above-cmd-tab
-"$VM" sync relay-114 "$PWD"
-"$VM" build relay-114
-"$VM" check relay-114
-"$VM" push relay-114 .claude/skills/demo/desk desk
-"$VM" push relay-114 "$P" row-prototype
-"$VM" ssh relay-114 'bash ~/row-prototype/prepare.sh'
-"$VM" ssh relay-114 'swiftc ~/row-prototype/window-row.swift -o ~/row-prototype/window-row'
-"$VM" ssh relay-114 'nohup ~/row-prototype/window-row > ~/takes/row/prototype.jsonl 2>&1 < /dev/null &'
-"$VM" ssh relay-114 'bash ~/row-prototype/pilot.sh'
-"$VM" ssh relay-114 'pkill -x window-row'
-"$VM" ssh relay-114 'nohup ~/row-prototype/window-row > ~/takes/row/prototype-final.jsonl 2>&1 < /dev/null &'
-"$VM" ssh relay-114 'bash ~/row-prototype/measure.sh'
-"$VM" ssh relay-114 'bash ~/row-prototype/hero.sh'
+```text
+1574.497...  Cmd-A; Escape posted, row retained; Zed stayed frontmost
+1576.938301  release; chosen Safari 308 / workspace 3
+1576.939628  source still Zed, with no intermediate Safari activation
+1577.113476  focus CLI returned; 173.393 ms in the command
+1577.190576  independent probe first sampled Safari, Lenses and Search
 ```
 
-`prepare.sh` stages the rich desk, loads the literal config, prints doctor, compiles the AX probe, and captures the initial system hold. The other shell drivers are the recorded fixture scripts: **their window ids are those of this run**. Before invoking `pilot.sh` or the remaining drivers on a restaged desk, map the inventory and replace those fixture ids, including the two Ghostty ids in `pilot.sh`, `measure.sh` and `hero.sh`. `pilot.sh` explicitly moves one Ghostty to workspace 3 and records the resulting inventory. The stop/restart above gives measurement session 1 a fresh log; run `measure.sh` first so its twelve samples occupy sessions 1–12.
+The observed release → chosen focus was **252.275 ms**. The CLI dispatch/return occupied **173.393 ms** within that interval; it returned before the independently observed focus settled. The rest includes scheduling, asynchronous workspace/focus work and probe sampling. A built in-process feature would not pay the external CLI hop. **No in-process timing was measured or is claimed.** The film shows the source desk transitioning directly to the chosen workspace, with no workspace-2 window in between. It is still a visible workspace transition.
 
-After the hero, the evidence run used `faults.sh`, `input-run.sh` and `navigation.sh` in that same prototype process. It then stopped the prototype, ran `compare-build.sh <tree> <label>` once per separately built tree, and started the prototype again into `prototype-empty.jsonl` for the observer probe and `empty-app.sh`. The first outside-click take highlighted windowless Finder, so it was replaced: the rich desk was restaged and `cleanup.sh` explicitly focused Ghostty before Zed, recording the visible-row dismissal into `prototype-outside.jsonl`. That final retake has new fixture ids (Ghostty 658/666 on workspace 1), separate from the hidden-workspace hero. `summarize.py <log>` recomputes the timing table from sessions 1–12 of `prototype-final.jsonl`. Run long commands in the background, wait with one long yield at a time, and pull `takes/row` only after the recorder finishes.
+This fits the Decision that the system's switcher is not replaced, disabled or drawn over: Cmd-Tab opens and navigates the system's own UI. The person explicitly leaves it by choosing the row. The retained row occupies its previous rectangle above the switcher's former position; nothing is drawn over the system switcher.
 
-`captures/index.md` maps every accepted movie, screenshot, transcript and log to its checked result. Earlier `prototype.jsonl`, `prototype-v2.jsonl`, `prototype-v3.jsonl` and the failed Dock run are diagnostic history. The accepted measurements and hero use `prototype-final.jsonl`; the later observer/empty run uses `prototype-empty.jsonl` and the visible-row outside-click retake uses `prototype-outside.jsonl`. Committed stills are crops of real guest captures, 211 KB and 224 KB, with only staged content.
+![Safari row above the native switcher, hidden-workspace Tile chosen](row-chosen.png)
+
+![The independent row after Cmd-A has closed the native switcher](row-textedit.png)
+
+The image filenames are retained from the first pass; both images now show the corrected Safari hero, cropped from the accepted films and under 400 KB each.
+
+## Keyboard and lifetime contract
+
+The nonactivating NSPanel never becomes key or activates the prototype. Its Tiles show title and workspace. It uses the list's AX frame with a 16-point gap; every accepted row has `intersects=false` and `key=false`. Coordinate conversion uses the primary screen's height. The coded CGWindowList frame fallback and multiple-screen geometry were not exercised. An app with no listed windows gets no row.
+
+Cmd-A enters only a nonempty row. While a snapshot is pending it passes through and queues entry for when a nonempty row appears; it does not consume a key for an unavailable action. A controlled 400 ms delivery delay (`--slow-snapshot`) exercised that pending path. An empty Finder row swallowed Cmd-A before the fix; the fixed take passed it and made no focus call.
+
+After entry, only Tab and arrows are consumed. Every consumed key-down records its keycode in a set, and exactly its key-up is consumed, even if release or Escape ended the UI in between. Modifier events always pass. Escape synchronously ends the first approach's session or the independent row. A delayed focus captures its session token and skips if a newer opening has started.
+
+The tap callback performs no synchronous cross-process AX or window-list queries. Entry's front-app sampling is queued to the next main turn. An in-row step updates only selection and redraw state. Every queried AX element has a 1.0-second messaging timeout; the Dock root has one before notification registration. Snapshot parsing reads stdout alone and skips nonnumeric ids.
+
+Input logging is limited to opening/session Tab and consumed keys, including paired key-up cleanup. There is no stream of ordinary app keys, character data or arbitrary modifier events. Activation and focus observations are separately named. Bare Command holds do not poll the Dock.
+
+Before/after live drivers caught Escape swallowing later Cmd-A/Right, an unpaired A key-up after Command release, a stale delayed focus during the next session, and empty-row Cmd-A consumption. Their fixed runs remove each fault. Six tightly spaced bare-Command/fading-list attempts did not reproduce that race; the arming fix is established by source inspection and the absence of extra sessions/snapshots. Registration failures, malformed CLI output and a second-display coordinate fault were not reproduced; those changes were compiled and inspected, not claimed as before/after live proofs.
+
+Clicking a Tile cancels the row without focusing it. In the first pass a Tile click closed the native switcher and removed the row; an outside click did too. Pointer crossing changed the Dock highlight, so the row followed another app. The independent row avoids that crossing once entered, but this prototype remains keyboard-first. A feature should cancel on clicks until click selection is separately validated.
+
+The final follow-up `pointer.mov` again changes the native target, TextEdit → Ghostty, then clicks the row. Both panels close and Zed remains focused. `detach-tour.mov` follows TextEdit → Notes → Safari, enters the independent row, steps right/left and ends on Safari 308 / workspace 3. The tour's separate focus call took 295.536 ms; this variability is another reason to report the 173.393 ms hero call as one observation rather than a fixed CLI cost.
+
+Two review findings remain feature notes, as ruled: keycode 0 for Cmd-A depends on keyboard layout, so a feature matches the character through WinMux's binding machinery; and a feature extends **MissionControlState's Dock observer** rather than copying this standalone tracking.
+
+## Secure Input policy
+
+**Hide the row whenever `IsSecureEventInputEnabled()` is true.** This is the policy a built feature would ship: the system switcher behaves as without WinMux, and there is no displayed row whose entry key cannot work.
+
+The owned `input-probe.swift --secure` reported successful EnableSecureEventInput and `secure=true`. The system's switcher still opened and followed Tab, while this tap received no Tab or Cmd-A key events. The prototype logged the secure-policy transition and no row, entry, swallow or focus. `secure.mov`, `secure-held.png`, `secure.jsonl` and `secure-canary.txt` preserve the check. The first pass showed the pre-policy fault: a visible row with no functioning Cmd-A entry. This is a deliberate fallback policy, not a blocker.
+
+## Reproduction
+
+Use the assigned guest through `vm` only; set the driver-provided TART_HOME in every host shell. Never grant prompts or touch the golden image. Run host and guest `make check` before starting the debug app. Sync/build if the shipped tree changed, push the prototype and demo tools, then stage using `prepare.sh`. Map the resulting ids before any driver: update `followup.sh`'s fixture or supply `fixture.sh`; also map ids in `contract-run.sh` and `empty2.sh`.
+
+`followup.sh measure` runs twelve navigation openings, a quick tap and five frame-timestamped openings. Other modes are `hero`, `detach-hero`, `detach-tour`, `identity`, `pointer`, `secure`, `contracts`, `pending` and `resilience`. `contract-run.sh before|after` requires the original pre-fix binary and the current binary. `before2.sh` takes the original source from commit `34a2daab` explicitly, so it cannot silently label the fixed source “before.” `empty2.sh` closes Finder's fixture window and runs that comparison last.
+
+Use `summarize2.py measure.jsonl`, `film-row.py openings.mov` and `film-hero.py hero.mov` to regenerate derived evidence; the film scripts need ffmpeg/ffprobe and Pillow. Read the neighboring frames rather than accepting thresholds alone. The original `summarize.py` and first-pass drivers describe the historical run and retain its old ids; they are not the follow-up drivers.
 
 ## Recommendation
 
-**Drop it for now.** Keep the standalone evidence; add no WinMux setting or feature issue. The row can be built technically, but this guest run does not justify the interaction: even its first AX read misses 150 ms, the complete row orders at a median 197 ms, and choosing a hidden window visibly passes through the system's different choice. Secure Input leaves a displayed row that the entry key cannot operate. Pointer crossing changes its target.
+**Build it**, off by default, with Cmd-A leaving the native switcher for an independent row, per-process window filtering and the Secure Input hide policy. The measured row adds a median 1.692 ms after first read and at most one captured frame after the visible switcher in five openings. The corrected same-process flash remains in the system-release comparison and is absent from the direct-focus alternative's film.
 
-Reconsider only with physical-keyboard and installed-build measurements showing a first row on screen around 150 ms, a tolerable or eliminated intermediate-window flash while preserving system release, and an explicit Secure Input policy. macOS 27 and multi-display behavior must then be checked. Faster later highlighting alone would not change this recommendation.
+The feature draft calls for integrating with MissionControlState, resolving or suppressing ambiguous duplicate icons, character-based Cmd-A matching, paired-event ownership and cancellation-safe focus. Its acceptance includes macOS 27, an installed build and a real keyboard. This prototype establishes the interaction in one guest; it does not establish those platform checks or an in-process latency number.
