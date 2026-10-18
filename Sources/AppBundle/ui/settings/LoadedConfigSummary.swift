@@ -121,7 +121,7 @@ struct LoadedConfigSummary {
         var hooks = [Hook(name: "arrive", value: function(config.arrive)),
                      Hook(name: "after-startup-command", value: commands(config.afterStartupCommand)),
                      Hook(name: "after-login-command", value: commands(config.afterLoginCommand)),
-                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.map(shellQuoted).joined(separator: " ")),
+                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.enumerated().map { shellQuoted($1, first: $0 == 0) }.joined(separator: " ")),
                      Hook(name: "on-focus-changed", value: commands(config.onFocusChanged)),
                      Hook(name: "on-focused-monitor-changed", value: commands(config.onFocusedMonitorChanged)),
                      Hook(name: "on-mode-changed", value: commands(config.onModeChanged))]
@@ -141,7 +141,9 @@ struct LoadedConfigSummary {
 }
 
 /// One argv word as a shell would need it typed, so a displayed argv reads as the command it runs.
-private func shellQuoted(_ word: String) -> String {
-    let plain = !word.isEmpty && word.allSatisfy { $0.isLetter || $0.isNumber || "-_./=:@%+,".contains($0) }
+/// The first word is the program, so an `=` there would read as an environment assignment.
+private func shellQuoted(_ word: String, first: Bool) -> String {
+    let safe = first ? "-_./:@%+," : "-_./=:@%+,"
+    let plain = !word.isEmpty && word.allSatisfy { $0.isLetter || $0.isNumber || safe.contains($0) }
     return plain ? word : "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }

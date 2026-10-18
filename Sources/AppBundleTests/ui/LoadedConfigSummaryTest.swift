@@ -162,6 +162,23 @@ final class LoadedConfigSummaryTest: XCTestCase {
         let summary = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
         XCTAssertEqual(summary.hooks.first { $0.name == "exec-on-workspace-change" }?.value, "/bin/bash -c 'sketchybar --trigger x'")
         XCTAssertEqual(summary.configuredHookCount, 1)
+        config.execOnWorkspaceChange = ["FOO=bar", "A=b"]
+        let assignment = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
+        XCTAssertEqual(assignment.hooks.first { $0.name == "exec-on-workspace-change" }?.value, "'FOO=bar' A=b",
+                       "a first word with = would read as an environment assignment")
+    }
+
+    func testSettingsOpenedAgainKeepsItsPaneButRebuilds() {
+        let model = ShortcutSettingsModel.shared
+        let presentation = model.presentationRevision, settings = model.settingsRevision
+        model.prepareForPresentation(alreadyShown: true)
+        XCTAssertEqual(model.presentationRevision, presentation, "an open window keeps its pane")
+        XCTAssertEqual(model.settingsRevision, settings + 1, "it still rebuilds from live workspaces and the file")
+        model.prepareForPresentation(alreadyShown: false)
+        XCTAssertEqual(model.presentationRevision, presentation + 1, "a fresh window starts on Overview")
+        XCTAssertEqual(model.settingsRevision, settings + 2)
+        model.requestWindowOpen()
+        XCTAssertEqual(model.settingsRevision, settings + 2, "the startup open leaves the build to the presentation")
     }
 
     func testWorkspaceNamedOtherWorkspacesKeepsDistinctColumnAndHookRows() {

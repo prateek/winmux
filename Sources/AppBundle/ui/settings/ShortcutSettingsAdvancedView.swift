@@ -66,14 +66,17 @@ func shortcutSettingsWindow() -> NSWindow? {
 }
 
 @MainActor
-func presentShortcutSettingsWindow(_ window: NSWindow, center: Bool = true) {
-    let fixedSize = NSSize(width: 900, height: 620)
-    window.styleMask.remove(.resizable)
-    window.minSize = fixedSize
-    window.maxSize = fixedSize
-    window.setContentSize(fixedSize)
+/// `place` sizes and centres a window opened afresh; one already shown stays where the person put it.
+func presentShortcutSettingsWindow(_ window: NSWindow, place: Bool = true) {
+    if place {
+        let fixedSize = NSSize(width: 900, height: 620)
+        window.styleMask.remove(.resizable)
+        window.minSize = fixedSize
+        window.maxSize = fixedSize
+        window.setContentSize(fixedSize)
+        window.center()
+    }
     NSApp.activate(ignoringOtherApps: true)
-    if center { window.center() }
     if window.isMiniaturized { window.deminiaturize(nil) }
     window.makeKeyAndOrderFront(nil)
     window.orderFrontRegardless()

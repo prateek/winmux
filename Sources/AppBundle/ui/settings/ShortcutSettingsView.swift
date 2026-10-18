@@ -18,7 +18,7 @@ public func openShortcutSettingsWindow(_ openWindow: OpenWindowAction) {
     let existing = shortcutSettingsWindow()
     let shown = existing.map { $0.isVisible || $0.isMiniaturized } ?? false
     ShortcutSettingsModel.shared.prepareForPresentation(alreadyShown: shown)
-    if let window = existing { presentShortcutSettingsWindow(window, center: !shown) }
+    if let window = existing { presentShortcutSettingsWindow(window, place: !shown) }
     else {
         openWindow(id: shortcutSettingsWindowId)
         DispatchQueue.main.async {

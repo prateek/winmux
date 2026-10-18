@@ -29,11 +29,10 @@ public final class ShortcutSettingsModel: ObservableObject {
         openRequestId += 1
     }
 
-    /// A window already shown, minimized included, keeps its pane and scroll position: the summary
-    /// follows every load already, so there is nothing to rebuild.
+    /// Rebuilds from the live workspaces and the file on disk. A window already shown, minimized
+    /// included, keeps its pane; one opened afresh starts on Overview.
     func prepareForPresentation(alreadyShown: Bool) {
-        guard !alreadyShown else { return }
         reload()
-        presentationRevision += 1
+        if !alreadyShown { presentationRevision += 1 }
     }
 }
