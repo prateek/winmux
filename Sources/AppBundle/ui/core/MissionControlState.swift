@@ -27,7 +27,10 @@ final class MissionControlState {
     private func setOpen(_ value: Bool) {
         guard isOpen != value else { return }
         isOpen = value
-        if value { WorkspaceSidebarPanel.cancelAllInlineTextEditing() }
+        if value {
+            FindFocusHighlight.shared.dismiss()
+            WorkspaceSidebarPanel.cancelAllInlineTextEditing()
+        }
         WindowTabStripPanelController.shared.refresh()
         ColumnDividerPanelController.shared.refresh()
         FocusedEmptyColumnPanel.shared.refresh()

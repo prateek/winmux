@@ -125,6 +125,10 @@ func replaceWorkspaceNameInFocusState(oldName: String, newName: String) {
     let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
     guard status else { return false }
 
+    if _focus.windowId != newFocus.windowOrNil?.windowId || _focus.workspaceName != newFocus.workspace.name {
+        FindFocusHighlight.shared.dismiss()
+    }
+
     // Normalize mruWindow when focus away from a workspace
     if oldFocus.workspace != newFocus.workspace {
         oldFocus.windowOrNil?.markAsMostRecentChild()

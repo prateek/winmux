@@ -37,6 +37,7 @@ extension Command {
                  is DebugWindowsCommand,
                  is DebugLensTraceCommand,
                  is FlattenWorkspaceTreeCommand,
+                 is FindFocusCommand,
                  is FocusBackAndForthCommand,
                  is FocusCommand,
                  is FocusMonitorCommand,

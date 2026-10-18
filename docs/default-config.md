@@ -85,7 +85,7 @@ Hovering over the expanded workspace sidebar starts type-to-search without activ
 
 ## The windowing mode
 
-`alt-semicolon` enters the `window` binding mode. It has exactly these 44 keys:
+`alt-semicolon` enters the `window` binding mode. It has exactly these 45 keys:
 
 | Key | Commands |
 | --- | --- |
@@ -95,6 +95,7 @@ Hovering over the expanded workspace sidebar starts type-to-search without activ
 | `shift-1` through `shift-9` | `move-node-to-workspace 1` through `9` |
 | `ctrl-h`, `ctrl-j`, `ctrl-k`, `ctrl-l` | `join-with left`, `join-with down`, `join-with up`, `join-with right` |
 | `n`, `p` | `focus tab-next`, `focus tab-prev` |
+| `c` | `find-focus` |
 | `t` | `layout floating tiling` |
 | `m` | `fullscreen` |
 | `rightSquareBracket`, `leftSquareBracket` | `project next`, `project prev` |

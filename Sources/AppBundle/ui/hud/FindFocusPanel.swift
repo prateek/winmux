@@ -1,0 +1,85 @@
+import AppKit
+
+func findFocusPaths(window: CGRect, screen: CGRect) -> (dim: CGPath, border: CGPath) {
+    let local = window.offsetBy(dx: -screen.minX, dy: -screen.minY)
+    let dim = CGMutablePath()
+    dim.addRect(CGRect(origin: .zero, size: screen.size))
+    dim.addRoundedRect(in: local, cornerWidth: 10, cornerHeight: 10)
+    let border = CGMutablePath()
+    border.addRoundedRect(in: local, cornerWidth: 10, cornerHeight: 10)
+    if local.width > 8, local.height > 8 {
+        border.addRoundedRect(in: local.insetBy(dx: 4, dy: 4), cornerWidth: 6, cornerHeight: 6)
+    }
+    return (dim, border)
+}
+
+@MainActor
+final class FindFocusPanel: NSPanelHud {
+    private let dim = CAShapeLayer()
+    private let border = CAShapeLayer()
+
+    override init() {
+        super.init()
+        ignoresMouseEvents = true
+        hasShadow = false
+        animationBehavior = .none
+        applyWinMuxLayer(.overlay)
+        let view = NSView()
+        view.wantsLayer = true
+        view.layer?.masksToBounds = true
+        dim.fillRule = .evenOdd
+        border.fillRule = .evenOdd
+        view.layer?.addSublayer(dim)
+        view.layer?.addSublayer(border)
+        contentView = view
+    }
+
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+
+    func show(window: CGRect, screen: CGRect) {
+        setFrame(screen, display: true)
+        let paths = findFocusPaths(window: window, screen: screen)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dim.path = paths.dim
+        dim.fillColor = NSColor.black.withAlphaComponent(0.35).cgColor
+        border.path = paths.border
+        border.fillColor = NSColor.controlAccentColor.cgColor
+        CATransaction.commit()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0
+            alphaValue = 1
+        }
+        orderFrontRegardless()
+    }
+
+    func fade() {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.4
+            animator().alphaValue = 0
+        }
+    }
+}
+
+@MainActor
+final class FindFocusPanels {
+    static let shared = FindFocusPanels()
+    private var panels: [ObjectIdentifier: FindFocusPanel] = [:]
+
+    func show(_ rect: Rect) {
+        let screens = NSScreen.screens
+        let ids = Set(screens.map(ObjectIdentifier.init))
+        for (id, panel) in panels where !ids.contains(id) { panel.orderOut(nil) }
+        panels = panels.filter { ids.contains($0.key) }
+        for screen in screens {
+            let id = ObjectIdentifier(screen)
+            let panel = panels[id] ?? FindFocusPanel()
+            panels[id] = panel
+            panel.show(window: rect.toAppKitScreenRect, screen: screen.frame)
+        }
+    }
+
+    func fade() { for panel in panels.values { panel.fade() } }
+    func hide() { for panel in panels.values { panel.orderOut(nil) } }
+}

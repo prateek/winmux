@@ -88,7 +88,7 @@ final class DefaultConfigTest: XCTestCase {
         let leader = try XCTUnwrap(defaults.modes["window"])
         let windowKeys: Set<String> = Set(["h", "j", "k", "l", "shift-h", "shift-j", "shift-k", "shift-l",
             "ctrl-h", "ctrl-j", "ctrl-k", "ctrl-l", "n", "p", "t", "m", "rightSquareBracket", "leftSquareBracket",
-            "o", "f", "s", "r", "a", "w", "esc", "alt-semicolon"] + (1...9).map { "\($0)" } + (1...9).map { "shift-\($0)" })
+            "o", "f", "s", "r", "a", "w", "c", "esc", "alt-semicolon"] + (1...9).map { "\($0)" } + (1...9).map { "shift-\($0)" })
         XCTAssertEqual(Set(leader.bindings.keys), windowKeys)
         // Mode activation in these tests registers no desktop bindings.
         config.modes = ["main": .zero, "window": .zero]

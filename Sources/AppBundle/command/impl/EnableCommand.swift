@@ -21,6 +21,7 @@ struct EnableCommand: Command {
         }
         TrayMenuModel.shared.isEnabled = newState
         if !newState {
+            FindFocusHighlight.shared.dismiss()
             TrayMenuModel.shared.isWorkspaceSidebarExpanded = false
             clearPendingWindowDragIntent()
             cancelManipulatedWithMouseState()

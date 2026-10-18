@@ -19,6 +19,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case enable
     case execAndForget = "exec-and-forget"
     case flattenWorkspaceTree = "flatten-workspace-tree"
+    case findFocus = "find-focus"
     case focus
     case focusBackAndForth = "focus-back-and-forth"
     case focusMonitor = "focus-monitor"
@@ -93,6 +94,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 break // exec-and-forget is parsed separately
             case .flattenWorkspaceTree:
                 result[kind.rawValue] = SubCommandParser(FlattenWorkspaceTreeCmdArgs.init)
+            case .findFocus:
+                result[kind.rawValue] = SubCommandParser(FindFocusCmdArgs.init)
             case .focus:
                 result[kind.rawValue] = SubCommandParser(parseFocusCmdArgs)
             case .focusBackAndForth:

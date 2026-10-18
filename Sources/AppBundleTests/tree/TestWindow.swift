@@ -80,8 +80,10 @@ final class TestWindow: Window, CustomStringConvertible {
     }
 
     @MainActor var testAxRectError: (any Error)?
+    @MainActor var beforeAxRect: (() async -> Void)?
 
     @MainActor override func getAxRect() async throws -> Rect? { // todo change to not Optional
+        await beforeAxRect?()
         if let testAxRectError { throw testAxRectError }
         recordAuthoritativeActualRect(_rect)
         return _rect

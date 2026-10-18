@@ -281,7 +281,7 @@ struct RunSessionGuard: Sendable {
     static var isServerEnabled: RunSessionGuard? { TrayMenuModel.shared.isEnabled ? forceRun : nil }
     @MainActor
     static func isServerEnabled(orIsEnableCommand command: (any Command)?) -> RunSessionGuard? {
-        command is EnableCommand ? .forceRun : .isServerEnabled
+        command is EnableCommand || command is FindFocusCommand ? .forceRun : .isServerEnabled
     }
     @MainActor
     static func checkServerIsEnabledOrDie(
@@ -388,6 +388,7 @@ private func layoutWorkspaces() async throws {
     defer {
         BindingModeHud.shared.refresh()
         FocusedEmptyColumnPanel.shared.refresh()
+        FindFocusHighlight.shared.refresh()
         ColumnDividerPanelController.shared.refresh()
     }
     if !TrayMenuModel.shared.isEnabled {

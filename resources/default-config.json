@@ -405,6 +405,7 @@
           "lens app-windows --presentation list --tile text"
         ],
         "alt-semicolon": "mode main",
+        "c": "find-focus",
         "ctrl-h": "join-with left",
         "ctrl-j": "join-with down",
         "ctrl-k": "join-with up",
