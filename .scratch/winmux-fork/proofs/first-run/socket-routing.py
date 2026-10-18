@@ -1,8 +1,19 @@
 """Exercise server routing that the normal CLI parses locally."""
-import getpass
+import os
 import json
 import socket
 import struct
+import subprocess
+
+
+def socket_path():
+    if 'CS_DARWIN_USER_TEMP_DIR' in os.confstr_names:
+        base = os.confstr('CS_DARWIN_USER_TEMP_DIR')
+    else:
+        base = subprocess.check_output(['getconf', 'DARWIN_USER_TEMP_DIR'], text=True).strip()
+    if not base:
+        raise RuntimeError('DARWIN_USER_TEMP_DIR returned no directory')
+    return os.path.join(base, 'com.zimengxiong.winmux.debug', 'winmux.sock')
 
 
 def receive(connection, count):
@@ -20,7 +31,7 @@ for arguments in [[], ["workspace", "--help"], ["workspace", "--bad-flag"],
                   ["subscribe", "--all"]]:
     with socket.socket(socket.AF_UNIX) as connection:
         connection.settimeout(5)
-        connection.connect("/tmp/com.zimengxiong.winmux.debug-" + getpass.getuser() + ".sock")
+        connection.connect(socket_path())
         payload = json.dumps(dict(args=arguments, stdin="", windowId=None, workspace=None)).encode()
         connection.sendall(struct.pack("=I", len(payload)) + payload)
         size, = struct.unpack("=I", receive(connection, 4))

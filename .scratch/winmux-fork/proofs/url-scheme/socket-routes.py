@@ -1,8 +1,19 @@
 """Run unchanged socket routes against either running tree; no third-party packages."""
-import getpass
+import os
 import json
 import socket
 import struct
+import subprocess
+
+
+def socket_path():
+    if 'CS_DARWIN_USER_TEMP_DIR' in os.confstr_names:
+        base = os.confstr('CS_DARWIN_USER_TEMP_DIR')
+    else:
+        base = subprocess.check_output(['getconf', 'DARWIN_USER_TEMP_DIR'], text=True).strip()
+    if not base:
+        raise RuntimeError('DARWIN_USER_TEMP_DIR returned no directory')
+    return os.path.join(base, 'com.zimengxiong.winmux.debug', 'winmux.sock')
 
 
 def receive(connection, size):
@@ -29,7 +40,7 @@ def request(connection, args, incomplete=False):
 
 with socket.socket(socket.AF_UNIX) as connection:
     connection.settimeout(10)
-    connection.connect("/tmp/com.zimengxiong.winmux.debug-" + getpass.getuser() + ".sock")
+    connection.connect(socket_path())
     for args, code in [(["workspace", "--help"], 0), (["sections", "bad"], 2),
                        (["subscribe", "--help"], 0), (["subscribe", "--bad"], 1),
                        (["mode", "main"], 0)]:

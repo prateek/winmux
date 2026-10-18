@@ -24,7 +24,8 @@ struct Main {
         }
 
         if args.first == "--version" || args.first == "-v" {
-            let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+            let path = Result { try socketPath() }.getOrDie()
+            let connection = NWConnection(to: NWEndpoint.unix(path: path), using: .tcp)
             let serverVersionAndHash: String?
             if await connection.startBlocking().error == nil {
                 let ans = await run(connection, [], stdin: "", windowId: nil, workspace: nil)
@@ -69,10 +70,11 @@ struct Main {
             }
         }
 
-        let connection = NWConnection(to: NWEndpoint.unix(path: socketPath), using: .tcp)
+        let path = Result { try socketPath() }.getOrDie()
+        let connection = NWConnection(to: NWEndpoint.unix(path: path), using: .tcp)
 
         if let e = await connection.startBlocking().error {
-            exit(1, err: "Can't connect to WinMux server. Is WinMux.app running?\n\(e.localizedDescription)")
+            exit(1, err: socketConnectionFailureMessage(e.localizedDescription))
         }
 
         var stdin = ""

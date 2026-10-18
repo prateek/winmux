@@ -77,6 +77,8 @@ private let agentSkillText = """
 
     # WinMux Agent
 
+    The CLI acts with the person's full reach and has no read-only mode.
+
     You MUST use the file workflow. Do not guess operation names. Do not search the repository for docs. This skill is the command reference.
 
     Required workflow for every user request:
