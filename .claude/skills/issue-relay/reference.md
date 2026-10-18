@@ -76,7 +76,7 @@ For setting `<hours>` and knowing when something is stuck:
 | A builder pass | 25 minutes to 4 hours |
 | `make check` on host and guest together | 5 to 6 minutes |
 | CI | 10 to 14 minutes, with a 30-minute limit |
-| `/code-review high` | about 10 minutes |
+| `/code-review high` | 2 to 13 minutes, longer on the first round of a large change |
 | A demo pass | 15 to 50 minutes |
 | The release | 4 to 8 minutes |
 | An image build | 15 minutes |
