@@ -9,18 +9,25 @@ func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
 
 func dump(_ element: AXUIElement, depth: Int = 0) {
     guard depth < 12 else { return }
-    let fields = ["AXRole", "AXSubrole", "AXTitle", "AXDescription", "AXPosition", "AXSize", "AXSelected", "AXValue", "AXIdentifier"]
+    AXUIElementSetMessagingTimeout(element, 1.0)
+    let fields = ["AXRole", "AXSubrole", "AXTitle", "AXDescription", "AXPosition", "AXSize", "AXSelected", "AXValue", "AXIdentifier", "AXURL"]
     print(String(repeating: "  ", count: depth) + fields.map { "\($0)=\(attribute(element, $0).map { String(describing: $0) } ?? "nil")" }.joined(separator: " "))
     if attribute(element, "AXSubrole") as? String == "AXProcessSwitcherList" {
         var names: CFArray?
         AXUIElementCopyAttributeNames(element, &names)
         for name in names as? [String] ?? [] { print("SWITCHER \(name): \(String(describing: attribute(element, name)))") }
         for selected in attribute(element, "AXSelectedChildren") as? [AXUIElement] ?? [] { print("SELECTED TITLE: \(String(describing: attribute(selected, "AXTitle")))") }
+        for button in attribute(element, "AXChildren") as? [AXUIElement] ?? [] {
+            var attributes: CFArray?
+            AXUIElementCopyAttributeNames(button, &attributes)
+            for name in attributes as? [String] ?? [] { print("BUTTON \(name): \(String(describing: attribute(button, name)))") }
+        }
     }
     for child in attribute(element, "AXChildren") as? [AXUIElement] ?? [] { dump(child, depth: depth + 1) }
 }
 
 if let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first {
+    for app in NSWorkspace.shared.runningApplications { print("APP pid=\(app.processIdentifier) title=\(app.localizedName ?? "") url=\(app.bundleURL?.absoluteString ?? "") executable=\(app.executableURL?.absoluteString ?? "")") }
     print("Dock pid=\(dock.processIdentifier)")
     dump(AXUIElementCreateApplication(dock.processIdentifier))
     if CommandLine.arguments.contains("--observe") {
