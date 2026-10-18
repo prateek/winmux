@@ -4,6 +4,7 @@ import Foundation
 
 struct WindowTabStripView: View {
     let strip: WindowTabStripViewModel
+    var pointerLocation: () -> CGPoint? = { nil }
     var onTabFramesChanged: ([UInt32: CGRect], CGFloat, CGRect) -> Void = { _, _, _ in }
 
     // Observes only the reentry preview, not the whole TrayMenuModel: the shared model
@@ -153,7 +154,7 @@ func isWindowTabStripChromeGroupDragStart(
 
 extension WindowTabStripView {
     func tabStripBody(stripWidth: CGFloat, stripHeight: CGFloat) -> some View {
-        let context = WindowTabStripLayoutContext(strip: strip, width: stripWidth, heldTabWidth: closeModel.heldWidths[strip.id])
+        let context = WindowTabStripLayoutContext(strip: strip, width: stripWidth, heldTabWidth: closeModel.widthHolds[strip.id]?.width)
         let itemHeight = min(max(stripHeight - 10, 18), 26)
         let activeWindowId = strip.tabs.first(where: \.isActive)?.windowId
         let groupDragWindowId = activeWindowId ?? strip.tabs.first?.windowId
@@ -201,13 +202,16 @@ extension WindowTabStripView {
         }
         .onPreferenceChange(WindowTabFramesPreferenceKey.self) { regions in
             onTabFramesChanged(regions.frames, context.tabWidth, regions.viewport)
+            hoveredTabId = windowTabHoverAfterLayout(
+                hoveredTabId,
+                pointer: pointerLocation(),
+                frames: regions.frames,
+                viewport: regions.viewport,
+                dragging: draggingTabId != nil || hasCommittedToDetach,
+            )
         }
         .onChange(of: context.tabOrder) { newOrder in
             clearPendingReorderDropIfModelApplied(currentOrder: newOrder)
-            hoveredTabId = windowTabHoverAfterOrderChange(hoveredTabId, order: newOrder, hold: closeModel.widthHolds[strip.id])
-        }
-        .onAppear {
-            hoveredTabId = windowTabHoverAfterOrderChange(hoveredTabId, order: context.tabOrder, hold: closeModel.widthHolds[strip.id])
         }
     }
 
@@ -516,9 +520,8 @@ extension WindowTabStripView {
                 WindowTabCloseButton(title: tab.title, foreground: item.tabForegroundStyle) {
                     guard !isWindowTabStripDragInProgress() else { return }
                     closeWindowFromTabStrip(tab.windowId, fallbackWorkspace: tab.workspaceName,
-                        pointer: WindowTabClosePointer(stripId: strip.id, width: context.tabWidth, stripWidth: context.width,
-                            tabCount: strip.tabs.count, x: NSEvent.mouseLocation.x - strip.frame.minX,
-                            scrollOrigin: 2 + tabScrollContentMinX))
+                        pointer: WindowTabClosePointer(stripId: strip.id,
+                            hold: WindowTabWidthHold(width: context.tabWidth, stripWidth: context.width, tabCount: strip.tabs.count)))
                 }
             }
         }

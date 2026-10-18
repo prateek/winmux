@@ -34,7 +34,10 @@ final class WindowTabStripPanel: NSPanelHud {
         guard shouldUpdate(content: nextContent, strip: displayStrip) else { return }
         if currentContent != nextContent {
             hostingView.strip = displayStrip
-            hostingView.rootView = AnyView(WindowTabStripView(strip: displayStrip) { [weak hostingView] frames, width, viewport in
+            hostingView.rootView = AnyView(WindowTabStripView(
+                strip: displayStrip,
+                pointerLocation: { [weak hostingView] in hostingView?.pointerInStripSpace() },
+            ) { [weak hostingView] frames, width, viewport in
                 hostingView?.tabFrames = frames
                 hostingView?.tabWidth = width
                 hostingView?.tabViewport = viewport

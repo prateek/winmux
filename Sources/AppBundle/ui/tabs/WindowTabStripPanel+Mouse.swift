@@ -31,19 +31,25 @@ final class WindowTabStripHostingView: NSHostingView<AnyView> {
         true
     }
 
+    /// The pointer in the strip view's coordinate space, where the published tab frames live.
+    func pointerInStripSpace(windowLocation: NSPoint? = nil) -> CGPoint? {
+        guard let location = windowLocation ?? window?.mouseLocationOutsideOfEventStream else { return nil }
+        var point = convert(location, from: nil)
+        if !isFlipped { point.y = bounds.height - point.y }
+        return point
+    }
+
     override func otherMouseUp(with event: NSEvent) {
         guard event.buttonNumber == 2, let strip else {
             super.otherMouseUp(with: event)
             return
         }
-        var point = convert(event.locationInWindow, from: nil)
-        if !isFlipped { point.y = bounds.height - point.y }
-        guard let windowId = windowTabAtPoint(point, frames: tabFrames, viewport: tabViewport),
+        guard let point = pointerInStripSpace(windowLocation: event.locationInWindow),
+              let windowId = windowTabAtPoint(point, frames: tabFrames, viewport: tabViewport),
               !isWindowTabStripDragInProgress()
         else { return }
-        let scrollOrigin = strip.tabs.first.flatMap { tabFrames[$0.windowId]?.minX }.map { $0 - windowTabStripContentHorizontalPadding } ?? tabViewport.minX
         closeWindowFromTabStrip(windowId, fallbackWorkspace: strip.workspaceName,
-            pointer: WindowTabClosePointer(stripId: strip.id, width: tabWidth, stripWidth: strip.frame.width,
-                tabCount: strip.tabs.count, x: point.x, scrollOrigin: scrollOrigin))
+            pointer: WindowTabClosePointer(stripId: strip.id,
+                hold: WindowTabWidthHold(width: tabWidth, stripWidth: bounds.width, tabCount: strip.tabs.count)))
     }
 }

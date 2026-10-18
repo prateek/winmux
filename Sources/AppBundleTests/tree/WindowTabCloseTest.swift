@@ -45,14 +45,14 @@ final class WindowTabCloseTest: XCTestCase {
         let (group, windows) = group()
         try await runLightSession(.menuBarButton, .isServerEnabled!) {}
         let stripWidth = TrayMenuModel.shared.windowTabStrips.first!.frame.width
-        let task = closeWindowFromTabStrip(2, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: ObjectIdentifier(group), width: 160, stripWidth: stripWidth, tabCount: 5, x: 300, scrollOrigin: 0))
+        let task = closeWindowFromTabStrip(2, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: ObjectIdentifier(group), hold: WindowTabWidthHold(width: 160, stripWidth: stripWidth, tabCount: 5)))
         try await task?.value
         XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }, [1, 3, 4, 5])
         XCTAssertTrue(windows.enumerated().allSatisfy { $0.element.closeAttempts == ($0.offset == 1 ? 1 : 0) })
         XCTAssertTrue(windows.filter { $0.windowId != 2 }.allSatisfy { $0.parent === group })
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
         XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
-        XCTAssertEqual(WindowTabCloseModel.shared.heldWidths[ObjectIdentifier(group)], 160)
+        XCTAssertEqual(WindowTabCloseModel.shared.widthHolds[ObjectIdentifier(group)]?.width, 160)
     }
 
     func testActiveTabCloseUsesTheExistingMostRecentReplacement() async throws {
@@ -65,7 +65,7 @@ final class WindowTabCloseTest: XCTestCase {
         try await task?.value
         XCTAssertEqual(focus.windowOrNil?.windowId, 4)
         XCTAssertEqual(group.tabActiveWindow?.windowId, 4)
-        XCTAssertNil(WindowTabCloseModel.shared.heldWidths[ObjectIdentifier(group)])
+        XCTAssertNil(WindowTabCloseModel.shared.widthHolds[ObjectIdentifier(group)]?.width)
     }
 
     func testBackgroundTabCloseDoesNotSwitchToTheActiveTabsPreviousFocus() async throws {
@@ -130,7 +130,7 @@ final class WindowTabCloseTest: XCTestCase {
         XCTAssertEqual(focus.windowOrNil?.windowId, 2)
         XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, 2)
         XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
-        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+        XCTAssertNil(WindowTabCloseModel.shared.backgroundCloses[2])
     }
 
     func testFocusedRetryDoesNotInheritABackgroundTimeoutsIntent() async throws {
@@ -147,7 +147,7 @@ final class WindowTabCloseTest: XCTestCase {
         windows[1].beforeCloseRequest = { windows[2].nativeFocus() }
         try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
         XCTAssertEqual(focus.windowOrNil?.windowId, 4)
-        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+        XCTAssertNil(WindowTabCloseModel.shared.backgroundCloses[2])
     }
 
     func testBackgroundCloseIntentSurvivesTimeoutUntilOrdinaryCollection() async throws {
@@ -161,10 +161,10 @@ final class WindowTabCloseTest: XCTestCase {
         windows[1].closeRequestStays = true
         try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
         XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
-        XCTAssertTrue(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+        XCTAssertNotNil(WindowTabCloseModel.shared.backgroundCloses[2])
         windows[1].unbindAndFocusAfterClosure()
         XCTAssertEqual(focus.windowOrNil?.windowId, 5)
-        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+        XCTAssertNil(WindowTabCloseModel.shared.backgroundCloses[2])
     }
 
     func testClosingTabRemainsPresentAndIgnoresASecondClose() async throws {
@@ -200,17 +200,17 @@ final class WindowTabCloseTest: XCTestCase {
         let x = windowTabStripContentHorizontalPadding + width - 12
         for expected in [UInt32(1), 2, 3] {
             let ids = group.children.compactMap { ($0 as? Window)?.windowId }
-            let drawnWidth = windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count, heldWidth: model.heldWidths[id])
+            let drawnWidth = windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count, heldWidth: model.widthHolds[id]?.width)
             let frames = Dictionary(uniqueKeysWithValues: ids.enumerated().map {
                 ($0.element, CGRect(x: windowTabStripContentHorizontalPadding + CGFloat($0.offset) * (drawnWidth + windowTabStripTabSpacing), y: 0, width: drawnWidth, height: 26))
             })
             let hit = windowTabAtPoint(CGPoint(x: x, y: 12), frames: frames)
             XCTAssertEqual(hit, expected)
-            try await closeWindowFromTabStrip(hit!, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: id, width: drawnWidth, stripWidth: stripWidth, tabCount: ids.count, x: x, scrollOrigin: 0))?.value
-            XCTAssertEqual(windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count - 1, heldWidth: model.heldWidths[id]), width)
+            try await closeWindowFromTabStrip(hit!, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: id, hold: WindowTabWidthHold(width: drawnWidth, stripWidth: stripWidth, tabCount: ids.count)))?.value
+            XCTAssertEqual(windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count - 1, heldWidth: model.widthHolds[id]?.width), width)
         }
         model.pointerLeftStrip(id)
-        XCTAssertNil(model.heldWidths[id])
+        XCTAssertNil(model.widthHolds[id]?.width)
         XCTAssertEqual(windowTabStripTabWidth(stripWidth: 1000, count: 2, heldWidth: nil), windowTabStripTabWidth(stripWidth: 1000, count: 2))
     }
 
@@ -244,30 +244,65 @@ final class WindowTabCloseTest: XCTestCase {
         let (group, _) = group()
         let id = ObjectIdentifier(group)
         let model = WindowTabCloseModel.shared
-        XCTAssertTrue(model.begin(2, pointer: WindowTabClosePointer(stripId: id, width: 160, stripWidth: 1000, tabCount: 5, x: 300, scrollOrigin: 0)))
+        XCTAssertTrue(model.begin(2, pointer: WindowTabClosePointer(stripId: id, hold: WindowTabWidthHold(width: 160, stripWidth: 1000, tabCount: 5))))
         let panel = WindowTabStripPanelController.shared.stripPanel(for: id)
         panel.hostingView.strip = WindowTabStripViewModel(id: id, workspaceName: "tabs", frame: .zero,
             groupFrame: .zero, activeWindowId: 1, activeWindowCornerRadius: 16, tabs: [], occludingFloatingWindowFrames: [])
         WindowTabStripPanelController.shared.removeStaleStripPanels(activeIds: [])
-        XCTAssertNil(model.heldWidths[id])
+        XCTAssertNil(model.widthHolds[id]?.width)
         model.finish(2)
     }
 
-    func testStationaryPointerHoverFollowsClosedTabsAndClearsStaleHover() {
-        let hold = WindowTabWidthHold(width: 150, stripWidth: 1000, tabCount: 5, pointerX: 140, scrollOrigin: 2)
+    func testHoverFollowsTheLivePointerAfterEachLayout() {
+        func frames(_ ids: [UInt32], width: CGFloat = 150, origin: CGFloat = 5) -> [UInt32: CGRect] {
+            Dictionary(uniqueKeysWithValues: ids.enumerated().map {
+                ($0.element, CGRect(x: origin + CGFloat($0.offset) * (width + 4), y: 4, width: width, height: 26))
+            })
+        }
+        let viewport = CGRect(x: 2, y: 0, width: 900, height: 36)
+        let pointer = CGPoint(x: 280, y: 15)
         var order: [UInt32] = [1, 2, 3, 4, 5]
-        var hovered: UInt32? = 1
-        for next: UInt32 in [2, 3, 4] {
-            order.removeFirst()
-            hovered = windowTabHoverAfterOrderChange(hovered, order: order, hold: hold)
+        var hovered: UInt32? = 2
+        // A still pointer over the closed tab's slot hovers each tab that slides into it.
+        for next: UInt32 in [3, 4, 5] {
+            order.remove(at: 1)
+            hovered = windowTabHoverAfterLayout(hovered, pointer: pointer, frames: frames(order), viewport: viewport, dragging: false)
             XCTAssertEqual(hovered, next)
         }
-        XCTAssertNil(windowTabHoverAfterOrderChange(9, order: order, hold: nil))
-        XCTAssertEqual(windowTabHoverAfterOrderChange(4, order: order, hold: nil), 4)
-        XCTAssertEqual(windowTabUnderPointer(20, order: [1, 2], width: 100, scrollOrigin: -90), 2)
-        XCTAssertNil(windowTabUnderPointer(104, order: [1, 2], width: 100, scrollOrigin: 0))
-        XCTAssertNil(windowTabUnderPointer(0, order: order, width: 150, scrollOrigin: 2))
-        XCTAssertNil(windowTabUnderPointer(1000, order: order, width: 150, scrollOrigin: 2))
+        // The pointer, not the slot it was in at the click, decides: it moved to the last tab.
+        XCTAssertEqual(windowTabHoverAfterLayout(2, pointer: CGPoint(x: 160 + 154, y: 15), frames: frames([1, 3, 4]), viewport: viewport, dragging: false), 4)
+        // A scrolled strip: frames shift, and the tab under the pointer follows them.
+        XCTAssertEqual(windowTabHoverAfterLayout(nil, pointer: pointer, frames: frames([1, 2, 3], origin: -149), viewport: viewport, dragging: false), 3)
+        XCTAssertNil(windowTabHoverAfterLayout(3, pointer: CGPoint(x: 950, y: 15), frames: frames([1, 3]), viewport: viewport, dragging: false))
+        XCTAssertNil(windowTabHoverAfterLayout(3, pointer: pointer, frames: frames([1, 3]), viewport: viewport, dragging: true))
+        // Without a pointer reading, a hover on a tab that is gone clears and one still present stays.
+        XCTAssertNil(windowTabHoverAfterLayout(9, pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false))
+        XCTAssertEqual(windowTabHoverAfterLayout(3, pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false), 3)
+    }
+
+    func testBackgroundCloseRecordExpiresAndARefusalForgetsIt() async throws {
+        let (_, windows) = group()
+        let model = WindowTabCloseModel.shared
+        XCTAssertTrue(model.begin(2, pointer: nil, now: Date(timeIntervalSinceNow: -(windowTabBackgroundCloseLifetime + 1))))
+        model.finish(2)
+        XCTAssertFalse(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
+        XCTAssertNil(model.backgroundCloses[2])
+        XCTAssertTrue(model.begin(2, pointer: nil))
+        model.finish(2)
+        XCTAssertTrue(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
+
+        windows[2].closeResult = .notClosed(.appRefused)
+        try await closeWindowFromTabStrip(3, fallbackWorkspace: "tabs")?.value
+        XCTAssertNil(model.backgroundCloses[3])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+    }
+
+    func testWidthHoldToleratesSubPointWidthDifferences() {
+        let hold = WindowTabWidthHold(width: 150, stripWidth: 1000, tabCount: 5)
+        XCTAssertTrue(hold.isValid(stripWidth: 1000.5, tabCount: 4))
+        XCTAssertTrue(hold.isValid(stripWidth: 999.5, tabCount: 5))
+        XCTAssertFalse(hold.isValid(stripWidth: 1001, tabCount: 4))
+        XCTAssertFalse(hold.isValid(stripWidth: 1000, tabCount: 6))
     }
 
     func testWidthHoldDropsOnResizeOrTabGrowthAndLaterClosesReplaceInvalidHold() {
@@ -275,29 +310,29 @@ final class WindowTabCloseTest: XCTestCase {
         let id = ObjectIdentifier(group)
         let model = WindowTabCloseModel.shared
         func close(_ windowId: UInt32, width: CGFloat, stripWidth: CGFloat, count: Int) {
-            XCTAssertTrue(model.begin(windowId, pointer: WindowTabClosePointer(stripId: id, width: width, stripWidth: stripWidth, tabCount: count, x: 140, scrollOrigin: 2)))
+            XCTAssertTrue(model.begin(windowId, pointer: WindowTabClosePointer(stripId: id, hold: WindowTabWidthHold(width: width, stripWidth: stripWidth, tabCount: count))))
             model.finish(windowId)
         }
         close(1, width: 150, stripWidth: 1000, count: 5)
         close(2, width: 180, stripWidth: 1000, count: 4)
-        XCTAssertEqual(model.heldWidths[id], 150)
+        XCTAssertEqual(model.widthHolds[id]?.width, 150)
         model.reconcileStrip(id, width: 900, tabCount: 3)
-        XCTAssertNil(model.heldWidths[id])
+        XCTAssertNil(model.widthHolds[id]?.width)
         close(3, width: 180, stripWidth: 900, count: 3)
         model.reconcileStrip(id, width: 900, tabCount: 4)
-        XCTAssertNil(model.heldWidths[id])
+        XCTAssertNil(model.widthHolds[id]?.width)
         close(4, width: 180, stripWidth: 900, count: 3)
         close(5, width: 200, stripWidth: 950, count: 2)
-        XCTAssertEqual(model.heldWidths[id], 200)
+        XCTAssertEqual(model.widthHolds[id]?.width, 200)
         close(1, width: 160, stripWidth: 950, count: 4)
-        XCTAssertEqual(model.heldWidths[id], 160)
+        XCTAssertEqual(model.widthHolds[id]?.width, 160)
     }
 
-    func testOnlyVisibleCloseButtonsReserveTitleSpace() {
-        XCTAssertEqual(closeButtonTitlePadding(isActive: false, isHovered: false), 0)
-        XCTAssertEqual(closeButtonTitlePadding(isActive: true, isHovered: false), 22)
-        XCTAssertEqual(closeButtonTitlePadding(isActive: false, isHovered: true), 22)
-        XCTAssertEqual(closeButtonTitlePadding(isActive: true, isHovered: true), 22)
+    func testOnlyVisibleCloseButtonsFadeTheTitle() {
+        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: false, isHovered: false), 0)
+        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: true, isHovered: false), 26)
+        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: false, isHovered: true), 26)
+        XCTAssertEqual(closeButtonTitleFadeWidth(isActive: true, isHovered: true), 26)
     }
 
     func testCloseSchedulesOnlyTheLightSessionsPostRefresh() async throws {

@@ -3,7 +3,7 @@ import Foundation
 extension Window {
     @MainActor
     func unbindAndFocusAfterClosure() {
-        let preservesFocus = WindowTabCloseModel.shared.collect(windowId, focusedWindowId: focus.windowOrNil?.windowId)
+        let preservesFocus = WindowTabCloseModel.shared.shouldPreserveFocusOnCollection(windowId, focusedWindowId: focus.windowOrNil?.windowId)
         let parent = unbindFromParent().parent
         guard !preservesFocus else { return }
         let deadWindowWorkspace = parent.nodeWorkspace
@@ -15,7 +15,7 @@ extension Window {
         let refreshSnapshotPreviousFocus = refreshSessionFocusSnapshot?.prevFocus?.liveOrNil
         let refreshSnapshotPreviousPreviousFocus = refreshSessionFocusSnapshot?.prevPrevFocus?.liveOrNil
         debugFocusLog(
-            "MacWindow.garbageCollect closing=\(windowId) currentFocus=\(debugDescribe(currentFocus)) prev=\(debugDescribe(previousFocus)) prevPrev=\(debugDescribe(previousPreviousFocus)) snapshot=\(debugDescribe(refreshSnapshot))"
+            "Window.unbindAndFocusAfterClosure closing=\(windowId) currentFocus=\(debugDescribe(currentFocus)) prev=\(debugDescribe(previousFocus)) prevPrev=\(debugDescribe(previousPreviousFocus)) snapshot=\(debugDescribe(refreshSnapshot))"
         )
         if let replacementFocus = focusAfterWindowClosure(
             closingWindow: self,
@@ -31,7 +31,7 @@ extension Window {
         ) {
             switch parent.cases {
                 case .tilingContainer, .workspace, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
-                    debugFocusLog("MacWindow.garbageCollect replacement closing=\(windowId) replacement=\(debugDescribe(replacementFocus))")
+                    debugFocusLog("Window.unbindAndFocusAfterClosure replacement closing=\(windowId) replacement=\(debugDescribe(replacementFocus))")
                     _ = setFocus(to: replacementFocus)
                     if replacementFocus.windowOrNil != currentFocus.windowOrNil {
                         replacementFocus.windowOrNil?.nativeFocus()
