@@ -27,7 +27,7 @@ $SKILL/vm build <name>             # make generate, make helper, then swift buil
 $SKILL/vm check <name>             # quits a running WinMuxApp, then make check on the Swift CI pins
 ```
 
-Edit on the host, then `sync` and `build` again; the build is incremental. A second tree built over `vm ssh` (a base commit for comparison) has no `Sparkle.framework` beside `.build/debug/WinMuxApp` and will not launch until you copy it from that tree's `.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/`.
+Edit on the host, then `sync` and `build` again; the build is incremental. `vm push <name> <src> <dest>` copies a directory: given a single file, rsync fails with "change_dir … Not a directory", so put a lone script in a directory and push that. A second tree built over `vm ssh` (a base commit for comparison) has no `Sparkle.framework` beside `.build/debug/WinMuxApp` and will not launch until you copy it from that tree's `.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/`.
 `sync` records the worktree's commit and `build` regenerates, so `winmux doctor` in the guest names the synced commit, with `-dirty` for uncommitted changes on the host or edits made in the guest since.
 
 Done when `~/winmux/.build/debug/WinMuxApp` and `~/winmux/.build/debug/winmux` exist in the guest.

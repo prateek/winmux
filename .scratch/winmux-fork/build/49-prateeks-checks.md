@@ -131,6 +131,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **The CLI socket moves out of `/tmp`, and the docs say who can use it**
 - [ ] On the installed build after Sparkle updates WinMux and before `brew upgrade --cask --greedy winmux` (Sparkle updates the app but not the cask's `winmux`), run the older `winmux list-workspaces --all` from the cask. Pass: it prints your workspaces. Then upgrade the cask, quit and reopen WinMux, and run `winmux --version` and `ls -ld "$(getconf DARWIN_USER_TEMP_DIR)com.zimengxiong.winmux"`. Pass: client and server versions match, and the directory reads `drwx------` with your name.
 
+**A command that shows where focus is**
+- [ ] On the installed build with several windows on screen (Columns on, if you use them), press Option-semicolon, then `c`, on your own keyboard. Pass: every screen dims except the focused window, which gets an accent border, for about a second before it fades; the windowing mode stays on, and `h` right away moves focus with no mark left behind. Then run it again and press any key or click at once. Pass: the mark goes immediately. Say here if the look is wrong: the dim, the border colour, or the length.
+- [ ] With two displays, focus a window on the second display and run `winmux find-focus`. Pass: both displays dim, and the border is on that window on the second display.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
