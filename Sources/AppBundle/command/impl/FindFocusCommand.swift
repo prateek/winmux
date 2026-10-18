@@ -18,16 +18,18 @@ struct FindFocusCommand: Command {
         }
         let ticket = highlight.generation
         let cached = window.lastKnownActualRect
-        var applied = window.lastAppliedLayoutPhysicalRect
+        let appliedBefore = window.lastAppliedLayoutPhysicalRect
         var live = try await readAxRect(window)
-        // A layout during the read may have moved the window after AX answered: read again.
-        if window.lastAppliedLayoutPhysicalRect != applied {
-            applied = window.lastAppliedLayoutPhysicalRect
+        if window.lastAppliedLayoutPhysicalRect != appliedBefore, window.lastAppliedLayoutPhysicalRect == nil {
+            // A layout during the read made the window floating or fullscreen: only AX knows its frame now.
             live = try await readAxRect(window)
         }
-        guard ticket == highlight.generation, focus == target, window.lastAppliedLayoutPhysicalRect == applied,
+        guard ticket == highlight.generation, focus == target,
               TrayMenuModel.shared.isEnabled, !MissionControlState.shared.isOpen else { return true }
-        guard let rect = live ?? window.lastKnownActualRect ?? cached ?? applied else {
+        let applied = window.lastAppliedLayoutPhysicalRect
+        // A layout during the read re-tiled the window after AX answered: mark where WinMux put it.
+        let moved = applied != appliedBefore ? applied : nil
+        guard let rect = moved ?? live ?? window.lastKnownActualRect ?? cached ?? applied else {
             highlight.dismiss()
             return io.err("find-focus: the focused window's frame is unavailable")
         }
@@ -40,8 +42,8 @@ struct FindFocusCommand: Command {
 @MainActor private func readAxRect(_ window: Window) async throws -> Rect? {
     do {
         return try await window.getAxRect()
-    } catch is CancellationError {
-        throw CancellationError()
+    } catch let error as CancellationError {
+        throw error
     } catch {
         return nil
     }

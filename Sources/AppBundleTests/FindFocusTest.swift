@@ -431,7 +431,7 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertEqual(shown.last, actual)
     }
 
-    func testALayoutDuringTheReadReadsTheFrameAgain() async throws {
+    func testALayoutDuringTheReadMarksWhereWinMuxPutTheWindow() async throws {
         var shown: [Rect] = []
         let owner = install(show: { shown.append($0) })
         let target = window()
@@ -439,15 +439,38 @@ final class FindFocusTest: SerialClockTestCase {
         var reads = 0
         target.beforeAxRect = { [weak target] in
             reads += 1
-            // AX answers with the old frame, then the layout lands; the second read sees the move.
-            if reads == 1 { target?.lastAppliedLayoutPhysicalRect = moved }
-            if reads == 2 { target?.setAxFrame(moved.topLeftCorner, moved.size) }
+            // AX answers with the old frame; the layout lands before the command resumes.
+            target?.lastAppliedLayoutPhysicalRect = moved
         }
         try await mark()
-        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(reads, 1)
         XCTAssertEqual(shown.last, moved)
         owner.refresh()
         XCTAssertTrue(owner.isShowing, "the new layout is the mark's baseline")
+    }
+
+    func testALayoutThatFloatsTheWindowDuringTheReadReadsItsFrameAgain() async throws {
+        var shown: [Rect] = []
+        _ = install(show: { shown.append($0) })
+        let target = window()
+        target.lastAppliedLayoutPhysicalRect = Rect(topLeftX: 100, topLeftY: 100, width: 400, height: 300)
+        let floated = Rect(topLeftX: 300, topLeftY: 200, width: 250, height: 150)
+        var reads = 0
+        target.beforeAxRect = { [weak target] in
+            reads += 1
+            if reads == 1 { target?.lastAppliedLayoutPhysicalRect = nil }
+            if reads == 2 { target?.setAxFrame(floated.topLeftCorner, floated.size) }
+        }
+        try await mark()
+        XCTAssertEqual(reads, 2)
+        XCTAssertEqual(shown.last, floated)
+    }
+
+    func testEveryScreenGetsAPanelKeyAndScreensWithoutANumberDoNotCollide() {
+        XCTAssertEqual(findFocusPanelKey(displayId: 7, index: 0), 7)
+        let unnumbered = (0..<3).map { findFocusPanelKey(displayId: nil, index: $0) }
+        XCTAssertEqual(Set(unnumbered).count, 3)
+        XCTAssertTrue(unnumbered.allSatisfy { $0 < 0 })
     }
 
     func testARestartDuringALayoutThatEndsTheOldMarkStillDraws() async throws {

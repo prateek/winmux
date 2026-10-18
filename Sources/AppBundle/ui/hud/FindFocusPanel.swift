@@ -65,15 +65,19 @@ final class FindFocusPanel: NSPanelHud {
     }
 }
 
+/// A screen without a display number still gets a panel, under a key no display id can take.
+func findFocusPanelKey(displayId: CGDirectDisplayID?, index: Int) -> Int64 {
+    displayId.map(Int64.init) ?? -Int64(index) - 1
+}
+
 @MainActor
 final class FindFocusPanels {
     static let shared = FindFocusPanels()
     private var panels: [Int64: FindFocusPanel] = [:]
 
     func show(_ rect: Rect) {
-        // A screen without a display number still gets dimmed, under a key no display id can take.
         let screens = NSScreen.screens.enumerated().map { index, screen in
-            (screen.displayId.map(Int64.init) ?? -Int64(index) - 1, screen)
+            (findFocusPanelKey(displayId: screen.displayId, index: index), screen)
         }
         let ids = Set(screens.map(\.0))
         for (id, panel) in panels where !ids.contains(id) { panel.orderOut(nil) }
