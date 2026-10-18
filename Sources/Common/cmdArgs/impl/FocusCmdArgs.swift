@@ -81,6 +81,13 @@ public enum FocusCmdTarget {
             default: false
         }
     }
+
+    public var addressesTabs: Bool {
+        switch self {
+            case .tabIndex, .tabRelative: true
+            case .direction, .windowId, .dfsIndex, .dfsRelative: false
+        }
+    }
 }
 
 extension FocusCmdArgs {

@@ -8,9 +8,11 @@ struct FocusCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         // todo bug: floating windows break mru
-        let floatingWindows = args.floatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
+        // A floating window bound into the tree could land inside a tab group and become a tab.
+        let seesFloatingAsTiling = args.floatingAsTiling && !args.target.addressesTabs
+        let floatingWindows = seesFloatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
         defer {
-            if args.floatingAsTiling {
+            if seesFloatingAsTiling {
                 restoreFloatingWindows(floatingWindows: floatingWindows, workspace: target.workspace)
             }
         }
@@ -211,13 +213,11 @@ private func currentTabGroupData(_ target: LiveFocus) -> (group: TilingContainer
             .findIn(tree: workspace.rootTilingContainer, virtual: true)
         {
             guard let targetCenter = try await target.getCenter() else { continue }
-            // Inside a tab group the window would become one of its tabs: bind it beside the outermost group.
-            let anchor: TreeNode = target.parents.last(where: { ($0 as? TilingContainer)?.layout == .tabGroup }) ?? target
-            guard let _tilingParent = anchor.parent as? TilingContainer else { continue }
+            guard let _tilingParent = target.parent as? TilingContainer else { continue }
             tilingParent = _tilingParent
             index = center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                ? anchor.ownIndex.orDie() + 1
-                : anchor.ownIndex.orDie()
+                ? target.ownIndex.orDie() + 1
+                : target.ownIndex.orDie()
         } else {
             index = 0
             tilingParent = workspace.rootTilingContainer

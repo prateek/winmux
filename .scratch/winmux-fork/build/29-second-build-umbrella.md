@@ -52,7 +52,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **One defect found while fixing the landing and placement edge cases** is with the follow-ups: a strip or list landing hint uses a floating window's old frame.
 - **One defect found while landing Ctrl-Up over the sidebar** is with the follow-ups: with `always-expanded`, the sidebar's search takes every key typed anywhere.
 - **Two issues found while moving the CLI socket out of `/tmp`** are with the follow-ups: the legacy `/tmp` socket stops answering, which ends the compatibility listener the move kept, and the agent skill's query file is readable by other users.
-- **One defect found while building the ninth tab digit** is with the follow-ups: an overflowing tab strip does not keep the active tab in view.
+- **Two defects found while building the ninth tab digit** are with the follow-ups: an overflowing tab strip does not keep the active tab in view, and a floating window over a tab group becomes a tab for focus directions.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek

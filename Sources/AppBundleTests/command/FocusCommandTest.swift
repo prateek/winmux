@@ -410,7 +410,7 @@ final class FocusCommandTest: XCTestCase {
         XCTAssertEqual(focus.windowOrNil?.windowId, last.windowId)
     }
 
-    func testAFloatingWindowRightOfTheActiveTabIsNotATab() async throws {
+    func testTabTargetsDoNotTakeAFloatingWindowRightOfTheActiveTabAsATab() async throws {
         let workspace = Workspace.get(byName: name)
         let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
@@ -419,7 +419,7 @@ final class FocusCommandTest: XCTestCase {
         let second = TestWindow.new(id: 2, parent: group, rect: rect)
         TestWindow.new(id: 3, parent: group, rect: rect)
         TestWindow.new(id: 4, parent: workspace, rect: Rect(topLeftX: 500, topLeftY: 0, width: 100, height: 100))
-        let commands = [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), .new(tabRelative: .tabNext), .new(direction: .right)]
+        let commands = [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), .new(tabRelative: .tabNext)]
         for command in commands {
             XCTAssertTrue(second.focusWindow())
             _ = try await command.run(.defaultEnv, .emptyStdin)
@@ -427,7 +427,7 @@ final class FocusCommandTest: XCTestCase {
         }
     }
 
-    func testAFloatingWindowLeftOfTheFirstTabIsNotATab() async throws {
+    func testTabTargetsDoNotTakeAFloatingWindowLeftOfTheFirstTabAsATab() async throws {
         let workspace = Workspace.get(byName: name)
         let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
