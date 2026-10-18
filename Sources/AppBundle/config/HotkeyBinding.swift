@@ -73,7 +73,7 @@ extension HotKey {
     pendingTapBindings = [:]
     pressedTapModifiers = []
     cancelPendingTapTriggers()
-    for binding in targetBindings.values where !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
+    for binding in targetBindings.values where mayArrangeWindows && !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
         hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
             let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
             Task { @MainActor in
@@ -247,10 +247,10 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
     reconcileSystemSymbolicHotkeys()
 }
 
-/// Setup registers no chord, so every key, Cmd-Tab included, reaches the system until Start.
-@MainActor func allowWindowArrangement() {
+/// Setup creates no hotkey, so every chord, Cmd-Tab included, reaches the system until Start.
+@MainActor func allowWindowArrangement() async {
     mayArrangeWindows = true
-    applyHotkeyEnabledState()
+    try? await activateMode(activeMode)
 }
 
 @MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {

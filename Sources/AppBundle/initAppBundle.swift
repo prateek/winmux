@@ -19,9 +19,6 @@ import Foundation
         isCli = false
         initServerArgs()
         var bootstrappedConfigUrl: URL? = nil
-        if isDebug {
-            await toggleReleaseServerIfDebug(.off)
-        }
         do {
             bootstrappedConfigUrl = try ensureBootstrapConfigExistsIfNeeded(createStarter: false)
         } catch {
@@ -44,12 +41,16 @@ import Foundation
         }
         MonitorConfigurationObserver.shared.prepareForStartup()
 
-        if shouldResetAccessibilityAtLaunch(trusted: AXIsProcessTrusted(), setupPending: readFirstRunState().pending) {
+        if !AXIsProcessTrusted(), shouldResetAccessibilityAtLaunch(trusted: false, setupPending: readFirstRunState().pending) {
             await resetAccessibilityGrant()
         }
         startUnixSocketServer()
         await FirstRunSetup.shared.run()
-        allowWindowArrangement()
+        // A debug build in setup touches nothing, so the release build keeps the desk until Start.
+        if isDebug {
+            await toggleReleaseServerIfDebug(.off)
+        }
+        await allowWindowArrangement()
         GlobalObserver.initObserver()
         MonitorConfigurationObserver.shared.startObserving()
         Workspace.reconcileWorkspaceState() // init workspaces
@@ -80,7 +81,10 @@ private func resetAccessibilityGrant() async {
         reset.executableURL = URL(filePath: "/usr/bin/tccutil")
         reset.arguments = ["reset", "Accessibility", winMuxAppId]
         reset.terminationHandler = { _ in continuation.resume() }
-        do { try reset.run() } catch { continuation.resume() }
+        do { try reset.run() } catch { continuation.resume(); return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) {
+            if reset.isRunning { reset.terminate() }
+        }
     }
 }
 

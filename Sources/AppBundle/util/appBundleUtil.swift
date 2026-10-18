@@ -22,7 +22,7 @@ private struct AppServerTerminationHandler: TerminationHandler {
             systemSymbolicHotkeys.restoreAndShutDown()
             persistFrozenWorldForRestartIfPossible()
             await restoreWindowsOnQuit()
-            if await !isRelaunchingForSetup { await toggleReleaseServerIfDebug(.on) }
+            await toggleReleaseServerIfDebug(.on)
         }
     }
 }

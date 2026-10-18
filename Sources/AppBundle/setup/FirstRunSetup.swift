@@ -41,7 +41,10 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     /// Only a request made by this process can leave a grant it cannot read yet; a launch reads
     /// its own grant correctly, so nothing else needs a child process.
     func refreshPermissions() async {
-        if screenRequested && !readGrants().screenRecording { freshScreenGrant = await probeScreenRecording() }
+        // A grant cannot be taken back without a relaunch, so once seen it stays.
+        if waiting && screenRequested && !freshScreenGrant && !readGrants().screenRecording {
+            freshScreenGrant = await probeScreenRecording()
+        }
         let value = grants
         if snapshot != value { snapshot = value }
     }
@@ -168,7 +171,8 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     func go() {
         guard step == .go else { return }
         state.pending = false
-        guard save() else { state.pending = true; return }
+        // A state file that cannot be written must not keep WinMux from starting.
+        save()
         waiting = false
         window?.orderOut(nil)
         window = nil

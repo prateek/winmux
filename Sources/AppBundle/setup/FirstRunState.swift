@@ -27,7 +27,7 @@ func firstRunStep(grants: PermissionGrants, state: FirstRunState, screenRecordin
 @MainActor var isRelaunchingForSetup = false
 
 func winMuxStateDirectory() -> URL {
-    let home = ProcessInfo.processInfo.environment["XDG_STATE_HOME"].map { URL(filePath: $0) }
+    let home = ProcessInfo.processInfo.environment["XDG_STATE_HOME"].flatMap { $0.isEmpty ? nil : URL(filePath: $0) }
         ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: ".local/state")
     return home.appending(path: "winmux")
 }

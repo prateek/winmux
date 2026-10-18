@@ -308,7 +308,7 @@ final class SymbolicHotkeyBindingStateTest: XCTestCase {
         defer { resetHotKeys(); mayArrangeWindows = true }
         try await activateMode("main")
         XCTAssertTrue(listeningHotkeyChords().isEmpty)
-        allowWindowArrangement()
+        await allowWindowArrangement()
         XCTAssertEqual(listeningHotkeyChords(), [SymbolicHotkeyChord(keyCode: 48, modifiers: 0x100000)])
     }
 }

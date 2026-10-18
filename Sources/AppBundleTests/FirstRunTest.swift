@@ -26,26 +26,35 @@ final class FirstRunTest: XCTestCase {
         mayArrangeWindows = true
     }
 
-    func testStatusRefreshProbesForAFreshGrantOnlyAfterThisProcessAskedForScreenRecording() async {
+    func testTheScreenRecordingProbeRunsOnlyDuringSetupAfterARequestAndLatchesAGrant() async {
         var freshGrant = true
         var probes = 0
         let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: false) },
                                  probeScreenRecording: { probes += 1; return freshGrant })
-        await setup.refreshPermissions()
-        XCTAssertEqual(probes, 0)
-        XCTAssertEqual(setup.permissions.screenRecording, "missing")
         setup.markScreenRecordingRequested()
+        await setup.refreshPermissions()
+        XCTAssertEqual(probes, 0, "probed after setup")
+        setup.waiting = true
         freshGrant = false
         await setup.refreshPermissions()
         XCTAssertEqual(setup.permissions.screenRecording, "missing")
         freshGrant = true
         await setup.refreshPermissions()
         XCTAssertEqual(setup.permissions.screenRecording, "granted-relaunch-needed")
-        XCTAssertEqual(setup.permissions.setup, "done")
         freshGrant = false
         await setup.refreshPermissions()
+        XCTAssertEqual(setup.permissions.screenRecording, "granted-relaunch-needed")
+        XCTAssertEqual(probes, 2)
+    }
+
+    func testNoRequestNoProbe() async {
+        var probes = 0
+        let setup = FirstRunSetup(readGrants: { PermissionGrants(accessibility: true, screenRecording: false) },
+                                 probeScreenRecording: { probes += 1; return true })
+        setup.waiting = true
+        await setup.refreshPermissions()
+        XCTAssertEqual(probes, 0)
         XCTAssertEqual(setup.permissions.screenRecording, "missing")
-        XCTAssertEqual(probes, 3)
     }
 
     func testASecondRelaunchWhileTheFirstIsUnderWayLaunchesNothing() async throws {
@@ -89,7 +98,7 @@ final class FirstRunTest: XCTestCase {
     }
 
     func testTheDebugBuildKeepsItsOwnSetupState() {
-        XCTAssertEqual(firstRunStateUrl().lastPathComponent, "setup-debug.json")
+        XCTAssertEqual(firstRunStateUrl().lastPathComponent, isDebug ? "setup-debug.json" : "setup.json")
         XCTAssertEqual(firstRunStateUrl().deletingLastPathComponent(), workspaceSidebarStateUrl().deletingLastPathComponent())
     }
 
@@ -137,7 +146,7 @@ final class FirstRunTest: XCTestCase {
         }
     }
 
-    func testUnwritablePendingStateCannotLetGoStartWindowManagement() async throws {
+    func testAnUnwritableStateFileStillLetsStartBeginWindowManagement() async throws {
         let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         try Data("blocked parent".utf8).write(to: directory)
@@ -151,13 +160,9 @@ final class FirstRunTest: XCTestCase {
         XCTAssertNotNil(setup.error)
         grants = PermissionGrants(accessibility: true, screenRecording: true)
         setup.go()
-        XCTAssertTrue(setup.waiting)
-        XCTAssertFalse(started)
-        try FileManager.default.removeItem(at: directory)
-        setup.go()
         await task.value
         XCTAssertTrue(started)
-        XCTAssertNil(setup.error)
+        XCTAssertFalse(setup.waiting)
     }
     func testSignalCleanupDuringSetupPreservesTheFrozenWorldFromThePreviousRun() throws {
         let previous = mayArrangeWindows
