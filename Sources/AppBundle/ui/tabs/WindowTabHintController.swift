@@ -41,21 +41,33 @@ final class WindowTabHintController: ObservableObject {
 
     func flagsChanged(_ flags: NSEvent.ModifierFlags) {
         catchUp(windowTabHintModifiers(flags))
-        publish()
+        publish(relabel: true)
     }
 
     /// A key or click catches up from its own event's modifiers, which are in order with the
     /// `flagsChanged` events: the live state can be ahead of them, and would spoil a hold the
-    /// key came before. A registered hotkey reaches here with no event.
-    func keyOrClick(eventFlags: NSEvent.ModifierFlags? = nil) {
-        if let eventFlags { catchUp(windowTabHintModifiers(eventFlags)) }
+    /// key came before.
+    func keyOrClick(eventFlags: NSEvent.ModifierFlags) {
+        catchUp(windowTabHintModifiers(eventFlags))
         state.keyOrClick()
-        publish()
+        publish(relabel: true)
     }
 
+    /// A registered hotkey arrives with no event, so it catches up from the live modifiers. Its own
+    /// modifiers are down by then, so the read cannot be ahead of anything it should not spoil.
+    func bindingTriggered() {
+        catchUpWithLiveFlags()
+        state.keyOrClick()
+        publish(relabel: true)
+    }
+
+    /// A pointer move catches up only when its flags agree with the live ones: a move WinMux posts
+    /// itself (`move-mouse`) can carry no modifiers while one is held.
     func pointerActivity(_ type: NSEvent.EventType, eventFlags: NSEvent.ModifierFlags) {
         if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(type) { return keyOrClick(eventFlags: eventFlags) }
-        catchUp(windowTabHintModifiers(eventFlags))
+        let flags = windowTabHintModifiers(eventFlags)
+        guard flags != state.held, flags == windowTabHintModifiers(liveFlags()) else { return }
+        catchUp(flags)
         publish()
     }
 
@@ -70,7 +82,8 @@ final class WindowTabHintController: ObservableObject {
         publish(relabel: true)
     }
 
-    /// The live modifiers differ from the last `flagsChanged` only when macOS dropped an event.
+    /// The live modifiers can run ahead of queued events, so they are read only where no event is
+    /// in hand: the deadline, a strip rebuild, a Lens opening or closing and a registered hotkey.
     private func catchUpWithLiveFlags() {
         catchUp(windowTabHintModifiers(liveFlags()))
     }
@@ -90,14 +103,14 @@ final class WindowTabHintController: ObservableObject {
                     do { try await clock.sleep(for: Self.delay) } catch { return }
                     guard let self else { return }
                     self.catchUpWithLiveFlags()
-                    self.state.fire(token, allowed: self.allowed)
+                    self.state.fire(token)
                     self.publish(relabel: true)
                 }
             }
         }
         let shownChanged = shownModifiers != state.shown
         shownModifiers = state.shown
-        if shownChanged || relabel || state.shown != nil {
+        if shownChanged || relabel {
             let labels = currentLabels()
             if self.labels != labels { self.labels = labels }
         }
@@ -115,8 +128,8 @@ final class WindowTabHintController: ObservableObject {
 }
 
 /// A window can stand for a tab in more than one strip (a nested group's window also represents
-/// its outer tab), so a label belongs to the addressed group's strip only. The group is held weakly:
-/// a strip whose container reuses a freed group's address never matches it.
+/// its outer tab), so a label belongs to the addressed group's strip only. The group is held weakly,
+/// so labels for a freed group match no strip; labels are recomputed after the strips are rebuilt.
 struct WindowTabHintLabels: Equatable {
     weak var group: TilingContainer?
     var byWindow: [UInt32: String] = [:]

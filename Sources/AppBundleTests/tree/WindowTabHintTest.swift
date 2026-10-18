@@ -18,7 +18,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         owner.pointerActivity(.mouseMoved, eventFlags: .option)
         await clock.advance(by: .milliseconds(1))
         XCTAssertEqual(owner.shownModifiers, .option)
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: .option)
         owner.pointerActivity(.leftMouseDown, eventFlags: .option)
         XCTAssertEqual(owner.shownModifiers, .option)
         owner.flagsChanged([])
@@ -31,7 +31,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         var enabled = true
         let owner = WindowTabHintController(clock: clock, liveFlags: { .option }, allowed: { enabled }, lensOpen: { lens }, bindings: { self.digits() })
         owner.flagsChanged(.option)
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: .option)
         await clock.advance(by: .seconds(2))
         XCTAssertNil(owner.shownModifiers)
         owner.flagsChanged([])
@@ -54,7 +54,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         await clock.advance(by: .seconds(1))
         XCTAssertEqual(owner.shownModifiers, .option)
         lens = true
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: .option)
         XCTAssertNil(owner.shownModifiers)
         lens = false
         owner.flagsChanged([])
@@ -168,6 +168,25 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertEqual(reports, [true, false])
     }
 
+    func testHotkeyWithItsModifierEventUnseenStillSpoils() async {
+        let clock = TestClock<Duration>()
+        let owner = WindowTabHintController(clock: clock, liveFlags: { .option }, allowed: { true }, lensOpen: { false }, bindings: { self.digits() })
+        owner.bindingTriggered()
+        owner.pointerActivity(.mouseMoved, eventFlags: .option)
+        await clock.advance(by: .seconds(1))
+        XCTAssertNil(owner.shownModifiers, "Option-2 seen only as a hotkey is still a quick chord")
+    }
+
+    func testPostedPointerMoveWithoutModifiersKeepsHints() async {
+        let clock = TestClock<Duration>()
+        let owner = WindowTabHintController(clock: clock, liveFlags: { .option }, allowed: { true }, lensOpen: { false }, bindings: { self.digits() })
+        owner.flagsChanged(.option)
+        await clock.advance(by: .seconds(1))
+        owner.pointerActivity(.mouseMoved, eventFlags: [])
+        XCTAssertEqual(owner.shownModifiers, .option, "A move WinMux posts carries no modifiers while Option is held")
+        owner.reset()
+    }
+
     func testNestedGroupWindowIsLabelledOnlyInTheAddressedStrip() async {
         let outer = TilingContainer(parent: focus.workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         TestWindow.new(id: 1, parent: outer)
@@ -203,7 +222,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         let deadline = state.deadline!
         XCTAssertNil(state.shown)
-        state.fire(deadline, allowed: true)
+        state.fire(deadline)
         XCTAssertEqual(state.shown, .option)
         state.keyOrClick()
         XCTAssertEqual(state.shown, .option)
@@ -217,7 +236,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         let old = state.deadline!
         state.keyOrClick()
-        state.fire(old, allowed: true)
+        state.fire(old)
         state.flagsChanged([.option, .shift], hasBindings: { true }, allowed: true)
         XCTAssertNil(state.deadline)
         XCTAssertNil(state.shown)
@@ -233,9 +252,9 @@ final class WindowTabHintTest: SerialClockTestCase {
         state.flagsChanged([.option, .shift], hasBindings: { true }, allowed: true)
         let current = state.deadline!
         XCTAssertNotEqual(old, current)
-        state.fire(old, allowed: true)
+        state.fire(old)
         XCTAssertNil(state.shown, "A stale token shows nothing")
-        state.fire(current, allowed: true)
+        state.fire(current)
         XCTAssertEqual(state.shown, [.option, .shift])
         XCTAssertNil(state.deadline)
     }
@@ -248,7 +267,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertNil(state.deadline)
         state.flagsChanged([], hasBindings: { true }, allowed: true)
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
-        state.fire(state.deadline!, allowed: true)
+        state.fire(state.deadline!)
         state.enforce(allowed: false)
         XCTAssertNil(state.shown)
         state.reset()

@@ -31,11 +31,10 @@ struct WindowTabHintState {
     /// Shows `held` while the token is current. The reducer does not read the modifiers itself: the
     /// caller first reports the live ones through `flagsChanged`, which re-arms or clears the
     /// deadline when they changed, so a current token means they are still the armed set.
-    mutating func fire(_ token: Int, allowed: Bool) {
-        defer { enforce(allowed: allowed) }
+    mutating func fire(_ token: Int) {
         guard deadline == token else { return }
         deadline = nil
-        shown = allowed ? held : nil
+        shown = held
     }
 
     mutating func enforce(allowed: Bool) {
