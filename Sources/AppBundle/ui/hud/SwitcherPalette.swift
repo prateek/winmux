@@ -35,7 +35,7 @@ final class SwitcherPalettePanel: NSPanelHud {
     private let lifecycle: LensLifecycle
     private let startupPreparation = LensStartupPreparation()
     private var preparedSession: LensSession?
-    private let gridLandingPanel = NSPanelHud()
+    let gridLandingPanel = NSPanelHud()
     private let peekController = LensPeekController()
     private var gridMonitorRect = CGRect.zero
     private var scrollPaging = LensScrollStepper()
@@ -67,7 +67,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         animationBehavior = .none
         backgroundColor = .clear
         applyWinMuxLayer(.overlay)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        collectionBehavior = winMuxOverlayCollectionBehavior
         hostingView.onFirstLayout = { [weak self] in
             self?.lifecycle.trace?.advance("first layout")
         }
@@ -80,7 +80,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         gridLandingPanel.hasShadow = false
         gridLandingPanel.ignoresMouseEvents = true
         gridLandingPanel.applyWinMuxLayer(.overlay)
-        gridLandingPanel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        gridLandingPanel.collectionBehavior = winMuxOverlayCollectionBehavior
         hostingView.wantsLayer = true
         contentView = hostingView
         hostingView.frame = contentView?.bounds ?? .zero

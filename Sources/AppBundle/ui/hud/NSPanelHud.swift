@@ -1,5 +1,8 @@
 import AppKit
 
+/// Overlay chrome follows every Space without becoming a window in Mission Control or Exposé.
+let winMuxOverlayCollectionBehavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+
 open class NSPanelHud: NSPanel {
     init() {
         super.init(
@@ -9,7 +12,7 @@ open class NSPanelHud: NSPanel {
             defer: false,
         )
         self.level = .floating
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.collectionBehavior = winMuxOverlayCollectionBehavior
         self.isReleasedWhenClosed = false
         self.hidesOnDeactivate = false
         self.isMovableByWindowBackground = false

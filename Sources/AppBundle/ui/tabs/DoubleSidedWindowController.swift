@@ -106,10 +106,7 @@ final class DoubleSidedWindowController {
         }
     }
 
-    private func animate(_ snapshots: Snapshots, rect: Rect) {
-        let frame = CGRect(x: rect.topLeftX, y: mainMonitor.height - rect.topLeftY - rect.height,
-                           width: rect.width, height: rect.height)
-            .insetBy(dx: -rotationPadding, dy: -rotationPadding)
+    static func makeAnimationPanel(frame: CGRect) -> NSPanel {
         let panel = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -117,7 +114,15 @@ final class DoubleSidedWindowController {
         panel.animationBehavior = .none
         panel.ignoresMouseEvents = true
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.collectionBehavior = winMuxOverlayCollectionBehavior
+        return panel
+    }
+
+    private func animate(_ snapshots: Snapshots, rect: Rect) {
+        let frame = CGRect(x: rect.topLeftX, y: mainMonitor.height - rect.topLeftY - rect.height,
+                           width: rect.width, height: rect.height)
+            .insetBy(dx: -rotationPadding, dy: -rotationPadding)
+        let panel = Self.makeAnimationPanel(frame: frame)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         let view = NSView(frame: CGRect(origin: .zero, size: frame.size))
