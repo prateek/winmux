@@ -43,6 +43,23 @@ final class TestWindow: Window, CustomStringConvertible {
     /// Runs after a close that succeeded, as an app closing a companion window along with this one.
     @MainActor var onClose: (@MainActor () -> Void)?
     @MainActor private(set) var closeAttempts = 0
+    @MainActor var closeRequestStays = false
+    @MainActor var closeRequestHasSheet = false
+    @MainActor var beforeCloseRequest: (@MainActor () async -> Void)?
+
+    @MainActor
+    override func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> WindowCloseConfirmation {
+        await windowCloseSession(tabStripSession) { self.closeAttempts += 1 }
+        await beforeCloseRequest?()
+        guard closeResult == .closed else { return .refused }
+        if closeRequestHasSheet { return .sheetSeen }
+        guard !closeRequestStays else { return .timedOut }
+        await windowCloseSession(tabStripSession) {
+            self.unbindAndFocusAfterClosure()
+            self.onClose?()
+        }
+        return .gone
+    }
 
     @MainActor
     override func closeAxWindow() async -> WindowCloseResult {

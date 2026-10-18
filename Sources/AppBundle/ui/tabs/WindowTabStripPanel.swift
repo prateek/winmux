@@ -29,10 +29,19 @@ final class WindowTabStripPanel: NSPanelHud {
 
     func update(with strip: WindowTabStripViewModel) {
         let displayStrip = strip.alignedForWindowTabChrome()
+        WindowTabCloseModel.shared.reconcileStrip(displayStrip.id, width: displayStrip.frame.width, tabCount: displayStrip.tabs.count)
         let nextContent = WindowTabGroupChromeContent(strip: displayStrip)
         guard shouldUpdate(content: nextContent, strip: displayStrip) else { return }
         if currentContent != nextContent {
-            hostingView.rootView = AnyView(WindowTabStripView(strip: displayStrip))
+            hostingView.strip = displayStrip
+            hostingView.rootView = AnyView(WindowTabStripView(
+                strip: displayStrip,
+                pointerLocation: { [weak hostingView] in hostingView?.livePointerInStripSpace() },
+            ) { [weak hostingView] frames, width, viewport in
+                hostingView?.tabFrames = frames
+                hostingView?.tabWidth = width
+                hostingView?.tabViewport = viewport
+            })
             currentContent = nextContent
         }
         currentPanelFrame = displayStrip.frame

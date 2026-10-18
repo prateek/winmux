@@ -111,41 +111,7 @@ final class MacWindow: Window {
         ThumbnailCache.shared.closeWindow(self)
         WindowScreenshot.invalidateWindowList()
         if !skipClosedWindowsCache { cacheClosedWindowIfNeeded() }
-        let parent = unbindFromParent().parent
-        let deadWindowWorkspace = parent.nodeWorkspace
-        let currentFocus = focus
-        let previousFocus = prevFocus
-        let previousPreviousFocus = prevPrevFocus
-        let refreshSnapshot = refreshSessionFocusSnapshot
-        let refreshSnapshotCloseFallback = refreshSnapshot?.fallbackWhenFocusedWindowCloses?.liveOrNil
-        let refreshSnapshotPreviousFocus = refreshSessionFocusSnapshot?.prevFocus?.liveOrNil
-        let refreshSnapshotPreviousPreviousFocus = refreshSessionFocusSnapshot?.prevPrevFocus?.liveOrNil
-        debugFocusLog(
-            "MacWindow.garbageCollect closing=\(windowId) currentFocus=\(debugDescribe(currentFocus)) prev=\(debugDescribe(previousFocus)) prevPrev=\(debugDescribe(previousPreviousFocus)) snapshot=\(debugDescribe(refreshSnapshot))"
-        )
-        if let replacementFocus = focusAfterWindowClosure(
-            closingWindow: self,
-            deadWindowWorkspace: deadWindowWorkspace,
-            currentFocus: currentFocus,
-            previousFocus: previousFocus,
-            previousPreviousFocus: previousPreviousFocus,
-            refreshSnapshotCloseFallback: refreshSnapshotCloseFallback,
-            refreshSnapshotPreviousFocus: refreshSnapshotPreviousFocus,
-            refreshSnapshotPreviousPreviousFocus: refreshSnapshotPreviousPreviousFocus,
-            previousFocusedWorkspace: prevFocusedWorkspace,
-            previousFocusedWorkspaceDate: prevFocusedWorkspaceDate,
-        ) {
-            switch parent.cases {
-                case .tilingContainer, .workspace, .macosHiddenAppsWindowsContainer, .macosFullscreenWindowsContainer:
-                    debugFocusLog("MacWindow.garbageCollect replacement closing=\(windowId) replacement=\(debugDescribe(replacementFocus))")
-                    _ = setFocus(to: replacementFocus)
-                    if replacementFocus.windowOrNil != currentFocus.windowOrNil {
-                        replacementFocus.windowOrNil?.nativeFocus()
-                    }
-                case .macosPopupWindowsContainer, .macosMinimizedWindowsContainer:
-                    break // Don't switch back on popup destruction
-            }
-        }
+        unbindAndFocusAfterClosure()
     }
 
     @MainActor override var title: String { get async throws { try await macApp.getAxTitle(windowId) ?? "" } }
@@ -162,17 +128,28 @@ final class MacWindow: Window {
     }
 
     @MainActor
+    override func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> WindowCloseConfirmation {
+        guard await windowCloseSession(tabStripSession, body: {
+            await self.macApp.pressCloseButton(self.windowId)
+        }) == .closed else { return .refused }
+        return await confirmWindowClose(
+            timeout: timeout,
+            isPresent: { try? await self.macApp.containsAxWindow(self.windowId) },
+            hasSheet: {
+                guard tabStripSession != nil else { return false }
+                return (try? await self.macApp.windowHasSheet(self.windowId)) == true
+            },
+            collect: {
+                await windowCloseSession(tabStripSession) {
+                    self.garbageCollect(skipClosedWindowsCache: true)
+                }
+            },
+        )
+    }
+
+    @MainActor
     func requestCloseForProjectDeletion(timeout: TimeInterval = 1.5) async -> Bool {
-        guard await macApp.pressCloseButton(windowId) == .closed else { return false }
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if (try? await macApp.containsAxWindow(windowId)) == false {
-                garbageCollect(skipClosedWindowsCache: true)
-                return true
-            }
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
-        return false
+        await requestClose(timeout: timeout) == .gone
     }
 
     @MainActor

@@ -28,6 +28,21 @@ struct WindowTabStripScrollContentFramePreferenceKey: PreferenceKey {
     }
 }
 
+struct WindowTabHitRegions: Equatable {
+    var frames: [UInt32: CGRect] = [:]
+    var viewport: CGRect = .zero
+}
+
+struct WindowTabFramesPreferenceKey: PreferenceKey {
+    static let defaultValue = WindowTabHitRegions()
+
+    static func reduce(value: inout WindowTabHitRegions, nextValue: () -> WindowTabHitRegions) {
+        let next = nextValue()
+        value.frames.merge(next.frames, uniquingKeysWith: { _, new in new })
+        if !next.viewport.isEmpty { value.viewport = next.viewport }
+    }
+}
+
 struct WindowTabGroupHandleView: View {
     let windowId: UInt32?
     let workspaceName: String

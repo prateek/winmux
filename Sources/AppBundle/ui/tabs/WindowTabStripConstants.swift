@@ -14,6 +14,10 @@ let windowTabStripTrailingGroupDragGutterWidth: CGFloat = 28
 let windowTabStripCornerRadius: CGFloat = RadiusToken.section
 let windowTabStripInnerCornerRadius: CGFloat = 7
 let windowTabStripTabSpacing: CGFloat = 4
+let windowTabItemHorizontalPadding: CGFloat = 10
+let windowTabCloseButtonSize: CGFloat = 20
+let windowTabCloseButtonTrailingInset: CGFloat = 5
+let windowTabTitleFadeGradientWidth: CGFloat = 12
 let windowTabStripPreferredTabWidth: CGFloat = 240
 let windowTabStripMinimumTabWidth: CGFloat = 132
 let windowTabStripScrollFadeWidth: CGFloat = 22
@@ -58,6 +62,10 @@ func windowTabStripTabWidth(stripWidth: CGFloat, count: Int) -> CGFloat {
         max(availableWidth / CGFloat(count), windowTabStripMinimumTabWidth),
         windowTabStripPreferredTabWidth
     )
+}
+
+func windowTabStripTabWidth(stripWidth: CGFloat, count: Int, heldWidth: CGFloat?) -> CGFloat {
+    heldWidth ?? windowTabStripTabWidth(stripWidth: stripWidth, count: count)
 }
 
 func windowTabStripAvailableTabsWidth(stripWidth: CGFloat) -> CGFloat {

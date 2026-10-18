@@ -4,12 +4,15 @@ import Foundation
 
 struct WindowTabStripView: View {
     let strip: WindowTabStripViewModel
+    var pointerLocation: () -> CGPoint? = { nil }
+    var onTabFramesChanged: ([UInt32: CGRect], CGFloat, CGRect) -> Void = { _, _, _ in }
 
     // Observes only the reentry preview, not the whole TrayMenuModel: the shared model
     // republishes on every refresh session, which would re-render every tab strip.
     @ObservedObject var reentryPreviewModel = WindowTabReentryPreviewModel.shared
+    @ObservedObject var closeModel = WindowTabCloseModel.shared
     @State var draggingTabId: UInt32?
-    @State var hoveredTabId: UInt32?
+    @State var tabRegions = WindowTabHitRegions()
     @State var dragTranslationX: CGFloat = 0
     @State var hasCommittedToDetach = false
     @State var pendingReorderDrop: WindowTabPendingReorderDrop?
@@ -24,6 +27,7 @@ struct WindowTabStripView: View {
                 stripHeight: max(proxy.size.height, 0),
             )
         }
+        .coordinateSpace(name: "window-tab-strip-panel")
     }
 }
 
@@ -150,7 +154,7 @@ func isWindowTabStripChromeGroupDragStart(
 
 extension WindowTabStripView {
     func tabStripBody(stripWidth: CGFloat, stripHeight: CGFloat) -> some View {
-        let context = WindowTabStripLayoutContext(strip: strip, width: stripWidth)
+        let context = WindowTabStripLayoutContext(strip: strip, width: stripWidth, heldTabWidth: closeModel.widthHolds[strip.id]?.width)
         let itemHeight = min(max(stripHeight - 10, 18), 26)
         let activeWindowId = strip.tabs.first(where: \.isActive)?.windowId
         let groupDragWindowId = activeWindowId ?? strip.tabs.first?.windowId
@@ -191,6 +195,22 @@ extension WindowTabStripView {
         ))
         .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: hoveredTabId)
         .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: activeWindowId)
+        .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: context.tabWidth)
+        .animation(reduceMotion ? windowTabReducedMotionAnimation : windowTabPillAnimation, value: context.tabOrder)
+        .onContinuousHover(coordinateSpace: .named("window-tab-strip-panel")) { phase in
+            switch phase {
+                case .active(let point):
+                    updateHoveredTab(pointer: point)
+                case .ended:
+                    closeModel.pointerLeftStrip(strip.id)
+            }
+        }
+        .onPreferenceChange(WindowTabFramesPreferenceKey.self) { regions in
+            onTabFramesChanged(regions.frames, context.tabWidth, regions.viewport)
+            tabRegions = regions
+            // A tab can slide under a still pointer, which sends no hover event.
+            if !isTabStripDragging { updateHoveredTab(pointer: pointerLocation()) }
+        }
         .onChange(of: context.tabOrder) { newOrder in
             clearPendingReorderDropIfModelApplied(currentOrder: newOrder)
         }
@@ -207,6 +227,7 @@ extension WindowTabStripView {
                     tabItem(tab, context: context, itemHeight: itemHeight)
                 }
             }
+            .frame(minWidth: context.scrollViewportWidth, alignment: .leading)
             .padding(.horizontal, windowTabStripContentHorizontalPadding)
             .background {
                 GeometryReader { proxy in
@@ -218,6 +239,14 @@ extension WindowTabStripView {
             }
         }
         .coordinateSpace(name: context.scrollCoordinateSpaceName)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: WindowTabFramesPreferenceKey.self,
+                    value: WindowTabHitRegions(viewport: proxy.frame(in: .named("window-tab-strip-panel"))),
+                )
+            }
+        }
         .onPreferenceChange(WindowTabStripScrollContentFramePreferenceKey.self) { nextFrame in
             if abs(tabScrollContentMinX - nextFrame.minX) > 0.5 {
                 tabScrollContentMinX = nextFrame.minX
@@ -233,7 +262,11 @@ extension WindowTabStripView {
             )
         }
         .contentShape(Rectangle())
-        .onTapGesture {
+        .onTapGesture(coordinateSpace: .local) { point in
+            guard isWindowTabStripScrollBackgroundDragStart(
+                localX: point.x, contentMinX: tabScrollContentMinX,
+                tabWidth: context.tabWidth, tabCount: strip.tabs.count
+            ) else { return }
             guard let groupDragWindowId, !isWindowTabStripDragInProgress() else { return }
             focusWindowFromTabStripClick(groupDragWindowId, fallbackWorkspace: strip.workspaceName)
         }
@@ -262,6 +295,7 @@ extension WindowTabStripView {
     }
 
     func handleTabDragChanged(tab: WindowTabItemViewModel, translation: CGSize) {
+        guard !closeModel.closingWindowIds.contains(tab.windowId) else { return }
         if shouldPromoteTabStripDragToGroup(windowId: tab.windowId) {
             clearTabDragState()
             updateMoveFromTabStrip(tab.windowId)
@@ -274,17 +308,16 @@ extension WindowTabStripView {
         if abs(translation.height) > tabReorderVerticalEscapeThreshold, strip.tabs.count > 1 {
             hasCommittedToDetach = true
             draggingTabId = nil
-            hoveredTabId = nil
             dragTranslationX = 0
             updateDetachedTabFromTabStrip(tab.windowId)
             return
         }
         draggingTabId = tab.windowId
-        hoveredTabId = nil
         dragTranslationX = translation.width
     }
 
     func handleTabDragEnded(tab: WindowTabItemViewModel, context: WindowTabStripLayoutContext) {
+        guard !closeModel.closingWindowIds.contains(tab.windowId) else { return }
         if shouldContinueCurrentGroupDrag(windowId: tab.windowId) {
             finishMoveFromTabStrip()
         } else if hasCommittedToDetach {
@@ -309,9 +342,10 @@ extension WindowTabStripView {
 
     func clearTabDragState() {
         draggingTabId = nil
-        hoveredTabId = nil
         dragTranslationX = 0
         hasCommittedToDetach = false
+        // As before this change, a drag leaves no hover; the next pointer move brings it back.
+        closeModel.setHoveredTab(nil, stripId: strip.id)
     }
 }
 
@@ -423,8 +457,8 @@ extension WindowTabStripView {
             orderBeforeDrop: orderBeforeDrop,
             sourceVisualOffset: nil,
         )
+        closeModel.setHoveredTab(nil, stripId: strip.id)
         draggingTabId = nil
-        hoveredTabId = nil
         dragTranslationX = 0
         DispatchQueue.main.asyncAfter(deadline: .now() + windowTabReorderDropClearDelay) {
             guard pendingReorderDrop?.windowId == windowId else { return }
@@ -438,16 +472,21 @@ extension WindowTabStripView {
         self.pendingReorderDrop = nil
     }
 
-    func updateHoveredTab(_ windowId: UInt32, hovering: Bool) {
-        guard draggingTabId == nil, !hasCommittedToDetach else {
-            hoveredTabId = nil
-            return
-        }
-        if hovering {
-            hoveredTabId = windowId
-        } else if hoveredTabId == windowId {
-            hoveredTabId = nil
-        }
+    var isTabStripDragging: Bool {
+        draggingTabId != nil || hasCommittedToDetach || isWindowTabStripDragInProgress()
+    }
+
+    /// The tab showing hover, none during any drag.
+    var hoveredTabId: UInt32? {
+        isTabStripDragging ? nil : closeModel.hoveredTabIds[strip.id]
+    }
+
+    /// The one writer of the hovered tab: the tab under the pointer, from the strip's hover and its layout.
+    func updateHoveredTab(pointer: CGPoint?) {
+        closeModel.setHoveredTab(
+            windowTabHover(pointer: pointer, frames: tabRegions.frames, viewport: tabRegions.viewport),
+            stripId: strip.id,
+        )
     }
 }
 
@@ -457,35 +496,56 @@ extension WindowTabStripView {
         context: WindowTabStripLayoutContext,
         itemHeight: CGFloat,
     ) -> some View {
-        Button {
-            guard !isWindowTabStripDragInProgress() else { return }
+        let isClosing = closeModel.closingWindowIds.contains(tab.windowId)
+        let item = WindowTabItemView(
+            tab: tab,
+            width: context.tabWidth,
+            height: itemHeight,
+            isDragSource: draggingTabId == tab.windowId,
+            isHovered: hoveredTabId == tab.windowId
+        )
+        return Button {
+            guard !isClosing, !isWindowTabStripDragInProgress() else { return }
             focusWindowFromTabStripClick(tab.windowId, fallbackWorkspace: tab.workspaceName)
         } label: {
-            WindowTabItemView(
-                tab: tab,
-                width: context.tabWidth,
-                height: itemHeight,
-                isDragSource: draggingTabId == tab.windowId,
-                isHovered: hoveredTabId == tab.windowId
-            )
+            item
         }
         .buttonStyle(.plain)
-        .offset(x: tabVisualOffset(for: tab, context: context))
-        .zIndex(draggingTabId == tab.windowId ? 1 : 0)
+        // A closed tab's button leaves; without this the focus ring jumps to the first tab.
+        .focusable(false)
         .shadow(
             color: draggingTabId == tab.windowId ? Color.black.opacity(0.18) : Color.clear,
             radius: draggingTabId == tab.windowId ? 7 : 0,
             y: draggingTabId == tab.windowId ? 2 : 0,
         )
+        .highPriorityGesture(tabDragGesture(for: tab, context: context))
+        .workspaceSidebarDrag(enabled: !isClosing) {
+            WorkspaceSidebarDragPayload.window(tab.windowId).itemProvider
+        }
+        .overlay(alignment: .trailing) {
+            if tab.isActive || hoveredTabId == tab.windowId {
+                WindowTabCloseButton(title: tab.title, foreground: item.tabForegroundStyle) {
+                    guard !isWindowTabStripDragInProgress() else { return }
+                    closeWindowFromTabStrip(tab.windowId, fallbackWorkspace: tab.workspaceName,
+                        pointer: WindowTabClosePointer(stripId: strip.id,
+                            hold: WindowTabWidthHold(width: context.tabWidth, stripWidth: context.width, tabCount: strip.tabs.count)))
+                }
+            }
+        }
+        .disabled(isClosing)
+        .opacity(isClosing ? 0.55 : 1)
+        .offset(x: tabVisualOffset(for: tab, context: context))
         .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reorderTargetIndex(context: context))
         .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reentryPreviewModel.value?.targetIndex)
         .animation(nil, value: reentryPreviewModel.value?.sourceVisualOffset)
-        .highPriorityGesture(tabDragGesture(for: tab, context: context))
-        .workspaceSidebarDrag(enabled: true) {
-            WorkspaceSidebarDragPayload.window(tab.windowId).itemProvider
-        }
-        .onHover { hovering in
-            updateHoveredTab(tab.windowId, hovering: hovering)
+        .zIndex(draggingTabId == tab.windowId ? 1 : 0)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: WindowTabFramesPreferenceKey.self,
+                    value: WindowTabHitRegions(frames: [tab.windowId: proxy.frame(in: .named("window-tab-strip-panel"))]),
+                )
+            }
         }
         .contextMenu {
             Button("Remove Tab From Stack") {

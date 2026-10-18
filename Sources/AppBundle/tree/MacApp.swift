@@ -131,6 +131,13 @@ final class MacApp: AbstractApp {
         } ?? false
     }
 
+    func windowHasSheet(_ windowId: UInt32) async throws -> Bool {
+        try await withWindow(windowId) { window, _ in
+            if window.get(Ax.sheetsAttr)?.isEmpty == false { return true }
+            return window.get(Ax.childrenAttr)?.contains { $0.get(Ax.roleAttr) == kAXSheetRole } == true
+        } ?? false
+    }
+
     func getAxSize(_ windowId: UInt32) async throws -> CGSize? {
         try await withWindow(windowId) { window, job in
             window.get(Ax.sizeAttr)
