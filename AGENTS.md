@@ -46,3 +46,15 @@ A dogfood release follows every land to `fork`. The `issue-relay` driver cuts it
 1. Quit WinMux and reinstall from the tap's cask at the revision for that version, where both its version and SHA-256 match the package.
 2. `brew pin --cask winmux` holds that version against `brew upgrade`; `brew unpin --cask winmux` lets it go.
 3. The cask declares `auto_updates true`, so the pin does not stop Sparkle. Before starting the older build, run `defaults write com.zimengxiong.winmux SUEnableAutomaticChecks -bool false` and `defaults write com.zimengxiong.winmux SUAutomaticallyUpdate -bool false`.
+
+## Scope and compatibility
+
+**Who this is for.** This fork is Prateek's own build of WinMux. Its installs are his machines, updated through Sparkle and the tap's cask. There are no other users to keep working, and no older build, CLI or config to keep answering.
+
+**Compatibility.** A change owes nothing to what came before it, with two exceptions. The installed build must reach the new one cleanly: when a release leaves state on disk that the next cannot read, such as a config field, a state file or a socket path, the new build migrates it or discards it and says so in its log. And when a change needs one thing done by hand on an installed machine, such as `brew upgrade --cask --greedy winmux` or granting a permission again, the pull request says so and the step goes into #85. That is the whole cost of the change. A second listener, a fallback path, a version check or a deprecation period is out of scope unless the issue asks for it by name.
+
+**The tap.** `prateek/homebrew-tap` holds the cask, `Casks/winmux.rb`, and nothing else of WinMux's. The release script owns the cask's `version` and `sha256` lines and pushes them straight to the tap's default branch. A change to the cask's shape, what it installs or where `binary` points, is part of the WinMux change that needs it: edit the cask in a clone of the tap and push it in the Land step, right after the release that first ships the new archive, and say so in the pull request. The minute between the two, when a fresh `brew install` would fail, is accepted: nobody but Prateek installs from the tap. The script's two `sed` lines must still match the file afterwards.
+
+**Dotfiles.** A change the relay wants in Prateek's dotfiles is not made there. It is appended to `docs/dotfiles-handoff.md` in the pull request that needs it: what to change, where, and why, with the exact lines where they are known. Prateek reconciles the file against his dotfiles; a reconciled entry is marked done and stays.
+
+**Other repositories** stay out. A change one would need becomes a question in #84 with the diff proposed.
