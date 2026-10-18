@@ -410,20 +410,35 @@ final class FocusCommandTest: XCTestCase {
         XCTAssertEqual(focus.windowOrNil?.windowId, last.windowId)
     }
 
-    func testTabTargetsLeaveAFloatingWindowOutOfTheGroup() async throws {
+    func testAFloatingWindowRightOfTheActiveTabIsNotATab() async throws {
         let workspace = Workspace.get(byName: name)
         let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
         group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
         let rect = Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100)
         TestWindow.new(id: 1, parent: group, rect: rect)
-        TestWindow.new(id: 2, parent: group, rect: rect)
-        let third = TestWindow.new(id: 3, parent: group, rect: rect)
+        let second = TestWindow.new(id: 2, parent: group, rect: rect)
+        TestWindow.new(id: 3, parent: group, rect: rect)
         TestWindow.new(id: 4, parent: workspace, rect: Rect(topLeftX: 500, topLeftY: 0, width: 100, height: 100))
-        XCTAssertTrue(third.focusWindow())
-        for command in [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), FocusCommand.new(tabRelative: .tabNext)] {
+        let commands = [FocusCommand(args: .init(rawArgs: [], tabIndex: .last)), .new(tabRelative: .tabNext), .new(direction: .right)]
+        for command in commands {
+            XCTAssertTrue(second.focusWindow())
             _ = try await command.run(.defaultEnv, .emptyStdin)
-            XCTAssertEqual(focus.windowOrNil?.windowId, 3)
-            XCTAssertEqual(group.children.count, 3)
+            XCTAssertEqual(focus.windowOrNil?.windowId, 3, "\(command.args)")
+        }
+    }
+
+    func testAFloatingWindowLeftOfTheFirstTabIsNotATab() async throws {
+        let workspace = Workspace.get(byName: name)
+        let group = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: 1, .h, .tabGroup, index: INDEX_BIND_LAST)
+        group.lastAppliedLayoutVirtualRect = workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
+        let rect = Rect(topLeftX: 400, topLeftY: 0, width: 100, height: 100)
+        let first = TestWindow.new(id: 1, parent: group, rect: rect)
+        TestWindow.new(id: 2, parent: group, rect: rect)
+        TestWindow.new(id: 3, parent: workspace, rect: Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100))
+        for command in [FocusCommand(args: .init(rawArgs: [], tabIndex: .position(1))), .new(tabRelative: .tabPrev)] {
+            XCTAssertTrue(first.focusWindow())
+            _ = try await command.run(.defaultEnv, .emptyStdin)
+            XCTAssertEqual(focus.windowOrNil?.windowId, 1, "\(command.args)")
         }
     }
 

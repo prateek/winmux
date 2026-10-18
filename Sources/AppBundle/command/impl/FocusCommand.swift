@@ -8,11 +8,9 @@ struct FocusCommand: Command {
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
         // todo bug: floating windows break mru
-        // A floating window bound into the tree could land inside a tab group and become a tab.
-        let seesFloatingAsTiling = args.floatingAsTiling && !args.target.addressesTabs
-        let floatingWindows = seesFloatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
+        let floatingWindows = args.floatingAsTiling ? try await makeFloatingWindowsSeenAsTiling(workspace: target.workspace) : []
         defer {
-            if seesFloatingAsTiling {
+            if args.floatingAsTiling {
                 restoreFloatingWindows(floatingWindows: floatingWindows, workspace: target.workspace)
             }
         }
@@ -181,15 +179,6 @@ private func tabWindowToFocus(_ group: TilingContainer, _ zeroBasedIndex: Int) -
 }
 
 /// A tab layout holding one window is no tab group, but `last` still names its one tab.
-private extension FocusCmdTarget {
-    var addressesTabs: Bool {
-        switch self {
-            case .tabIndex, .tabRelative: true
-            default: false
-        }
-    }
-}
-
 @MainActor private extension Window {
     var nearestTabLayout: TilingContainer? {
         parentsWithSelf.lazy.compactMap { $0 as? TilingContainer }.first { $0.layout == .tabGroup }
@@ -222,11 +211,13 @@ private func currentTabGroupData(_ target: LiveFocus) -> (group: TilingContainer
             .findIn(tree: workspace.rootTilingContainer, virtual: true)
         {
             guard let targetCenter = try await target.getCenter() else { continue }
-            guard let _tilingParent = target.parent as? TilingContainer else { continue }
+            // Inside a tab group the window would become one of its tabs: bind it beside the outermost group.
+            let anchor: TreeNode = target.parents.last(where: { ($0 as? TilingContainer)?.layout == .tabGroup }) ?? target
+            guard let _tilingParent = anchor.parent as? TilingContainer else { continue }
             tilingParent = _tilingParent
             index = center.getProjection(tilingParent.orientation) >= targetCenter.getProjection(tilingParent.orientation)
-                ? target.ownIndex.orDie() + 1
-                : target.ownIndex.orDie()
+                ? anchor.ownIndex.orDie() + 1
+                : anchor.ownIndex.orDie()
         } else {
             index = 0
             tilingParent = workspace.rootTilingContainer
