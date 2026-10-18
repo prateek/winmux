@@ -30,10 +30,17 @@ private func startSocketListener(path: String, required: Bool) {
         socketListenerFailed(path: path, required: required, error: error)
         return
     }
+    // Fatal only while binding: a listener that fails later costs the CLI, not the window manager.
+    let isBinding = OSAllocatedUnfairLock(initialState: true)
     listener.stateUpdateHandler = { [weak listener] state in
-        if case .failed(let error) = state {
-            socketListenerFailed(path: path, required: required, error: error)
-            listener?.cancel()
+        switch state {
+            case .ready:
+                isBinding.withLock { $0 = false }
+            case .failed(let error):
+                socketListenerFailed(path: path, required: required && isBinding.withLock { $0 }, error: error)
+                listener?.cancel()
+            default:
+                break
         }
     }
     listener.newConnectionHandler = { connection in
@@ -56,8 +63,7 @@ private func socketListenerFailed(path: String, required: Bool, error: Error) {
 func toggleReleaseServerIfDebug(_ state: EnableCmdArgs.State) async {
     if serverArgs.isReadOnly { return }
     if !isDebug { return }
-    let path = Result { try socketPath(appId: stableWinMuxAppId) }.getOrDie()
-    for socketFile in [path, legacySocketPath(appId: stableWinMuxAppId)] {
+    for socketFile in [try? socketPath(appId: stableWinMuxAppId), legacySocketPath(appId: stableWinMuxAppId)].compactMap({ $0 }) {
         let connection = NWConnection(to: NWEndpoint.unix(path: socketFile), using: .tcp)
         defer { connection.cancel() }
         if await connection.startBlocking().error != nil { continue }

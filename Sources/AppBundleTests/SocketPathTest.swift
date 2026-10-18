@@ -102,15 +102,43 @@ final class SocketPathTest: XCTestCase {
         }
     }
 
-    func testConnectionFailureOnlyAddsRestartHintWhenLegacyEntryExists() throws {
+    func testConnectionFailureAddsRestartHintOnlyWhenTheLegacyPathAnswers() throws {
         try withBase { base in
-            let legacy = base + "/legacy.sock"
+            let leftover = base + "/legacy.sock"
             let original = "Can't connect to WinMux server. Is WinMux.app running?\nconnection refused"
-            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: legacy), original)
-            XCTAssertTrue(FileManager.default.createFile(atPath: legacy, contents: Data()))
-            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: legacy),
-                           original + "\nA WinMux.app from before this change may be running and needs a restart.")
+            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: leftover), original)
+            // The new app binds the legacy path too, and the entry outlives it.
+            XCTAssertTrue(FileManager.default.createFile(atPath: leftover, contents: Data()))
+            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: leftover), original)
+
+            let socketFile = "/tmp/\(UUID().uuidString).sock"
+            defer { unlink(socketFile) }
+            let fd = bindUnixSocket(socketFile)
+            defer { close(fd) }
+            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: socketFile), original)
+            XCTAssertEqual(listen(fd, 1), 0)
+            XCTAssertEqual(socketConnectionFailureMessage("connection refused", legacyPath: socketFile),
+                           original + "\nAn older WinMux.app is still running. Restart it so this CLI can reach it.")
         }
+    }
+
+    private func bindUnixSocket(_ path: String) -> Int32 {
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutablePointer(to: &address.sun_path) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: 104) { buffer in
+                _ = path.withCString { strlcpy(buffer, $0, 104) }
+            }
+        }
+        let result = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        XCTAssertEqual(result, 0)
+        return fd
     }
 
     func testLegacyCleanupOnlyRemovesAnOwnedSocket() throws {
@@ -128,22 +156,8 @@ final class SocketPathTest: XCTestCase {
             // Use a short path even on hosts whose XCTest temporary directory is long.
             let socketFile = "/tmp/\(UUID().uuidString).sock"
             defer { unlink(socketFile) }
-            let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
-            XCTAssertGreaterThanOrEqual(fd, 0)
+            let fd = bindUnixSocket(socketFile)
             defer { close(fd) }
-            var address = sockaddr_un()
-            address.sun_family = sa_family_t(AF_UNIX)
-            withUnsafeMutablePointer(to: &address.sun_path) { pointer in
-                pointer.withMemoryRebound(to: CChar.self, capacity: 104) { buffer in
-                    _ = socketFile.withCString { strlcpy(buffer, $0, 104) }
-                }
-            }
-            let result = withUnsafePointer(to: &address) { pointer in
-                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-                }
-            }
-            XCTAssertEqual(result, 0)
             removeLegacySocketEntry(path: socketFile, expectedOwner: geteuid() + 1)
             XCTAssertEqual(try attributes(socketFile).st_mode & S_IFMT, S_IFSOCK)
             removeLegacySocketEntry(path: socketFile, expectedOwner: geteuid())

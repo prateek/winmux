@@ -122,7 +122,7 @@ The **merge gate** holds when all of these do:
 
 - `Build and test` is green on the head.
 - The head contains the tip of `fork/fork`: `git merge-base --is-ancestor fork/fork HEAD` after a fetch. Otherwise merge `fork/fork` in, push and wait for CI; that push carries the merge and nothing else.
-- `make check` passed in the guest on the head itself. A **docs-only** commit, one that changes only Markdown files or `.scratch/`, leaves the result as it was, and the description says so. Run it again after any other commit; it takes a few minutes.
+- `make check` passed in the guest on the head itself. A **docs-only** commit, one that changes only Markdown files or `.scratch/`, leaves the result as it was, and the description says so. Run it again after any other commit; it takes a few minutes. A Done-when item that reads "the pull request shows …" can be ticked only once the demos are in the description, after the last code push: tick it in the draft in a docs-only commit that carries nothing else that matters, and add the gate note to the description.
 - Every finding is fixed or declined with a reason.
 - The description has the demos or says there is nothing to show, and the demos show the head. When a commit lands after filming, film again, unless the commit cannot change what a demo shows; then the description names the filmed commit, the commits since and why no demo changes.
 - Every Done-when item is met or left to Prateek, as step 7 says.

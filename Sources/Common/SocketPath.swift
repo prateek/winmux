@@ -17,8 +17,13 @@ public func darwinUserTemporaryDirectory() throws -> String {
     return String(decoding: buffer.prefix(written - 1).map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
 
+private func socketDirectoryPath(baseDirectory: String, appId: String) -> String {
+    (baseDirectory as NSString).appendingPathComponent(appId)
+}
+
 public func socketPath(appId: String = winMuxAppId) throws -> String {
-    let path = (try darwinUserTemporaryDirectory() as NSString).appendingPathComponent(appId + "/winmux.sock")
+    let path = (socketDirectoryPath(baseDirectory: try darwinUserTemporaryDirectory(), appId: appId) as NSString)
+        .appendingPathComponent("winmux.sock")
     guard path.utf8.count + 1 <= MemoryLayout.size(ofValue: sockaddr_un().sun_path) else {
         throw SocketPathError("Socket path exceeds sun_path (104 bytes including terminator): \(path)")
     }
@@ -30,7 +35,7 @@ public func socketPath(appId: String = winMuxAppId) throws -> String {
 public func prepareSocketDirectory(
     baseDirectory: String, appId: String = winMuxAppId, expectedOwner: uid_t
 ) throws -> String {
-    let path = (baseDirectory as NSString).appendingPathComponent(appId)
+    let path = socketDirectoryPath(baseDirectory: baseDirectory, appId: appId)
     if mkdir(path, 0o700) != 0, errno != EEXIST {
         throw SocketPathError("Cannot create socket directory \(path): \(String(cString: strerror(errno)))")
     }
@@ -69,10 +74,29 @@ public func removeLegacySocketEntry(path: String, expectedOwner: uid_t) {
 }
 
 public func socketConnectionFailureMessage(_ reason: String, legacyPath: String = legacySocketPath()) -> String {
-    var message = "Can't connect to WinMux server. Is WinMux.app running?\n\(reason)"
-    var info = stat()
-    if lstat(legacyPath, &info) == 0 {
-        message += "\nA WinMux.app from before this change may be running and needs a restart."
+    let message = "Can't connect to WinMux server. Is WinMux.app running?\n\(reason)"
+    // The entry outlives every app that bound it, so only a listener there means an older app.
+    return unixSocketAnswers(path: legacyPath)
+        ? message + "\nAn older WinMux.app is still running. Restart it so this CLI can reach it."
+        : message
+}
+
+private func unixSocketAnswers(path: String) -> Bool {
+    var address = sockaddr_un()
+    let capacity = MemoryLayout.size(ofValue: address.sun_path)
+    guard path.utf8.count < capacity else { return false }
+    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+    guard fd >= 0 else { return false }
+    defer { close(fd) }
+    address.sun_family = sa_family_t(AF_UNIX)
+    withUnsafeMutablePointer(to: &address.sun_path) { pointer in
+        pointer.withMemoryRebound(to: CChar.self, capacity: capacity) { buffer in
+            _ = path.withCString { strlcpy(buffer, $0, capacity) }
+        }
     }
-    return message
+    return withUnsafePointer(to: &address) { pointer in
+        pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
+        }
+    }
 }

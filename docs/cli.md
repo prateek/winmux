@@ -8,7 +8,7 @@ Debug builds use `com.zimengxiong.winmux.debug/winmux.sock` instead.
 Both the app and CLI get the directory from `confstr(_CS_DARWIN_USER_TEMP_DIR)`,
 which reads no environment variables. LaunchServices and a shell can have different
 environments; setting `TMPDIR` or `XDG_STATE_HOME` does not change this path.
-macOS's daily temporary-directory sweep leaves sockets alone.
+The app makes the socket again each time it starts.
 
 Run `winmux --help` for commands and `winmux <command> --help` for their options.
 `winmux agent skill` prints the bundled agent skill: an agent using it drives
@@ -28,8 +28,8 @@ a directory owned by someone else.
 For older CLIs, the legacy `/tmp/<app id>-<user>.sock` path also answers until
 **The legacy `/tmp` socket stops answering** lands. That compatibility endpoint
 does not have the new directory's protection. A blocked legacy endpoint is logged
-and does not stop the app. A new CLI only connects to the private socket; if an
-older app is still running, restart it after updating.
+and does not stop the app. A new CLI only connects to the private socket. When an
+older app still answers on the legacy path, the CLI's error says to restart it.
 
 A `winmux://` link reaches further: a page or message can contain a command link.
 See [who can use URL commands](url-scheme.md#who-can-use-it).
