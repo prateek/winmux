@@ -26,6 +26,17 @@ struct ResolvedColumnPlacement {
 
 @MainActor
 enum ColumnPlacement {
+    static func frame(_ placement: ResolvedColumnPlacement, in rect: CGRect, horizontalGap: CGFloat,
+                      verticalGap: CGFloat) -> CGRect {
+        let range = placement.verticalRange.orDie("Floating placements use floating window geometry")
+        var frame = ColumnState.frame(slot: placement.slot, widths: placement.widths, in: rect, gap: horizontalGap)
+        let topGap = range.lowerBound > 0 ? verticalGap / 2 : 0
+        let bottomGap = range.upperBound < 1 ? verticalGap / 2 : 0
+        frame.origin.y += rect.height * range.lowerBound + topGap
+        frame.size.height = rect.height * (range.upperBound - range.lowerBound) - topGap - bottomGap
+        return frame
+    }
+
     static func isOccupied(_ node: TreeNode?, excluding incoming: TreeNode? = nil) -> Bool {
         let incomingWindows = Set(incoming?.allLeafWindowsRecursive.map(ObjectIdentifier.init) ?? [])
         return node?.allLeafWindowsRecursive.contains { !incomingWindows.contains(ObjectIdentifier($0)) } == true

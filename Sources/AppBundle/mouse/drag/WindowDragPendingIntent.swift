@@ -127,6 +127,7 @@ func setPendingWindowDragIntent(
 
 @MainActor
 func clearPendingWindowDragIntent() {
+    if !isLeftMouseButtonDown { ColumnDropDecisionCache.shared.clear() }
     let preservesSidebarDragUI = currentActiveWorkspaceSidebarDrag() != nil
     if let pendingWindowDragIntent {
         logWindowDragIntentIfNeeded(
@@ -187,6 +188,32 @@ private func updateWindowTabReentryPreview(sourceWindowId: UInt32, destination: 
 func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
     let intent = pendingWindowDragIntent
     let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
+    if let intent, case .column(let workspaceName, let slot) = intent.kind {
+        defer { ColumnDropDecisionCache.shared.clear(); clearPendingWindowDragIntent() }
+        guard let source, let workspace = Workspace.existing(byName: workspaceName), workspace.columns != nil,
+              intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
+        let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
+        let windows = incoming.allLeafWindowsRecursive
+        syncClosedWindowsCacheToCurrentWorld()
+        suppressPostDragAxObserverEvents(for: windows.map(\.windowId))
+        var applied = false
+        for window in windows {
+            let placed = try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true,
+                evaluate: { await ColumnDropDecisionCache.shared.decision(window: window, workspace: workspace, slot: slot, incoming: incoming, excludingWindows: windows) },
+                runList: { ($0?.hook, $0?.run ?? []) }, abandoned: { false }) { decision, _ in
+                    guard let decision else { return .fallback(false) }
+                    if window.nodeWorkspace !== workspace {
+                        applyWorkspaceMove(sourceNode: window, sourceWindow: window,
+                            mouseLocation: MousePointerTracker.shared.currentSample.point, targetWorkspace: workspace)
+                    }
+                    if window.isBound { window.unbindFromParent() }
+                    workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
+                    return .completed(true)
+                }
+            applied = applied || placed
+        }
+        return applied
+    }
     let windows = source.map { dragSubjectNode(for: $0, subject: intent!.sourceSubject).allLeafWindowsRecursive } ?? []
     let previous = windows.map { ($0, $0.nodeWorkspace, $0.isFloating, $0.nodeWorkspace?.columnSlot(containing: $0)) }
     let applied = applyPendingWindowDragIntentIfPossible()
@@ -213,6 +240,8 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
     else { return false }
     let sourceNode = dragSubjectNode(for: sourceWindow, subject: pendingWindowDragIntent.sourceSubject)
     switch pendingWindowDragIntent.kind {
+        case .column:
+            return false
         case .reorderTab(let windowId, let targetIndex):
             guard pendingWindowDragIntent.sourceSubject == .window,
                   sourceWindow.windowId == windowId

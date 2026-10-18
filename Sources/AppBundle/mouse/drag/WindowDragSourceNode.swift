@@ -132,6 +132,7 @@ func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject,
     let appName = sourceWindow.app.name ?? sourceWindow.app.rawAppBundleId ?? "Window"
     let tabItems = sidebarDragPreviewTabItems(for: moveNode, isTabGroup: isTabGroup)
     let targetWorkspaceName: String? = switch destination.kind {
+        case .column(let workspaceName, _): workspaceName
         case .moveToWorkspace(let workspaceName): workspaceName
         case .moveToWorkspaceZone(let workspaceName, _): workspaceName
         case .createWorkspace, .sidebarHover, .tabStack, .reorderTab, .detachTab, .stackSplit, .swap: nil

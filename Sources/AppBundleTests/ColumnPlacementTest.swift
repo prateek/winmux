@@ -157,7 +157,7 @@ final class ColumnPlacementTest: XCTestCase {
             let decision = PlacementDecision(slot: 2, target: "2", overflow: OverflowPolicy(rawValue: row.overflow)!, hook: nil)
             let placement = ColumnPlacement.resolve(decision, columns: workspace.columns!, children: workspace.rootTilingContainer.children, incoming: incoming)
             let hint = placement.verticalRange.map { _ in
-                miniatureColumnLanding(placement, in: rect, horizontalGap: 20, verticalGap: 12)
+                ColumnPlacement.frame(placement, in: rect, horizontalGap: 20, verticalGap: 12)
             }
             if row.occupied && row.overflow == "float" { XCTAssertNil(placement.verticalRange) }
             incoming.unbindFromParent()

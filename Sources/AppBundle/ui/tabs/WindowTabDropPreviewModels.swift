@@ -4,6 +4,7 @@ struct WindowDropIntentOverlayModel: Equatable {
     let targetFrame: Rect
     let activeZone: WindowDropZone?
     let cornerRadius: CGFloat?
+    var plainTarget = false
 
     static func == (lhs: WindowDropIntentOverlayModel, rhs: WindowDropIntentOverlayModel) -> Bool {
         lhs.targetFrame.topLeftX == rhs.targetFrame.topLeftX &&
@@ -11,7 +12,7 @@ struct WindowDropIntentOverlayModel: Equatable {
             lhs.targetFrame.width == rhs.targetFrame.width &&
             lhs.targetFrame.height == rhs.targetFrame.height &&
             lhs.activeZone == rhs.activeZone &&
-            lhs.cornerRadius == rhs.cornerRadius
+            lhs.cornerRadius == rhs.cornerRadius && lhs.plainTarget == rhs.plainTarget
     }
 }
 

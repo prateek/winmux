@@ -116,6 +116,7 @@ extension LoadedConfig: ConfigReloadCandidate {
 }
 
 @MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
+    ColumnDropDecisionCache.shared.clear()
     resetHotKeys()
     config = newConfig
     for workspace in Workspace.all { workspace.applyColumns(config.columns) }
