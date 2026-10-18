@@ -2,7 +2,7 @@
 
 Changes the relay wants in Prateek's dotfiles, which it does not edit. `AGENTS.md`'s **Scope and compatibility** says when an entry is added. Prateek reconciles the file against the dotfiles; a reconciled entry moves under **Done** and stays.
 
-Each entry is a bullet with the date and the pull request, then what to change, where in the dotfiles, and why, with the exact lines where they are known. The repository is public: no home paths, usernames, machine names or secrets.
+Each entry is a bullet with the date and the pull request, or where it came from when there was none, then what to change, where in the dotfiles, and why, with the exact lines where they are known. The repository is public: no home paths, usernames, machine names or secrets.
 
 ## Pending
 
