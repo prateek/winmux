@@ -143,6 +143,15 @@ final class LoadedConfigSummaryTest: XCTestCase {
         XCTAssertTrue(summary.hooks.allSatisfy { $0.value == "None" })
     }
 
+    func testWorkspaceNamedOtherWorkspacesKeepsDistinctColumnAndHookRows() {
+        var config = Config()
+        config.persistentWorkspaces = ["Other workspaces"]
+        let summary = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
+        XCTAssertEqual(summary.columns.count, 2)
+        XCTAssertEqual(Set(summary.columns.map(\.id)).count, 2)
+        XCTAssertEqual(Set(summary.hooks.map(\.id)).count, summary.hooks.count)
+    }
+
     func testSearchMatchesNotationGlyphsCommandsAndModeIgnoringCase() throws {
         var config = defaultConfig
         guard case .cmd(let command) = parseCommand("lens search") else { return XCTFail("parse") }

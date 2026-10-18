@@ -34,9 +34,14 @@ struct LoadedConfigSummary {
         }
     }
     struct Hook: Identifiable {
+        let id: String
         let name: String
         let value: String
-        var id: String { name }
+        init(name: String, value: String, id: String? = nil) {
+            self.id = id ?? name
+            self.name = name
+            self.value = value
+        }
     }
     let load: ConfigLoadState
     let lenses: [Lens]
@@ -109,7 +114,7 @@ struct LoadedConfigSummary {
             for name in ["place", "move-boundary"] {
                 let path = config.columns.hook(name, workspace: row.workspace ?? unnamed)
                 let value = function(path) + (row.count == nil && path != nil ? " (inactive: Columns Off)" : "")
-                hooks.append(Hook(name: "\(name) · \(row.label)", value: value))
+                hooks.append(Hook(name: "\(name) · \(row.label)", value: value, id: "\(row.id):\(name)"))
             }
         }
         return Self(load: load, lenses: lenses, bindings: bindings, columns: columns, hooks: hooks)
