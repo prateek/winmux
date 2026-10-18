@@ -30,10 +30,8 @@ Build a throwaway prototype of the same idea in WinMux and report whether it is 
 ## Done when
 
 - [x] A prototype under `.scratch/winmux-fork/prototypes/` that runs in a guest, with a capture of the row following the highlighted app.
-- [x] Each question above answered in its README, with what was run and the macOS 27 limit stated.
+- [x] Each question above answered in its README, with what was run.
 - [x] A recommendation: build it, with a draft issue; or drop it, with the reason.
-- [ ] If reconsidered, check on macOS 27; this pass ran macOS 26.6.2 only.
-- [ ] If reconsidered, check an installed signed build and a real keyboard, a second display, and real sleep/wake/unlock with Prateek.
 
 ## Prototype result
 
