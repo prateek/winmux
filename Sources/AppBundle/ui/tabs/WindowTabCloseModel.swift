@@ -19,9 +19,9 @@ struct WindowTabClosePointer {
 /// How long a background close keeps focus where it was, for a window the app closes after the tab's wait.
 let windowTabBackgroundCloseLifetime: Duration = .seconds(5)
 
-/// The tab under the pointer, in the strip view's coordinate space; none while a drag is in progress.
-func windowTabHover(pointer: CGPoint?, frames: [UInt32: CGRect], viewport: CGRect, dragging: Bool) -> UInt32? {
-    guard !dragging, let pointer else { return nil }
+/// The tab under the pointer, in the strip view's coordinate space.
+func windowTabHover(pointer: CGPoint?, frames: [UInt32: CGRect], viewport: CGRect) -> UInt32? {
+    guard let pointer else { return nil }
     return windowTabAtPoint(pointer, frames: frames, viewport: viewport)
 }
 

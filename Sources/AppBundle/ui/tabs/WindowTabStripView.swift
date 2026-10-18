@@ -344,7 +344,8 @@ extension WindowTabStripView {
         draggingTabId = nil
         dragTranslationX = 0
         hasCommittedToDetach = false
-        updateHoveredTab(pointer: pointerLocation())
+        // As before this change, a drag leaves no hover; the next pointer move brings it back.
+        closeModel.setHoveredTab(nil, stripId: strip.id)
     }
 }
 
@@ -456,6 +457,7 @@ extension WindowTabStripView {
             orderBeforeDrop: orderBeforeDrop,
             sourceVisualOffset: nil,
         )
+        closeModel.setHoveredTab(nil, stripId: strip.id)
         draggingTabId = nil
         dragTranslationX = 0
         DispatchQueue.main.asyncAfter(deadline: .now() + windowTabReorderDropClearDelay) {
@@ -482,7 +484,7 @@ extension WindowTabStripView {
     /// The one writer of the hovered tab: the tab under the pointer, from the strip's hover and its layout.
     func updateHoveredTab(pointer: CGPoint?) {
         closeModel.setHoveredTab(
-            windowTabHover(pointer: pointer, frames: tabRegions.frames, viewport: tabRegions.viewport, dragging: false),
+            windowTabHover(pointer: pointer, frames: tabRegions.frames, viewport: tabRegions.viewport),
             stripId: strip.id,
         )
     }

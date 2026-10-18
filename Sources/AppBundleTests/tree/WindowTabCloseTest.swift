@@ -266,14 +266,13 @@ final class WindowTabCloseTest: XCTestCase {
         // A still pointer over the closed tab's slot hovers each tab that slides into it.
         for next: UInt32 in [3, 4, 5] {
             order.remove(at: 1)
-            XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames(order), viewport: viewport, dragging: false), next)
+            XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames(order), viewport: viewport), next)
         }
         // A scrolled strip: frames shift, and the tab under the pointer follows them.
-        XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames([1, 2, 3], origin: -149), viewport: viewport, dragging: false), 3)
-        XCTAssertNil(windowTabHover(pointer: CGPoint(x: 950, y: 15), frames: frames([1, 3]), viewport: viewport, dragging: false))
-        XCTAssertNil(windowTabHover(pointer: pointer, frames: frames([1, 3]), viewport: viewport, dragging: true))
+        XCTAssertEqual(windowTabHover(pointer: pointer, frames: frames([1, 2, 3], origin: -149), viewport: viewport), 3)
+        XCTAssertNil(windowTabHover(pointer: CGPoint(x: 950, y: 15), frames: frames([1, 3]), viewport: viewport))
         // No pointer over the strip (it left, or the strip ignores the mouse or is covered): no hover.
-        XCTAssertNil(windowTabHover(pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false))
+        XCTAssertNil(windowTabHover(pointer: nil, frames: frames([1, 3]), viewport: viewport))
     }
 
     func testBackgroundCloseRecordExpiresOnAClockThatCountsSleep() async throws {
