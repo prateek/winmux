@@ -274,7 +274,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
                 report.log(.notice, "Loaded the config from \(reporting.path)")
                 result = .success(true)
             } catch {
-                loadState.loaded = .init(file: candidate.url, time: now(), shippedDefaults: candidate.shippedDefaults)
+                loadState.loaded = .init(file: candidate.url, time: now(), shippedDefaults: candidate.shippedDefaults, finished: false)
                 failure("Loaded \(reporting.path), but applying it failed: \(error.localizedDescription)", attempt, &reporting, applying: true)
                 result = .failure(error)
             }
@@ -304,9 +304,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         reporting.error = message
         if !attempt.dryRun {
             helper.recordFailure(message)
-            // A failed load after a failed application leaves the partly applied values running.
-            let stillApplying = applying || loadState.failure?.applying == true
-            loadState.failure = .init(diagnostic: message, time: now(), applying: stillApplying)
+            loadState.failure = .init(diagnostic: message, time: now(), applying: applying)
             loadStateChanged(loadState)
             report.log(.error, "The config failed to load: \(message)")
         }

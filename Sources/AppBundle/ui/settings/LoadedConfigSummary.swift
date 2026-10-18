@@ -67,7 +67,7 @@ struct LoadedConfigSummary {
 
     var loadExplanation: String {
         if let loaded = load.loaded {
-            if load.failure?.applying == true {
+            if !loaded.finished {
                 return "Values below are from the config loaded at \(loaded.time.formatted(date: .abbreviated, time: .standard)); applying it did not finish."
             }
             return "Values below are from the last config that loaded at \(loaded.time.formatted(date: .abbreviated, time: .standard))."
@@ -121,7 +121,7 @@ struct LoadedConfigSummary {
         var hooks = [Hook(name: "arrive", value: function(config.arrive)),
                      Hook(name: "after-startup-command", value: commands(config.afterStartupCommand)),
                      Hook(name: "after-login-command", value: commands(config.afterLoginCommand)),
-                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.joined(separator: " ")),
+                     Hook(name: "exec-on-workspace-change", value: config.execOnWorkspaceChange.isEmpty ? "None" : config.execOnWorkspaceChange.map(shellQuoted).joined(separator: " ")),
                      Hook(name: "on-focus-changed", value: commands(config.onFocusChanged)),
                      Hook(name: "on-focused-monitor-changed", value: commands(config.onFocusedMonitorChanged)),
                      Hook(name: "on-mode-changed", value: commands(config.onModeChanged))]
@@ -138,4 +138,10 @@ struct LoadedConfigSummary {
         configuredHookCount += activeColumnHooks.count
         return Self(load: load, lenses: lenses, bindings: bindings, columns: columns, hooks: hooks, configuredHookCount: configuredHookCount)
     }
+}
+
+/// One argv word as a shell would need it typed, so a displayed argv reads as the command it runs.
+private func shellQuoted(_ word: String) -> String {
+    let plain = !word.isEmpty && word.allSatisfy { $0.isLetter || $0.isNumber || "-_./=:@%+,".contains($0) }
+    return plain ? word : "'" + word.replacingOccurrences(of: "'", with: "'\\''") + "'"
 }

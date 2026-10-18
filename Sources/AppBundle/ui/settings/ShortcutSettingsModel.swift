@@ -26,13 +26,14 @@ public final class ShortcutSettingsModel: ObservableObject {
     }
 
     func requestWindowOpen() {
-        reload()
         openRequestId += 1
     }
 
-    /// A window already on screen keeps the pane the person is on.
-    func prepareForPresentation(alreadyVisible: Bool) {
+    /// A window already shown, minimized included, keeps its pane and scroll position: the summary
+    /// follows every load already, so there is nothing to rebuild.
+    func prepareForPresentation(alreadyShown: Bool) {
+        guard !alreadyShown else { return }
         reload()
-        if !alreadyVisible { presentationRevision += 1 }
+        presentationRevision += 1
     }
 }

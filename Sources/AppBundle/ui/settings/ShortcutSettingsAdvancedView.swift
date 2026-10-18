@@ -66,14 +66,15 @@ func shortcutSettingsWindow() -> NSWindow? {
 }
 
 @MainActor
-func presentShortcutSettingsWindow(_ window: NSWindow) {
+func presentShortcutSettingsWindow(_ window: NSWindow, center: Bool = true) {
     let fixedSize = NSSize(width: 900, height: 620)
     window.styleMask.remove(.resizable)
     window.minSize = fixedSize
     window.maxSize = fixedSize
     window.setContentSize(fixedSize)
     NSApp.activate(ignoringOtherApps: true)
-    window.center()
+    if center { window.center() }
+    if window.isMiniaturized { window.deminiaturize(nil) }
     window.makeKeyAndOrderFront(nil)
     window.orderFrontRegardless()
 }

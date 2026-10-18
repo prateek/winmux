@@ -210,9 +210,9 @@ final class ConfigTest: XCTestCase {
     func testFlipEventTapCancelsOptionLauncherButPreservesSingleTap() async throws {
         resetHotKeys()
         defer { resetHotKeys() }
-        let saved = UserDefaults.standard.object(forKey: "doubleSidedWindows")
-        defer { UserDefaults.standard.set(saved, forKey: "doubleSidedWindows") }
-        UserDefaults.standard.set(false, forKey: "doubleSidedWindows")
+        let saved = UserDefaults.standard.object(forKey: ExperimentalUISettings.doubleSidedWindowsKey)
+        defer { UserDefaults.standard.set(saved, forKey: ExperimentalUISettings.doubleSidedWindowsKey) }
+        UserDefaults.standard.set(false, forKey: ExperimentalUISettings.doubleSidedWindowsKey)
         config.modes = [mainModeId: Mode(bindings: [:], tapBindings: [
             "left-alt": TapBinding(.leftAlt, [FocusCommand.new(direction: .left)]),
         ])]

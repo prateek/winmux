@@ -208,6 +208,7 @@ final class ConfigReloaderTest: SerialClockTestCase {
         XCTAssertEqual(probe.shown, [diagnostic])
         XCTAssertEqual(probe.loadStates.last?.loaded?.file.path, "/config/loaded.ncl", "an application failure retains the adopted config, rather than rolling back")
         XCTAssertEqual(probe.loadStates.last?.failure?.applying, true)
+        XCTAssertEqual(probe.loadStates.last?.loaded?.finished, false)
         let partial = LoadedConfigSummary.build(defaultConfig, load: try XCTUnwrap(probe.loadStates.last), workspaceNames: [])
         XCTAssertTrue(partial.loadExplanation.contains("applying it did not finish"))
         probe.applyFailure = nil
@@ -229,10 +230,12 @@ final class ConfigReloaderTest: SerialClockTestCase {
         let state = try XCTUnwrap(probe.loadStates.last)
         XCTAssertEqual(state.loaded?.file.path, "/config/partial.ncl")
         XCTAssertEqual(state.failure?.diagnostic, "unknown field")
-        XCTAssertEqual(state.failure?.applying, true)
+        XCTAssertEqual(state.failure?.applying, false, "the newest failure is a load failure")
+        XCTAssertEqual(state.loaded?.finished, false)
         XCTAssertTrue(LoadedConfigSummary.build(defaultConfig, load: state, workspaceNames: []).loadExplanation.contains("applying it did not finish"))
         _ = await request(owner, "recovered")
         XCTAssertNil(probe.loadStates.last?.failure)
+        XCTAssertEqual(probe.loadStates.last?.loaded?.finished, true)
     }
 
     func testRequestDuringSuspendedApplicationCompletesInRequestOrder() async throws {

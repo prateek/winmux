@@ -24,7 +24,7 @@ final class LoadedConfigSummaryTest: XCTestCase {
         XCTAssertEqual(summary.load.loaded?.shippedDefaults, false, "a person's file can be named defaults.ncl")
     }
 
-    func testRichDeskConfigResolvesThreeAndTwoColumnsThroughRealHelper() async throws {
+    func testPerWorkspaceColumnsResolveThroughRealHelper() async throws {
         guard nickelHelperUrl() != nil else { throw XCTSkip("Build the helper") }
         let supervisor = NickelSupervisor()
         let file = FileManager.default.temporaryDirectory.appending(path: "settings-columns-\(UUID().uuidString).ncl")
@@ -160,7 +160,7 @@ final class LoadedConfigSummaryTest: XCTestCase {
         var config = Config()
         config.execOnWorkspaceChange = ["/bin/bash", "-c", "sketchybar --trigger x"]
         let summary = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
-        XCTAssertEqual(summary.hooks.first { $0.name == "exec-on-workspace-change" }?.value, "/bin/bash -c sketchybar --trigger x")
+        XCTAssertEqual(summary.hooks.first { $0.name == "exec-on-workspace-change" }?.value, "/bin/bash -c 'sketchybar --trigger x'")
         XCTAssertEqual(summary.configuredHookCount, 1)
     }
 

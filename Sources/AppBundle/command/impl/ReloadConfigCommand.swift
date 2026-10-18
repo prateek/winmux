@@ -129,7 +129,7 @@ extension LoadedConfig: ConfigReloadCandidate {
 /// reload rather than individual Settings controls, so GUI edits, config-editor saves, and
 /// filesystem auto-reloads share the same live-update behavior.
 @MainActor private func applyReloadedConfigurationToRunningApp() {
-    // Settings follows the reloader's load state, which it publishes after every application.
+    // Settings follows the reloader's load state, which it publishes after each load and each application, failed or not.
     WorkspaceSidebarPanel.refreshAll()
     WindowTabStripPanelController.shared.refresh()
     SecureInputPanel.shared.refresh()
