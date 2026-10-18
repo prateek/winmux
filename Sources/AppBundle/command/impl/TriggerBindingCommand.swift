@@ -23,6 +23,7 @@ struct TriggerBindingCommand: Command {
         // The config can be reloaded between a URL's gate and this run, so check what runs.
         if env.isFromURL, let refusal = urlBindingRefusal(args.binding.val, commands) { return io.err(refusal) }
         // refreshSession is not needed since commands are already run in refreshSession
+        FindFocusHighlight.shared.dismiss()
         return try await commands.runCmdSeq(env, io)
     }
 }

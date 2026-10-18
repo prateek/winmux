@@ -80,6 +80,7 @@
     },
   },
   mode.window.binding = {
+    c | default = "find-focus",
     h | default = "focus left",
     j | default = "focus down",
     k | default = "focus up",

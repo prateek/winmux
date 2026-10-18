@@ -15,6 +15,12 @@ Run `winmux --help` for commands and `winmux <command> --help` for their options
 `winmux agent skill` prints the bundled agent skill: an agent using it drives
 the same CLI through its query, edit and apply workflow.
 
+On a wide display, `winmux find-focus` makes the focused window easy to find:
+it dims every screen around the window and draws an accent border inside its
+frame. The mark holds for 0.8 seconds, then fades over 0.4 seconds; any key or
+click ends it early. Press Option-semicolon, then `c`, to run it in the default
+windowing mode, which stays on.
+
 ## Who can drive WinMux
 
 Any process running as you, agents included, has the CLI's full reach: every

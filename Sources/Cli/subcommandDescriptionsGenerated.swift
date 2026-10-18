@@ -1,5 +1,4 @@
-// FILE IS GENERATED FROM docs/winmux-*.adoc files
-// TO REGENERATE THE FILE RUN generate.sh
+// CLI command descriptions are maintained here.
 
 let subcommandDescriptions = [
     ["  focus-column", "Focus a Column, including an empty one"],
@@ -20,6 +19,7 @@ let subcommandDescriptions = [
     ["  palette", "Alias for lens search"],
     ["  enable", "Temporarily enable or disable WinMux"],
     ["  flatten-workspace-tree", "Flatten the tree of the focused workspace"],
+    ["  find-focus", "Briefly mark the focused window; any key or click ends it"],
     ["  focus-back-and-forth", "Switch between the current and previously focused elements back and forth"],
     ["  focus-monitor", "Focus monitor by relative direction, by order, or by pattern"],
     ["  focus", "Set focus to a window."],

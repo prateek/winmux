@@ -43,6 +43,7 @@ extension CmdArgs {
             case let args as MoveNodeToWorkspaceCmdArgs: MoveNodeToWorkspaceCommand(args: args)
             case let args as MoveWorkspaceToMonitorCmdArgs: MoveWorkspaceToMonitorCommand(args: args)
             case let args as OpenSidebarCmdArgs: OpenSidebarCommand(args: args)
+            case let args as FindFocusCmdArgs: FindFocusCommand(args: args)
             case let args as LensCmdArgs: LensCommand(args: args)
             case let args as ListLensesCmdArgs: ListLensesCommand(args: args)
             case let args as SectionsCmdArgs: SectionsCommand(args: args)

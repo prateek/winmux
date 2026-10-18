@@ -109,6 +109,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
     private let configPath: () -> String
     private let loadStateChanged: (ConfigLoadState) -> Void
     private let now: () -> Date
+    private let willReload: () -> Void
     private var loadState = ConfigLoadState()
     private var state = ConfigReloadState()
     private var notifications = ConfigReloadNotifications()
@@ -143,6 +144,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         configPath: @escaping () -> String,
         loadStateChanged: @escaping (ConfigLoadState) -> Void = { _ in },
         now: @escaping () -> Date = Date.init,
+        willReload: @escaping () -> Void = {},
     ) {
         self.load = load
         self.helper = helper
@@ -154,6 +156,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
         self.configPath = configPath
         self.loadStateChanged = loadStateChanged
         self.now = now
+        self.willReload = willReload
     }
 
     /// The application runs in the caller's task, with the caller's task-locals and cancellation.
@@ -169,6 +172,7 @@ final class ConfigReloader<Candidate: ConfigReloadCandidate> {
             report.log(.error, message)
             return .init(result: .success(false), text: message)
         }
+        if !dryRun { willReload() }
         let attempt = Attempt(dryRun: dryRun, noGui: noGui, trigger: trigger, path: forceConfigUrl?.path ?? configPath())
         if !dryRun, let newest = state.newest, newest != state.applying,
            let displaced = attempts[newest] {

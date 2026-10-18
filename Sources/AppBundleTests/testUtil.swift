@@ -26,6 +26,8 @@ let projectRoot: URL = {
 
 @MainActor
 func setUpWorkspacesForTests() {
+    FindFocusHighlight.shared.dismiss()
+    FindFocusHighlight.shared = FindFocusHighlight(show: { _ in }, fade: {}, hide: {}, monitorInput: { _ in {} })
     BindingModeHud.shared = BindingModeHud(show: { _, _ in }, hide: {})
     config = defaultConfig
     setMonitorsForTests(nil)

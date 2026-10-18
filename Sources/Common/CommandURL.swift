@@ -46,7 +46,7 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
         case .reloadConfig:
             return (args as? ReloadConfigCmdArgs)?.dryRun == true ? "reload-config --dry-run is refused in a URL: it prints a result" : nil
         case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .columnCount, .balanceSizes,
-             .close, .closeAllWindowsButCurrent, .enable, .flattenWorkspaceTree,
+             .close, .closeAllWindowsButCurrent, .enable, .flattenWorkspaceTree, .findFocus,
              .focus, .focusBackAndForth, .focusMonitor, .fullscreen, .joinWith, .layout,
              .macosNativeFullscreen, .macosNativeMinimize, .mode, .move, .moveMouse, .moveNodeToMonitor,
              .moveNodeToProject, .moveWorkspaceToMonitor, .openSidebar, .palette, .project,

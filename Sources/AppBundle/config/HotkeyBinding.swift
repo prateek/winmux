@@ -23,6 +23,7 @@ private let tapBindingTriggerDelayNs: UInt64 = 75_000_000
 private let sequenceChordTimeoutNs: UInt64 = 300_000_000 // 300ms
 
 @MainActor func resetHotKeys() {
+    FindFocusHighlight.shared.dismiss()
     // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
     // unregistration because we might be running inside a hotkey handler that is keeping its HotKey object alive.
     for (_, key) in hotkeys {
@@ -113,8 +114,9 @@ extension HotKey {
     }
 }
 
-@MainActor private func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
+@MainActor func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
     if hotkeysSuspended || !mayArrangeWindows { return }
+    FindFocusHighlight.shared.dismiss()
     Task {
         if let activeMode {
             broadcastEvent(.bindingTriggered(

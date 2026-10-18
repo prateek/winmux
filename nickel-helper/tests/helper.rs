@@ -1226,6 +1226,7 @@ fn check_hints_only_for_missing_chords_removed_from_defaults() {
 fn expected_window_bindings() -> Value {
     let mut expected = json!({
         "h": "focus left", "j": "focus down", "k": "focus up", "l": "focus right",
+        "c": "find-focus",
         "shift-h": "move left", "shift-j": "move down", "shift-k": "move up", "shift-l": "move right",
         "ctrl-h": "join-with left", "ctrl-j": "join-with down", "ctrl-k": "join-with up", "ctrl-l": "join-with right",
         "n": "focus tab-next", "p": "focus tab-prev", "t": "layout floating tiling", "m": "fullscreen",
@@ -1264,6 +1265,14 @@ fn window_mode_removal_and_user_lens_mode_compatibility() {
     std::fs::remove_file(other).unwrap();
     let diagnostic = String::from_utf8(output.stderr).unwrap();
     assert!(diagnostic.starts_with("error: missing field"), "{diagnostic}");
+}
+
+#[test]
+fn find_focus_binding_can_be_removed_by_the_documented_recipe() {
+    let removed = loaded_source("remove-window-c", r#"let W = import "winmux/winmux.ncl" in let defaults = import "winmux/defaults.ncl" in (defaults & { mode.window.binding | force = W.without-bindings ["c"] defaults.mode.window.binding }) | W.Config"#);
+    let mut expected = expected_window_bindings();
+    expected.as_object_mut().unwrap().remove("c");
+    assert_eq!(removed["mode"]["window"]["binding"], expected);
 }
 
 #[test]

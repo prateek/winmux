@@ -68,9 +68,10 @@ struct ReloadTestDependencies {
     )
     var configPath: () -> String = { XCTFail("Unconfigured reload adapter: configPath"); return "/unconfigured" }
     var loadStateChanged: (ConfigLoadState) -> Void = { _ in }
+    var willReload: () -> Void = {}
 
     func owner() -> ConfigReloader<ReloadCandidate> {
-        ConfigReloader(load: load, helper: helper, apply: apply, report: report, watch: watch, emit: emit, saves: saves, configPath: configPath, loadStateChanged: loadStateChanged)
+        ConfigReloader(load: load, helper: helper, apply: apply, report: report, watch: watch, emit: emit, saves: saves, configPath: configPath, loadStateChanged: loadStateChanged, willReload: willReload)
     }
 }
 
@@ -108,8 +109,9 @@ final class ReloadProbe {
     var overlapped = false
     var loadStates: [ConfigLoadState] = []
 
-    func owner() -> ConfigReloader<ReloadCandidate> {
+    func owner(willReload: @escaping () -> Void = {}) -> ConfigReloader<ReloadCandidate> {
         var dependencies = ReloadTestDependencies()
+        dependencies.willReload = willReload
         dependencies.load = { url in
             let name = url?.deletingPathExtension().lastPathComponent ?? self.nextSave
             self.loadsStarted.send()

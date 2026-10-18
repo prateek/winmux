@@ -388,6 +388,7 @@ private func layoutWorkspaces() async throws {
     defer {
         BindingModeHud.shared.refresh()
         FocusedEmptyColumnPanel.shared.refresh()
+        FindFocusHighlight.shared.refresh()
         ColumnDividerPanelController.shared.refresh()
     }
     if !TrayMenuModel.shared.isEnabled {

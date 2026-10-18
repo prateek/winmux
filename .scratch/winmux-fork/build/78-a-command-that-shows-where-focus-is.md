@@ -30,9 +30,27 @@ Nothing.
 
 ## Done when
 
-- [ ] `winmux find-focus` marks the focused window on the staged desk and clears within two seconds.
-- [ ] It marks the right window when the focused one is in a tab group and when it floats.
-- [ ] The pull request has a clip.
+- [x] `winmux find-focus` marks the focused window on the staged desk and clears within two seconds.
+- [x] It marks the right window when the focused one is in a tab group and when it floats.
+- [x] The pull request has a clip.
+
+## Built
+
+`find-focus` takes no arguments, is allowed in config and command URLs, and prints nothing on success. The window mode's `c` runs it without leaving that mode; main gains no chord. Every display is dimmed black at 0.35 opacity except the focused window's live frame, with an inside 4-point accent border and 10-point rounded corners. Tab-group chrome is outside the mark. Missing AX geometry falls back to the cached actual frame, then applied layout geometry; no usable frame fails explicitly. Empty focus fails with `find-focus: no window is focused`. Mission Control open draws nothing and succeeds; a disabled WinMux refuses it through the socket as it refuses every other command, and runs no session for it.
+
+The mark holds for 0.8 seconds and fades for 0.4 seconds. Repeating it resets full opacity and timing. Key or mouse button down, a binding, changed window/workspace focus, changed applied layout, disable, ordinary config reload and Mission Control end it immediately. Modifier-only input and unchanged refreshes keep it. Dry-run reloads do not dismiss it.
+
+Host and pinned-version guest `make check` pass: 1,577 Swift tests, including 29 behavior tests for this command, 92 Rust tests and 171 Python tests. The guest skips the existing committed-hash test because its sync marker represents the host's working copy. Default binding removal also passes the helper's `check` command. Mutations of target geometry, border width, timing, input and dismissal hooks fail the regressions; restoring them passes.
+
+Standing-desk recordings show tiling, the active tab after `focus tab-next`, floating and fullscreen; the active app and window are unchanged by the mark. Captures also cover key/click/focus/layout/disable/reload dismissal, modifier-only input, both restart phases, App Exposé suppression, and empty-workspace stderr/exit 1. Synthetic Option-semicolon then `c` reaches Carbon and retains `window` mode. The same feature-off script has identical output on the base and feature trees. Proof tools are in `.scratch/winmux-fork/proofs/find-focus/`; final-commit pull request media belongs to the demo pass.
+
+No default chosen for this issue changed.
+
+## Checks needing the installed build or hardware
+
+- [ ] Installed-build behavior, including a real keyboard.
+- [ ] A second display, including a window spanning displays.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
