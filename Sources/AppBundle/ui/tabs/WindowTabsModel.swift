@@ -13,6 +13,8 @@ func updateWindowTabModel() async {
     pruneCachedWindowTitles()
 
     let strips = await buildWindowTabStripViewModelsFromChromeItems()
+    // Labels follow the strips: a strip still on screen must not match a new group by address.
+    defer { WindowTabHintController.shared.reconcile() }
 
     if TrayMenuModel.shared.windowTabStrips != strips {
         debugFocusLog("updateWindowTabModel apply strips old=\(TrayMenuModel.shared.windowTabStrips.map(\.frame)) new=\(strips.map(\.frame))")

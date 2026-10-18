@@ -142,6 +142,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **The ninth tab digit goes to the last tab**
 - [ ] After the dotfiles change for Option-9 and Option-0, on the installed build with a real keyboard, make a tab group of more than nine windows and press Option-9, then Option-8. Pass: the last tab, then the eighth, is focused. Then press Option-0 in a text field. Pass: the app gets it (on a US layout it types `º`) and WinMux does nothing.
 
+**Shortcut hints on tabs while the modifier is held**
+- [ ] On the installed build with a real keyboard, focus a window in a tab group of more than nine tabs and hold Option. Pass: after about half a second each of the first eight tabs shows its digit where its icon was, the last tab shows `9`, the tabs between show their icons, and releasing Option brings the icons back. Then press Option-3 the way you usually do, quickly, and also Option-3 followed by keeping Option down. Pass: neither shows a hint, and both focus the third tab. Say here if half a second is too long or too short.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

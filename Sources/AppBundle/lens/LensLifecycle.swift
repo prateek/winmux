@@ -44,6 +44,12 @@ final class LensLifecycle {
         case opening(Opening)
         case ready(LensSession)
         case presented(LensSession)
+
+        /// From the first `.opening` to `.closed`, before a session is prepared too.
+        var isOpen: Bool {
+            if case .closed = self { return false }
+            return true
+        }
     }
     struct Dependencies {
         var evaluate: LensInlineSearch.Evaluate
@@ -69,7 +75,11 @@ final class LensLifecycle {
     }
 
     private(set) var trace: LensOpeningTrace?
-    private(set) var state: State = .closed
+    private(set) var state: State = .closed {
+        didSet { if state.isOpen != oldValue.isOpen { openChanged() } }
+    }
+    var isOpen: Bool { state.isOpen }
+    var openChanged: () -> Void = {}
     var session: LensSession? {
         switch state {
             case .opening(let opening): return opening.prepared

@@ -11,6 +11,7 @@ struct WindowTabStripView: View {
     // republishes on every refresh session, which would re-render every tab strip.
     @ObservedObject var reentryPreviewModel = WindowTabReentryPreviewModel.shared
     @ObservedObject var closeModel = WindowTabCloseModel.shared
+    @ObservedObject var tabHints = WindowTabHintController.shared
     @State var draggingTabId: UInt32?
     @State var tabRegions = WindowTabHitRegions()
     @State var dragTranslationX: CGFloat = 0
@@ -502,7 +503,8 @@ extension WindowTabStripView {
             width: context.tabWidth,
             height: itemHeight,
             isDragSource: draggingTabId == tab.windowId,
-            isHovered: hoveredTabId == tab.windowId
+            isHovered: hoveredTabId == tab.windowId,
+            hintLabel: tabHints.labels.label(strip: strip.id, window: tab.windowId)
         )
         return Button {
             guard !isClosing, !isWindowTabStripDragInProgress() else { return }

@@ -11,7 +11,7 @@ import TOMLKit
 @MainActor private var pendingTapTriggerTasks: [TapModifierKey: Task<Void, Never>] = [:]
 @MainActor private var pendingTapTriggerTokens: [TapModifierKey: Int] = [:]
 @MainActor private var nextTapTriggerToken = 0
-@MainActor private var hotkeysSuspended = false
+@MainActor private(set) var hotkeysSuspended = false
 @MainActor private var sequenceBindingsByPrefix: [Key: [SequenceBinding]] = [:]
 @MainActor var sequenceBindingsPrefixKeys: Set<Key> = []
 /// Timestamp of the last Escape press, used for sequence detection via local monitor
@@ -23,6 +23,7 @@ private let tapBindingTriggerDelayNs: UInt64 = 75_000_000
 private let sequenceChordTimeoutNs: UInt64 = 300_000_000 // 300ms
 
 @MainActor func resetHotKeys() {
+    WindowTabHintController.shared.reset()
     FindFocusHighlight.shared.dismiss()
     // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
     // unregistration because we might be running inside a hotkey handler that is keeping its HotKey object alive.
@@ -56,6 +57,7 @@ extension HotKey {
 @MainActor func setHotkeysSuspended(_ suspended: Bool) {
     if hotkeysSuspended == suspended { return }
     hotkeysSuspended = suspended
+    WindowTabHintController.shared.reconcile()
     if suspended {
         pendingTapBindings = [:]
         pressedTapModifiers = []
@@ -65,6 +67,7 @@ extension HotKey {
 }
 
 @MainActor func activateMode(_ targetMode: String?) async throws {
+    WindowTabHintController.shared.reset()
     let mode = targetMode.flatMap { config.modes[$0] }
     let targetBindings = mode?.bindings ?? [:]
     activeTapBindings = mode?
@@ -115,6 +118,7 @@ extension HotKey {
 }
 
 @MainActor func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
+    WindowTabHintController.shared.bindingTriggered()
     if hotkeysSuspended || !mayArrangeWindows { return }
     FindFocusHighlight.shared.dismiss()
     Task {
@@ -184,6 +188,7 @@ extension HotKey {
 }
 
 @MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, origin: LensTraceOrigin? = nil) {
+    WindowTabHintController.shared.flagsChanged(modifierFlags)
     SwitcherPalettePanel.shared.stripFlagsChanged(modifierFlags)
     if hotkeysSuspended { return }
     if activeTapBindings.isEmpty && pendingTapBindings.isEmpty && pendingTapTriggerTasks.isEmpty { return }

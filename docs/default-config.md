@@ -77,6 +77,8 @@ Leaving the import out supplies no default Lenses or bindings. `winmux config co
 | `alt-shift-o` | `lens overview` |
 | `alt-semicolon` | `mode window` |
 
+Holding the tab digits' modifier for half a second shows each reachable tab's key on the focused tab group. The hints follow whatever bindings are in effect, including a different modifier or letter keys.
+
 Option-Shift-O types `Ø` on US and ABC layouts when WinMux is not listening; the overview shortcut shadows that character. It has no system symbolic-hotkey collision. During its Hold, Return subtracts the Trigger’s own Option and Shift before matching and focuses. On the Option-slash Hold, Option-Return focuses and extra Shift-Return Summons. Option-slash opens the Search list; its first letter ends the Hold and becomes the first Search letter even with Option still down. Once the Hold ends, modifiers mean themselves: `alt-enter` Summons. Overview starts in normal mode: `hjkl` and arrows move, `/` starts Search, Escape returns to normal with the matches kept, and another Escape closes. The Search list starts in Search and also takes two Escapes to close. `starts-in` can override either choice.
 
 Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and the other removed chords are free for the focused app or another switcher.

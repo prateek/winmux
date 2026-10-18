@@ -165,14 +165,25 @@ struct FocusCommand: Command {
 
 @MainActor
 private func tabWindowToFocus(_ target: LiveFocus, _ tabIndex: FocusCmdArgs.TabIndex) -> Window? {
+    guard let resolved = resolveTabFocusTarget(target, tabIndex) else { return nil }
+    return tabWindowToFocus(resolved.group, resolved.zeroBasedIndex)
+}
+
+@MainActor
+func resolveTabFocusTarget(_ target: LiveFocus, _ tabIndex: FocusCmdArgs.TabIndex) -> (group: TilingContainer, zeroBasedIndex: Int)? {
     guard let focusedWindow = target.windowOrNil,
           let group = focusedWindow.nearestWindowTabGroup ?? (tabIndex == .last ? focusedWindow.nearestTabLayout : nil)
     else { return nil }
-    let zeroBasedIndex = switch tabIndex {
-        case .position(let index): Int(index) - 1
-        case .last: group.children.count - 1
+    guard let index = resolveTabFocusIndex(tabIndex, childCount: group.children.count) else { return nil }
+    return (group, index)
+}
+
+func resolveTabFocusIndex(_ tabIndex: FocusCmdArgs.TabIndex, childCount: Int) -> Int? {
+    let index = switch tabIndex {
+        case .position(let position): Int(position) - 1
+        case .last: childCount - 1
     }
-    return tabWindowToFocus(group, zeroBasedIndex)
+    return (0..<childCount).contains(index) ? index : nil
 }
 
 @MainActor
