@@ -52,6 +52,7 @@ struct ConfigReloadNotifications {
 }
 
 let configLog = Logger(subsystem: winMuxAppId, category: "config")
+let urlLog = Logger(subsystem: winMuxAppId, category: "url")
 
 extension LoadedConfig: ConfigReloadCandidate {
     var warnings: [String] { helper.warnings }

@@ -76,6 +76,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
     case hotkeyBinding
     case startup
     case socketServer(any CmdArgs)
+    case url(any CmdArgs)
     case resetManipulatedWithMouse
     case ax(String)
     case onFocusedMonitorChanged
@@ -95,7 +96,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
                 notif == kAXFocusedWindowChangedNotification as String
             case .globalObserver(let notif):
                 notif == NSWorkspace.didActivateApplicationNotification.rawValue
-            case .hotkeyBinding, .menuBarButton, .socketServer, .onModeChanged:
+            case .hotkeyBinding, .menuBarButton, .socketServer, .url, .onModeChanged:
                 true
             case .onFocusedMonitorChanged, .onFocusChanged, .onTabSwitched:
                 true
@@ -114,7 +115,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .onTabSwitched:
                 false
             case .configAutoReload, .globalObserverLeftMouseUp, .menuBarButton, .hotkeyBinding,
-                 .startup, .socketServer, .resetManipulatedWithMouse, .onFocusedMonitorChanged,
+                 .startup, .socketServer, .url, .resetManipulatedWithMouse, .onFocusedMonitorChanged,
                  .onFocusChanged, .onModeChanged:
                 true
         }
@@ -152,6 +153,7 @@ public enum RefreshSessionEvent: Sendable, CustomStringConvertible {
             case .menuBarButton: "menuBarButton"
             case .resetManipulatedWithMouse: "resetManipulatedWithMouse"
             case .socketServer(let args): "socketServer: \(args)"
+            case .url(let args): "URL: \(args)"
             case .startup: "startup"
             case .onFocusedMonitorChanged: "onFocusedMonitorChanged"
             case .onFocusChanged: "onFocusChanged"

@@ -4,6 +4,8 @@ With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new
 
 `restore-windows-on-quit` is a Bool, default `true`. Quitting WinMux, from its menu, the system's Quit or logout, or SIGTERM, SIGINT and SIGHUP, puts each window that was open when WinMux started back at the frame it had then. A window moved to another display or resized by hand still goes back to that frame. A window opened while WinMux ran stays where it is, and one parked on a hidden workspace is centred on its display. A window whose recorded display is gone stays where it is if it is on screen, and is otherwise centred on the nearest display. The records live in memory for one run of WinMux: a config reload keeps them, and a closed window is never reopened. Set `restore-windows-on-quit = false` to centre every window at its last floating size, as earlier versions did.
 
+`url-scheme` is a Bool, default `true`. Set it to `false` to refuse `winmux://` URL commands; a config reload applies to the next URL. [URL commands](url-scheme.md) has the form, the refused commands and who can use it.
+
 A config imports defaults explicitly. This import-only config has the same static settings as a fresh install:
 
 ```nickel

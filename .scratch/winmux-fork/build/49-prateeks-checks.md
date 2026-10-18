@@ -120,6 +120,10 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] On a Mac account that has never granted WinMux anything (or after `tccutil reset Accessibility com.zimengxiong.winmux` and `tccutil reset ScreenCapture com.zimengxiong.winmux`, with WinMux quit), install the release from the cask, follow the caveats past Gatekeeper, and open it. Pass: the WinMux Setup window appears; each button adds WinMux to its list in System Settings and opens that pane; after both toggles, the window offers a relaunch or macOS offers Quit & Reopen, and either one comes back at "Ready to arrange your windows?"; no window moves until **Start WinMux**, and then they tile. Say here which step needed anything the window did not tell you.
 - [ ] With two displays, the setup window and the first tile after Start. Pass: the setup window is on the main display, and windows on both displays stay put until Start.
 
+**A `winmux://` URL runs a command**
+- [ ] On the installed build, paste `winmux://run/workspace/2` into Safari's address bar and press Return, then allow it to open WinMux if Safari asks. Pass: workspace 2 is shown, and no WinMux window opens. Do the same from a Shortcuts "Open URLs" action, and from Raycast or another launcher if you use one, with `winmux://run/lens/overview`: the Overview Lens opens.
+- [ ] With WinMux quit, open `winmux://run/workspace/2` from Safari. Pass: WinMux starts and then shows workspace 2. Say here if it starts and does nothing.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

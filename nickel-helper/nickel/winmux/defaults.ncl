@@ -145,6 +145,7 @@
   lenses.floating.presentation | priority -1 = 'grid,
   lenses.floating.filter | default = filters.floating,
   start-at-login | default = false,
+  url-scheme | default = true,
   tab-group-padding | default = 30,
   window-tabs = {
     enabled | default = true,

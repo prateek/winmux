@@ -48,6 +48,7 @@ struct Config: ConvenienceCopyable {
     var defaultRootContainerLayout: Layout = .tiles
     var defaultRootContainerOrientation: DefaultContainerOrientation = .auto
     var startAtLogin: Bool = false
+    var urlScheme: Bool = true
     var reloadOnSave: Bool = true
     var automaticallyUnhideMacosHiddenApps: Bool = false
     var automaticallyTileNewWindows: Bool = true

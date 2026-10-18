@@ -242,6 +242,7 @@ Contract
     config-version | Int | optional,
 
     start-at-login | Bool | optional,
+    url-scheme | Bool | optional,
     reload-on-save | Bool | optional,
     automatically-unhide-macos-hidden-apps | Bool | optional,
     automatically-tile-new-windows | Bool | optional,

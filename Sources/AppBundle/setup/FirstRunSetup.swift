@@ -9,6 +9,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     }, probeScreenRecording: { await runPermissionProcess("--permission-probe-screen-recording") })
 
     private let readGrants: () -> PermissionGrants
+    private let startupSignal: URLStartupSignal
     private let probeScreenRecording: () async -> Bool
     private let stateUrl: URL
     private let present: ((FirstRunSetup) -> Void)?
@@ -23,8 +24,9 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
     var waiting = false
 
     init(readGrants: @escaping () -> PermissionGrants, stateUrl: URL = firstRunStateUrl(), present: ((FirstRunSetup) -> Void)? = nil,
-         probeScreenRecording: @escaping () async -> Bool = { false }) {
+         probeScreenRecording: @escaping () async -> Bool = { false }, startupSignal: URLStartupSignal = urlStartupSignal) {
         self.readGrants = readGrants
+        self.startupSignal = startupSignal
         self.probeScreenRecording = probeScreenRecording
         self.stateUrl = stateUrl
         self.present = present
@@ -113,6 +115,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
         state.pending = true
         save()
         waiting = true
+        startupSignal.set(.waitingForPerson)
         await withCheckedContinuation {
             continuation = $0
             if let present { present(self) } else { showWindow() }
@@ -171,6 +174,7 @@ final class FirstRunSetup: NSObject, ObservableObject, NSWindowDelegate {
         // A state file that cannot be written must not keep WinMux from starting.
         save()
         waiting = false
+        startupSignal.set(.starting)
         window?.orderOut(nil)
         window = nil
         if let previousActivationPolicy { NSApp.setActivationPolicy(previousActivationPolicy) }

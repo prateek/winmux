@@ -4,6 +4,9 @@ struct CmdEnv: ConvenienceCopyable {
     var windowWorkspaceFallback: String?
     var windowId: UInt32?
     var workspaceName: String?
+    /// A URL asked for this command. Hooks and refreshes get their own env, so this reaches only
+    /// what the command itself runs, such as a binding `trigger-binding` runs.
+    var isFromURL: Bool = false
 
     static let defaultEnv: CmdEnv = .init()
     func withFocus(_ focus: LiveFocus) -> CmdEnv {

@@ -28,6 +28,10 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <key>CFBundleShortVersionString</key><string>1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSUIElement</key><true/>
+<key>CFBundleURLTypes</key><array><dict>
+<key>CFBundleURLName</key><string>com.zimengxiong.winmux.debug</string>
+<key>CFBundleURLSchemes</key><array><string>winmux</string></array>
+</dict></array>
 </dict></plist>
 PLIST
 codesign --force --deep --sign - "$app"
