@@ -81,10 +81,12 @@ final class TestWindow: Window, CustomStringConvertible {
 
     @MainActor var testAxRectError: (any Error)?
     @MainActor var beforeAxRect: (() async -> Void)?
+    @MainActor var testAxRectUnavailable = false
 
     @MainActor override func getAxRect() async throws -> Rect? { // todo change to not Optional
         await beforeAxRect?()
         if let testAxRectError { throw testAxRectError }
+        if testAxRectUnavailable { return nil }
         recordAuthoritativeActualRect(_rect)
         return _rect
     }

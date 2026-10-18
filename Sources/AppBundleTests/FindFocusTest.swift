@@ -93,6 +93,17 @@ final class FindFocusTest: SerialClockTestCase {
         XCTAssertFalse(FindFocusHighlight.shared.isShowing)
     }
 
+    func testMissingAXFramePrefersAnActualFrameUpdatedDuringTheRead() async throws {
+        var shown: [Rect] = []
+        _ = install(show: { shown.append($0) })
+        let target = window()
+        let newer = Rect(topLeftX: 40, topLeftY: 50, width: 600, height: 500)
+        target.testAxRectUnavailable = true
+        target.beforeAxRect = { [weak target] in target?.recordAuthoritativeActualRect(newer) }
+        try await mark()
+        XCTAssertEqual(shown.last, newer)
+    }
+
     func testEmptyWorkspaceFailsButDisabledAndMissionControlSucceedWithoutDrawing() async throws {
         var shows = 0
         _ = install(show: { _ in shows += 1 })

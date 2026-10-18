@@ -18,7 +18,7 @@ struct FindFocusCommand: Command {
         }
         let ticket = highlight.generation
         let cached = window.lastKnownActualRect
-        let rect = try await window.getAxRect() ?? cached ?? window.lastAppliedLayoutPhysicalRect
+        let rect = try await window.getAxRect() ?? window.lastKnownActualRect ?? cached ?? window.lastAppliedLayoutPhysicalRect
         guard ticket == highlight.generation, focus == target,
               TrayMenuModel.shared.isEnabled, !MissionControlState.shared.isOpen else { return true }
         guard let rect else {
