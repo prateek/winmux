@@ -33,7 +33,7 @@ final class WindowTabCloseTest: XCTestCase {
                 let (group, windows) = group()
                 windows[1].closeRequestStays = stays
                 if refused { windows[1].closeResult = .notClosed(.appRefused) }
-                let gone = await windows[1].requestClose(timeout: 1)
+                let gone = await windows[1].requestClose(timeout: 1) == .gone
                 XCTAssertEqual(gone, !stays && !refused)
                 XCTAssertEqual(windows[1].isBound, !gone)
                 XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }, gone ? [1, 3, 4, 5] : [1, 2, 3, 4, 5])
@@ -43,7 +43,9 @@ final class WindowTabCloseTest: XCTestCase {
 
     func testTabCloseOnlyClosesItsTargetAndKeepsTheGroupAndOrder() async throws {
         let (group, windows) = group()
-        let task = closeWindowFromTabStrip(2, fallbackWorkspace: "tabs", pointer: (ObjectIdentifier(group), 160))
+        try await runLightSession(.menuBarButton, .isServerEnabled!) {}
+        let stripWidth = TrayMenuModel.shared.windowTabStrips.first!.frame.width
+        let task = closeWindowFromTabStrip(2, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: ObjectIdentifier(group), width: 160, stripWidth: stripWidth, tabCount: 5, x: 300, scrollOrigin: 0))
         try await task?.value
         XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }, [1, 3, 4, 5])
         XCTAssertTrue(windows.enumerated().allSatisfy { $0.element.closeAttempts == ($0.offset == 1 ? 1 : 0) })
@@ -79,7 +81,7 @@ final class WindowTabCloseTest: XCTestCase {
         XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, 5)
     }
 
-    func testAStayingBackgroundOrActiveWindowKeepsItsIndexAndComesForward() async throws {
+    func testATimeoutOrRefusalKeepsItsIndexWithoutMovingFocus() async throws {
         for active in [false, true] {
             for refused in [false, true] {
                 setUpWorkspacesForTests()
@@ -90,12 +92,79 @@ final class WindowTabCloseTest: XCTestCase {
                 let task = closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")
                 try await task?.value
                 XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }, [1, 2, 3, 4, 5])
-                XCTAssertEqual(focus.windowOrNil?.windowId, 2)
-                XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, 2)
+                XCTAssertEqual(focus.windowOrNil?.windowId, active ? 2 : 1)
+                XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, active ? 2 : 1)
                 XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
                 try await waitForScheduledRefreshForTests()
             }
         }
+    }
+
+    func testActiveCloseUsesMostRecentReplacementDespiteFocusDriftBeforeCollection() async throws {
+        for otherWorkspace in [false, true] {
+            setUpWorkspacesForTests()
+            let (_, windows) = group()
+            _ = windows[3].focusWindow()
+            windows[3].nativeFocus()
+            refreshModel()
+            _ = windows[1].focusWindow()
+            windows[1].nativeFocus()
+            refreshModel()
+            let drift = otherWorkspace
+                ? TestWindow.new(id: 6, parent: Workspace.get(byName: "elsewhere").rootTilingContainer)
+                : windows[2]
+            windows[1].beforeCloseRequest = {
+                drift.nativeFocus()
+            }
+            try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+            XCTAssertEqual(focus.windowOrNil?.windowId, 4)
+            XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, 4)
+        }
+    }
+
+    func testSheetComesForwardAndClearsBackgroundCloseIntent() async throws {
+        let (group, windows) = group()
+        windows[1].closeRequestHasSheet = true
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }, [1, 2, 3, 4, 5])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 2)
+        XCTAssertEqual(TestApp.shared.focusedWindow?.windowId, 2)
+        XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
+        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+    }
+
+    func testFocusedRetryDoesNotInheritABackgroundTimeoutsIntent() async throws {
+        let (_, windows) = group()
+        windows[1].closeRequestStays = true
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        _ = windows[3].focusWindow()
+        windows[3].nativeFocus()
+        refreshModel()
+        _ = windows[1].focusWindow()
+        windows[1].nativeFocus()
+        refreshModel()
+        windows[1].closeRequestStays = false
+        windows[1].beforeCloseRequest = { windows[2].nativeFocus() }
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        XCTAssertEqual(focus.windowOrNil?.windowId, 4)
+        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+    }
+
+    func testBackgroundCloseIntentSurvivesTimeoutUntilOrdinaryCollection() async throws {
+        let (_, windows) = group()
+        _ = windows[3].focusWindow()
+        windows[3].nativeFocus()
+        refreshModel()
+        _ = windows[4].focusWindow()
+        windows[4].nativeFocus()
+        refreshModel()
+        windows[1].closeRequestStays = true
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(2))
+        XCTAssertTrue(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
+        windows[1].unbindAndFocusAfterClosure()
+        XCTAssertEqual(focus.windowOrNil?.windowId, 5)
+        XCTAssertFalse(WindowTabCloseModel.shared.backgroundCloseWindowIds.contains(2))
     }
 
     func testClosingTabRemainsPresentAndIgnoresASecondClose() async throws {
@@ -125,18 +194,20 @@ final class WindowTabCloseTest: XCTestCase {
         let (group, _) = group()
         let model = WindowTabCloseModel.shared
         let id = ObjectIdentifier(group)
-        let width = windowTabStripTabWidth(stripWidth: 1000, count: 5)
+        try await runLightSession(.menuBarButton, .isServerEnabled!) {}
+        let stripWidth = TrayMenuModel.shared.windowTabStrips.first!.frame.width
+        let width = windowTabStripTabWidth(stripWidth: stripWidth, count: 5)
         let x = windowTabStripContentHorizontalPadding + width - 12
         for expected in [UInt32(1), 2, 3] {
             let ids = group.children.compactMap { ($0 as? Window)?.windowId }
-            let drawnWidth = windowTabStripTabWidth(stripWidth: 1000, count: ids.count, heldWidth: model.heldWidths[id])
+            let drawnWidth = windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count, heldWidth: model.heldWidths[id])
             let frames = Dictionary(uniqueKeysWithValues: ids.enumerated().map {
                 ($0.element, CGRect(x: windowTabStripContentHorizontalPadding + CGFloat($0.offset) * (drawnWidth + windowTabStripTabSpacing), y: 0, width: drawnWidth, height: 26))
             })
             let hit = windowTabAtPoint(CGPoint(x: x, y: 12), frames: frames)
             XCTAssertEqual(hit, expected)
-            try await closeWindowFromTabStrip(hit!, fallbackWorkspace: "tabs", pointer: (id, drawnWidth))?.value
-            XCTAssertEqual(windowTabStripTabWidth(stripWidth: 1000, count: ids.count - 1, heldWidth: model.heldWidths[id]), width)
+            try await closeWindowFromTabStrip(hit!, fallbackWorkspace: "tabs", pointer: WindowTabClosePointer(stripId: id, width: drawnWidth, stripWidth: stripWidth, tabCount: ids.count, x: x, scrollOrigin: 0))?.value
+            XCTAssertEqual(windowTabStripTabWidth(stripWidth: stripWidth, count: ids.count - 1, heldWidth: model.heldWidths[id]), width)
         }
         model.pointerLeftStrip(id)
         XCTAssertNil(model.heldWidths[id])
@@ -173,12 +244,74 @@ final class WindowTabCloseTest: XCTestCase {
         let (group, _) = group()
         let id = ObjectIdentifier(group)
         let model = WindowTabCloseModel.shared
-        XCTAssertTrue(model.begin(2, pointer: (id, 160)))
+        XCTAssertTrue(model.begin(2, pointer: WindowTabClosePointer(stripId: id, width: 160, stripWidth: 1000, tabCount: 5, x: 300, scrollOrigin: 0)))
         let panel = WindowTabStripPanelController.shared.stripPanel(for: id)
         panel.hostingView.strip = WindowTabStripViewModel(id: id, workspaceName: "tabs", frame: .zero,
             groupFrame: .zero, activeWindowId: 1, activeWindowCornerRadius: 16, tabs: [], occludingFloatingWindowFrames: [])
         WindowTabStripPanelController.shared.removeStaleStripPanels(activeIds: [])
         XCTAssertNil(model.heldWidths[id])
         model.finish(2)
+    }
+
+    func testStationaryPointerHoverFollowsClosedTabsAndClearsStaleHover() {
+        let hold = WindowTabWidthHold(width: 150, stripWidth: 1000, tabCount: 5, pointerX: 140, scrollOrigin: 2)
+        var order: [UInt32] = [1, 2, 3, 4, 5]
+        var hovered: UInt32? = 1
+        for next: UInt32 in [2, 3, 4] {
+            order.removeFirst()
+            hovered = windowTabHoverAfterOrderChange(hovered, order: order, hold: hold)
+            XCTAssertEqual(hovered, next)
+        }
+        XCTAssertNil(windowTabHoverAfterOrderChange(9, order: order, hold: nil))
+        XCTAssertEqual(windowTabHoverAfterOrderChange(4, order: order, hold: nil), 4)
+        XCTAssertEqual(windowTabUnderPointer(20, order: [1, 2], width: 100, scrollOrigin: -90), 2)
+        XCTAssertNil(windowTabUnderPointer(104, order: [1, 2], width: 100, scrollOrigin: 0))
+        XCTAssertNil(windowTabUnderPointer(0, order: order, width: 150, scrollOrigin: 2))
+        XCTAssertNil(windowTabUnderPointer(1000, order: order, width: 150, scrollOrigin: 2))
+    }
+
+    func testWidthHoldDropsOnResizeOrTabGrowthAndLaterClosesReplaceInvalidHold() {
+        let (group, _) = group()
+        let id = ObjectIdentifier(group)
+        let model = WindowTabCloseModel.shared
+        func close(_ windowId: UInt32, width: CGFloat, stripWidth: CGFloat, count: Int) {
+            XCTAssertTrue(model.begin(windowId, pointer: WindowTabClosePointer(stripId: id, width: width, stripWidth: stripWidth, tabCount: count, x: 140, scrollOrigin: 2)))
+            model.finish(windowId)
+        }
+        close(1, width: 150, stripWidth: 1000, count: 5)
+        close(2, width: 180, stripWidth: 1000, count: 4)
+        XCTAssertEqual(model.heldWidths[id], 150)
+        model.reconcileStrip(id, width: 900, tabCount: 3)
+        XCTAssertNil(model.heldWidths[id])
+        close(3, width: 180, stripWidth: 900, count: 3)
+        model.reconcileStrip(id, width: 900, tabCount: 4)
+        XCTAssertNil(model.heldWidths[id])
+        close(4, width: 180, stripWidth: 900, count: 3)
+        close(5, width: 200, stripWidth: 950, count: 2)
+        XCTAssertEqual(model.heldWidths[id], 200)
+        close(1, width: 160, stripWidth: 950, count: 4)
+        XCTAssertEqual(model.heldWidths[id], 160)
+    }
+
+    func testOnlyVisibleCloseButtonsReserveTitleSpace() {
+        XCTAssertEqual(closeButtonTitlePadding(isActive: false, isHovered: false), 0)
+        XCTAssertEqual(closeButtonTitlePadding(isActive: true, isHovered: false), 22)
+        XCTAssertEqual(closeButtonTitlePadding(isActive: false, isHovered: true), 22)
+        XCTAssertEqual(closeButtonTitlePadding(isActive: true, isHovered: true), 22)
+    }
+
+    func testCloseSchedulesOnlyTheLightSessionsPostRefresh() async throws {
+        let (_, windows) = group()
+        windows[1].closeRequestStays = true
+        var refreshes = 0
+        setScheduledRefreshOverrideForTests { _, _ in refreshes += 1 }
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        try await waitForScheduledRefreshForTests()
+        XCTAssertEqual(refreshes, 1)
+    }
+
+    func testCloseResultCanBeDiscardedForAnUnavailableWindow() {
+        closeWindowFromTabStrip(999, fallbackWorkspace: "tabs")
+        XCTAssertFalse(WindowTabCloseModel.shared.closingWindowIds.contains(999))
     }
 }

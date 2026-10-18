@@ -1,5 +1,9 @@
 import Foundation
 
+enum WindowCloseConfirmation: Equatable {
+    case gone, sheetSeen, timedOut, refused
+}
+
 @MainActor
 func windowCloseSession<T>(
     _ token: RunSessionGuard?,
@@ -19,15 +23,15 @@ func confirmWindowClose(
     isPresent: () async -> Bool?,
     hasSheet: () async -> Bool,
     collect: () async -> Void,
-) async -> Bool {
+) async -> WindowCloseConfirmation {
     let deadline = clock.now.advanced(by: .seconds(timeout))
     while clock.now < deadline {
         if await isPresent() == false {
             await collect()
-            return true
+            return .gone
         }
-        if await hasSheet() { return false }
+        if await hasSheet() { return .sheetSeen }
         try? await clock.sleep(for: .milliseconds(100))
     }
-    return false
+    return .timedOut
 }

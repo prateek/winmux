@@ -15,7 +15,7 @@ struct WindowTabItemView: View {
                 .font(.system(size: 12, weight: tab.isActive ? .semibold : .medium))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .padding(.trailing, 22)
+                .padding(.trailing, closeButtonTitlePadding(isActive: tab.isActive, isHovered: isHovered))
         }
         .foregroundStyle(tabForegroundStyle)
         .padding(.horizontal, 10)
@@ -42,4 +42,8 @@ struct WindowTabItemView: View {
         if tab.isActive { return Color.white.opacity(GlassToken.strokeActive) }
         return Color.white.opacity(isHovered ? GlassToken.strokeHover : GlassToken.strokeResting)
     }
+}
+
+func closeButtonTitlePadding(isActive: Bool, isHovered: Bool) -> CGFloat {
+    isActive || isHovered ? 22 : 0
 }

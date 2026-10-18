@@ -41,6 +41,9 @@ final class WindowTabStripHostingView: NSHostingView<AnyView> {
         guard let windowId = windowTabAtPoint(point, frames: tabFrames, viewport: tabViewport),
               !isWindowTabStripDragInProgress()
         else { return }
-        closeWindowFromTabStrip(windowId, fallbackWorkspace: strip.workspaceName, pointer: (strip.id, tabWidth))
+        let scrollOrigin = strip.tabs.first.flatMap { tabFrames[$0.windowId]?.minX }.map { $0 - windowTabStripContentHorizontalPadding } ?? tabViewport.minX
+        closeWindowFromTabStrip(windowId, fallbackWorkspace: strip.workspaceName,
+            pointer: WindowTabClosePointer(stripId: strip.id, width: tabWidth, stripWidth: strip.frame.width,
+                tabCount: strip.tabs.count, x: point.x, scrollOrigin: scrollOrigin))
     }
 }

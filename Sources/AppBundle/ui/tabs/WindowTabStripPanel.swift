@@ -29,6 +29,7 @@ final class WindowTabStripPanel: NSPanelHud {
 
     func update(with strip: WindowTabStripViewModel) {
         let displayStrip = strip.alignedForWindowTabChrome()
+        WindowTabCloseModel.shared.reconcileStrip(displayStrip.id, width: displayStrip.frame.width, tabCount: displayStrip.tabs.count)
         let nextContent = WindowTabGroupChromeContent(strip: displayStrip)
         guard shouldUpdate(content: nextContent, strip: displayStrip) else { return }
         if currentContent != nextContent {

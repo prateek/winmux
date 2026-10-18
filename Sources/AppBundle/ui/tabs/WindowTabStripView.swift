@@ -204,6 +204,10 @@ extension WindowTabStripView {
         }
         .onChange(of: context.tabOrder) { newOrder in
             clearPendingReorderDropIfModelApplied(currentOrder: newOrder)
+            hoveredTabId = windowTabHoverAfterOrderChange(hoveredTabId, order: newOrder, hold: closeModel.widthHolds[strip.id])
+        }
+        .onAppear {
+            hoveredTabId = windowTabHoverAfterOrderChange(hoveredTabId, order: context.tabOrder, hold: closeModel.widthHolds[strip.id])
         }
     }
 
@@ -503,9 +507,6 @@ extension WindowTabStripView {
             radius: draggingTabId == tab.windowId ? 7 : 0,
             y: draggingTabId == tab.windowId ? 2 : 0,
         )
-        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reorderTargetIndex(context: context))
-        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reentryPreviewModel.value?.targetIndex)
-        .animation(nil, value: reentryPreviewModel.value?.sourceVisualOffset)
         .highPriorityGesture(tabDragGesture(for: tab, context: context))
         .workspaceSidebarDrag(enabled: !isClosing) {
             WorkspaceSidebarDragPayload.window(tab.windowId).itemProvider
@@ -514,13 +515,19 @@ extension WindowTabStripView {
             if tab.isActive || hoveredTabId == tab.windowId {
                 WindowTabCloseButton(title: tab.title, foreground: item.tabForegroundStyle) {
                     guard !isWindowTabStripDragInProgress() else { return }
-                    closeWindowFromTabStrip(tab.windowId, fallbackWorkspace: tab.workspaceName, pointer: (strip.id, context.tabWidth))
+                    closeWindowFromTabStrip(tab.windowId, fallbackWorkspace: tab.workspaceName,
+                        pointer: WindowTabClosePointer(stripId: strip.id, width: context.tabWidth, stripWidth: context.width,
+                            tabCount: strip.tabs.count, x: NSEvent.mouseLocation.x - strip.frame.minX,
+                            scrollOrigin: 2 + tabScrollContentMinX))
                 }
             }
         }
         .disabled(isClosing)
         .opacity(isClosing ? 0.55 : 1)
         .offset(x: tabVisualOffset(for: tab, context: context))
+        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reorderTargetIndex(context: context))
+        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.8), value: reentryPreviewModel.value?.targetIndex)
+        .animation(nil, value: reentryPreviewModel.value?.sourceVisualOffset)
         .zIndex(draggingTabId == tab.windowId ? 1 : 0)
         .background {
             GeometryReader { proxy in

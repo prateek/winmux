@@ -44,30 +44,21 @@ final class TestWindow: Window, CustomStringConvertible {
     @MainActor var onClose: (@MainActor () -> Void)?
     @MainActor private(set) var closeAttempts = 0
     @MainActor var closeRequestStays = false
+    @MainActor var closeRequestHasSheet = false
     @MainActor var beforeCloseRequest: (@MainActor () async -> Void)?
 
     @MainActor
-    override func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> Bool {
-        closeAttempts += 1
+    override func requestClose(timeout: TimeInterval, tabStripSession: RunSessionGuard? = nil) async -> WindowCloseConfirmation {
+        await windowCloseSession(tabStripSession) { self.closeAttempts += 1 }
         await beforeCloseRequest?()
-        guard closeResult == .closed, !closeRequestStays else { return false }
-        let workspace = nodeWorkspace
-        let preservesFocus = WindowTabCloseModel.shared.preservesFocus(closingWindowId: windowId, focusedWindowId: focus.windowOrNil?.windowId)
-        unbindFromParent()
-        onClose?()
-        guard !preservesFocus else { return true }
-        if let replacement = focusAfterWindowClosure(
-            closingWindow: self, deadWindowWorkspace: workspace, currentFocus: focus,
-            previousFocus: prevFocus, previousPreviousFocus: prevPrevFocus,
-            refreshSnapshotCloseFallback: refreshSessionFocusSnapshot?.fallbackWhenFocusedWindowCloses?.liveOrNil,
-            refreshSnapshotPreviousFocus: refreshSessionFocusSnapshot?.prevFocus?.liveOrNil,
-            refreshSnapshotPreviousPreviousFocus: refreshSessionFocusSnapshot?.prevPrevFocus?.liveOrNil,
-            previousFocusedWorkspace: prevFocusedWorkspace, previousFocusedWorkspaceDate: prevFocusedWorkspaceDate
-        ) {
-            _ = setFocus(to: replacement)
-            replacement.windowOrNil?.nativeFocus()
+        guard closeResult == .closed else { return .refused }
+        if closeRequestHasSheet { return .sheetSeen }
+        guard !closeRequestStays else { return .timedOut }
+        await windowCloseSession(tabStripSession) {
+            self.unbindAndFocusAfterClosure()
+            self.onClose?()
         }
-        return true
+        return .gone
     }
 
     @MainActor

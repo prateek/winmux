@@ -12,7 +12,7 @@ final class WindowCloseConfirmationTest: SerialClockTestCase {
             isPresent: { false },
             hasSheet: { XCTFail("A gone window has no sheet to read"); return false },
             collect: { collections += 1 })
-        XCTAssertTrue(gone)
+        XCTAssertEqual(gone, .gone)
         XCTAssertEqual(collections, 1)
         XCTAssertEqual(clock.now, start)
     }
@@ -23,7 +23,7 @@ final class WindowCloseConfirmationTest: SerialClockTestCase {
         let gone = await confirmWindowClose(timeout: 1, clock: clock,
             isPresent: { true }, hasSheet: { true },
             collect: { XCTFail("A sheet must keep its window") })
-        XCTAssertFalse(gone)
+        XCTAssertEqual(gone, .sheetSeen)
         XCTAssertEqual(clock.now, start)
     }
 
@@ -48,7 +48,7 @@ final class WindowCloseConfirmationTest: SerialClockTestCase {
         XCTAssertFalse(finished)
         await clock.advance(by: .milliseconds(1))
         let gone = await task.value
-        XCTAssertFalse(gone)
+        XCTAssertEqual(gone, .timedOut)
         XCTAssertEqual(reads, 10)
     }
 
@@ -64,7 +64,7 @@ final class WindowCloseConfirmationTest: SerialClockTestCase {
         present = false
         await clock.advance(by: .milliseconds(100))
         let gone = await task.value
-        XCTAssertTrue(gone)
+        XCTAssertEqual(gone, .gone)
         XCTAssertEqual(collections, 1)
     }
 }
