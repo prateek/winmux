@@ -15,11 +15,11 @@ final class WindowTabHintTest: SerialClockTestCase {
         owner.flagsChanged(.option)
         await clock.advance(by: .milliseconds(499))
         XCTAssertNil(owner.shownModifiers)
-        owner.pointerActivity(.mouseMoved)
+        owner.pointerActivity(.mouseMoved, eventFlags: .option)
         await clock.advance(by: .milliseconds(1))
         XCTAssertEqual(owner.shownModifiers, .option)
         owner.keyOrClick()
-        owner.pointerActivity(.leftMouseDown)
+        owner.pointerActivity(.leftMouseDown, eventFlags: .option)
         XCTAssertEqual(owner.shownModifiers, .option)
         owner.flagsChanged([])
         XCTAssertNil(owner.shownModifiers)
@@ -97,10 +97,10 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertEqual(owner.labels, WindowTabHintLabels())
         owner.flagsChanged(.option)
         await clock.advance(by: .seconds(1))
-        XCTAssertEqual(owner.labels, WindowTabHintLabels(group: ObjectIdentifier(first), byWindow: [1: "1", 2: "2"]))
+        XCTAssertEqual(owner.labels, WindowTabHintLabels(group: first, byWindow: [1: "1", 2: "2"]))
         XCTAssertTrue(windows[2].focusWindow())
         owner.reconcile()
-        XCTAssertEqual(owner.labels, WindowTabHintLabels(group: ObjectIdentifier(second), byWindow: [3: "1", 4: "2"]))
+        XCTAssertEqual(owner.labels, WindowTabHintLabels(group: second, byWindow: [3: "1", 4: "2"]))
         let floating = TestWindow.new(id: 5, parent: focus.workspace)
         XCTAssertTrue(floating.focusWindow())
         owner.reconcile()
@@ -116,7 +116,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         await clock.advance(by: .seconds(1))
         XCTAssertEqual(owner.shownModifiers, .option)
         live = []
-        owner.pointerActivity(.mouseMoved)
+        owner.pointerActivity(.mouseMoved, eventFlags: [])
         XCTAssertNil(owner.shownModifiers, "A pointer move after a dropped release hides the hints")
         live = .option
         owner.flagsChanged(.option)
@@ -132,17 +132,40 @@ final class WindowTabHintTest: SerialClockTestCase {
         await clock.advance(by: .seconds(1))
         XCTAssertEqual(owner.shownModifiers, .option)
         live = []
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: [])
         XCTAssertNil(owner.shownModifiers, "Typing after a dropped release hides the hints")
         live = .option
         owner.flagsChanged(.option)
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: .option)
         live = []
-        owner.keyOrClick()
+        owner.keyOrClick(eventFlags: [])
         live = .option
         owner.flagsChanged(.option)
         await clock.advance(by: .seconds(1))
         XCTAssertEqual(owner.shownModifiers, .option, "A spoiled hold whose release was dropped does not block the next one")
+    }
+
+    func testKeyQueuedBeforeAModifierDoesNotSpoilTheHoldAfterIt() async {
+        let clock = TestClock<Duration>()
+        let owner = WindowTabHintController(clock: clock, liveFlags: { .option }, allowed: { true }, lensOpen: { false }, bindings: { self.digits() })
+        owner.keyOrClick(eventFlags: [])
+        owner.pointerActivity(.leftMouseDown, eventFlags: [])
+        owner.flagsChanged(.option)
+        await clock.advance(by: .seconds(1))
+        XCTAssertEqual(owner.shownModifiers, .option, "Option went down after the key and the click, though the live state already has it")
+        owner.reset()
+    }
+
+    func testLensLifecycleReportsOpeningAndClosing() {
+        let lifecycle = testLensLifecycle()
+        var reports: [Bool] = []
+        lifecycle.openChanged = { reports.append(lifecycle.isOpen) }
+        let ticket = lifecycle.begin("tabs", toggle: false)!
+        XCTAssertEqual(reports, [true], "Open from the first opening state, before a session is prepared")
+        lifecycle.complete(LensSession(name: "tabs", settings: LensConfig(), items: [], search: ""), ticket: ticket)
+        XCTAssertEqual(reports, [true])
+        lifecycle.dismiss()
+        XCTAssertEqual(reports, [true, false])
     }
 
     func testNestedGroupWindowIsLabelledOnlyInTheAddressedStrip() async {
@@ -167,7 +190,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         var state = WindowTabHintState()
         state.flagsChanged([.option, .shift], hasBindings: { false }, allowed: true)
         XCTAssertNil(state.deadline)
-        state.keyOrClick(allowed: true)
+        state.keyOrClick()
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         XCTAssertNil(state.deadline, "Releasing Shift after an Option-Shift chord does not arm")
         state.flagsChanged([], hasBindings: { true }, allowed: true)
@@ -182,7 +205,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertNil(state.shown)
         state.fire(deadline, allowed: true)
         XCTAssertEqual(state.shown, .option)
-        state.keyOrClick(allowed: true)
+        state.keyOrClick()
         XCTAssertEqual(state.shown, .option)
         state.flagsChanged([], hasBindings: { true }, allowed: true)
         XCTAssertNil(state.shown)
@@ -193,7 +216,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         var state = WindowTabHintState()
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         let old = state.deadline!
-        state.keyOrClick(allowed: true)
+        state.keyOrClick()
         state.fire(old, allowed: true)
         state.flagsChanged([.option, .shift], hasBindings: { true }, allowed: true)
         XCTAssertNil(state.deadline)
@@ -203,7 +226,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         XCTAssertNotNil(state.deadline)
     }
 
-    func testModifierChangeRearmsAndRejectsStaleOrDroppedRelease() {
+    func testModifierChangeRearmsAndAStaleTokenShowsNothing() {
         var state = WindowTabHintState()
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         let old = state.deadline!
@@ -226,7 +249,7 @@ final class WindowTabHintTest: SerialClockTestCase {
         state.flagsChanged([], hasBindings: { true }, allowed: true)
         state.flagsChanged(.option, hasBindings: { true }, allowed: true)
         state.fire(state.deadline!, allowed: true)
-        state.keyOrClick(allowed: false)
+        state.enforce(allowed: false)
         XCTAssertNil(state.shown)
         state.reset()
         XCTAssertNil(state.shown)

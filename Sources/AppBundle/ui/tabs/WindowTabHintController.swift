@@ -23,7 +23,7 @@ final class WindowTabHintController: ObservableObject {
     private let lensOpen: () -> Bool
     private let bindingSource: () -> [HotkeyBinding]
 
-    init(clock: any Clock<Duration> = ContinuousClock(), liveFlags: @escaping () -> NSEvent.ModifierFlags = { NSEvent.modifierFlags }, allowed: @escaping () -> Bool, lensOpen: @escaping () -> Bool, bindings: @escaping () -> [HotkeyBinding]) {
+    init(clock: any Clock<Duration> = ContinuousClock(), liveFlags: @escaping () -> NSEvent.ModifierFlags = { NSEvent.ModifierFlags(rawValue: UInt(currentSessionModifierFlags().rawValue)) }, allowed: @escaping () -> Bool, lensOpen: @escaping () -> Bool, bindings: @escaping () -> [HotkeyBinding]) {
         self.clock = clock
         self.liveFlags = liveFlags
         self.enabled = allowed
@@ -44,15 +44,18 @@ final class WindowTabHintController: ObservableObject {
         publish()
     }
 
-    func keyOrClick() {
-        catchUpWithLiveFlags()
-        state.keyOrClick(allowed: allowed)
+    /// A key or click catches up from its own event's modifiers, which are in order with the
+    /// `flagsChanged` events: the live state can be ahead of them, and would spoil a hold the
+    /// key came before. A registered hotkey reaches here with no event.
+    func keyOrClick(eventFlags: NSEvent.ModifierFlags? = nil) {
+        if let eventFlags { catchUp(windowTabHintModifiers(eventFlags)) }
+        state.keyOrClick()
         publish()
     }
 
-    func pointerActivity(_ type: NSEvent.EventType) {
-        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(type) { return keyOrClick() }
-        catchUpWithLiveFlags()
+    func pointerActivity(_ type: NSEvent.EventType, eventFlags: NSEvent.ModifierFlags) {
+        if [.leftMouseDown, .rightMouseDown, .otherMouseDown].contains(type) { return keyOrClick(eventFlags: eventFlags) }
+        catchUp(windowTabHintModifiers(eventFlags))
         publish()
     }
 
@@ -73,8 +76,7 @@ final class WindowTabHintController: ObservableObject {
     }
 
     private func catchUp(_ flags: NSEvent.ModifierFlags) {
-        guard flags != state.held else { return }
-        state.flagsChanged(flags, hasBindings: { self.bindings.contains { $0.modifiers == flags && windowTabBindingTarget($0) != nil } }, allowed: allowed)
+        state.flagsChanged(flags, hasBindings: { self.bindings.contains { $0.modifiers == flags && windowTabBindingTarget($0) != nil } }, allowed: self.allowed)
     }
 
     private func publish(relabel: Bool = false) {
@@ -95,7 +97,7 @@ final class WindowTabHintController: ObservableObject {
         }
         let shownChanged = shownModifiers != state.shown
         shownModifiers = state.shown
-        if shownChanged || relabel {
+        if shownChanged || relabel || state.shown != nil {
             let labels = currentLabels()
             if self.labels != labels { self.labels = labels }
         }
@@ -108,17 +110,22 @@ final class WindowTabHintController: ObservableObject {
         for (index, child) in group.children.enumerated() {
             if let window = child.tabRepresentativeWindow, let label = labels[index] { byWindow[window.windowId] = label }
         }
-        return WindowTabHintLabels(group: ObjectIdentifier(group), byWindow: byWindow)
+        return WindowTabHintLabels(group: group, byWindow: byWindow)
     }
 }
 
 /// A window can stand for a tab in more than one strip (a nested group's window also represents
-/// its outer tab), so a label belongs to the addressed group's strip only.
+/// its outer tab), so a label belongs to the addressed group's strip only. The group is held weakly:
+/// a strip whose container reuses a freed group's address never matches it.
 struct WindowTabHintLabels: Equatable {
-    var group: ObjectIdentifier?
+    weak var group: TilingContainer?
     var byWindow: [UInt32: String] = [:]
 
     func label(strip: ObjectIdentifier, window: UInt32) -> String? {
-        strip == group ? byWindow[window] : nil
+        group.map(ObjectIdentifier.init) == strip ? byWindow[window] : nil
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.group === rhs.group && lhs.byWindow == rhs.byWindow
     }
 }
