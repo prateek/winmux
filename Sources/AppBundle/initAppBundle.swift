@@ -14,6 +14,8 @@ import Foundation
 @MainActor public func initAppBundle() {
     Task {
         defer { isRecordingStartupWindowFrames = false }
+        // A startup step that throws must not hold queued URLs forever: they get the socket's answer.
+        defer { urlStartupSignal.set(.ready) }
         initTerminationHandler()
         armSymbolicHotkeyRestoration()
         isCli = false

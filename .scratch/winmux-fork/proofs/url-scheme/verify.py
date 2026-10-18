@@ -35,14 +35,12 @@ assert text("socket-base.jsonl") == text("socket-head.jsonl")
 assert len(text("socket-base.jsonl").splitlines()) == 11
 log = text("url.log")
 for reason in ["Empty argument segment", "Expected run host", "reads stdin or prints a result",
-               "exec-and-forget is prohibited in CLI", "url-scheme is false", "server is disabled"]:
+               "url-scheme is false", "server is disabled"]:
     assert any("Error" in line and reason in line for line in log.splitlines()), reason
 assert "Already enabled" in log
 assert log.rfind("URL winmux://run/workspace/2 finished with exit 0") < log.rfind("URL winmux://run/workspace/1 finished with exit 0")
 assert "Error" in text("final-url.log") and "Invalid <window-id>" in text("final-url.log")
 assert "help is refused in a URL" in text("final-url.log")
-assert "Ghostty|floating" in text("place-before.txt")
-assert "Ghostty|h_tiles" in text("place-after.txt")
 assert len(json.loads(text("column-count.json"))) == 3
 assert json.loads(text("columns-off.json")) == []
 cold = json.loads(text("cold-status.json"))

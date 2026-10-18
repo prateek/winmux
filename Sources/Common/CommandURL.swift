@@ -32,7 +32,7 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
     let refused: Bool
     switch kind {
         case .subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors, .listModes,
-             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place:
+             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place, .execAndForget:
             refused = true
         case .workspace:
             refused = (args as? WorkspaceCmdArgs)?.useStdin == true
@@ -40,11 +40,13 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
             refused = (args as? MoveNodeToWorkspaceCmdArgs)?.useStdin == true
         case .lens:
             refused = (args as? LensCmdArgs)?.filter == "-"
+        case .reloadConfig:
+            refused = (args as? ReloadConfigCmdArgs)?.dryRun == true
         case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .columnCount, .balanceSizes,
-             .close, .closeAllWindowsButCurrent, .enable, .execAndForget, .flattenWorkspaceTree,
+             .close, .closeAllWindowsButCurrent, .enable, .flattenWorkspaceTree,
              .focus, .focusBackAndForth, .focusMonitor, .fullscreen, .joinWith, .layout,
              .macosNativeFullscreen, .macosNativeMinimize, .mode, .move, .moveMouse, .moveNodeToMonitor,
-             .moveNodeToProject, .moveWorkspaceToMonitor, .openSidebar, .palette, .project, .reloadConfig,
+             .moveNodeToProject, .moveWorkspaceToMonitor, .openSidebar, .palette, .project,
              .resize, .split, .stackWith, .sections, .summon, .summonWorkspace, .swap, .triggerBinding,
              .volume, .workspaceBackAndForth:
             refused = false

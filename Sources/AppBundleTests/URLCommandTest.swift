@@ -106,7 +106,7 @@ final class URLCommandTest: XCTestCase {
     func testEveryKindHasAnExplicitURLPolicy() {
         let refused: Set<CmdKind> = [.subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors,
                                     .listModes, .listExecEnvVars, .listLenses, .listColumns, .debugWindows,
-                                    .debugLensTrace, .doctor, .config, .agent, .place]
+                                    .debugLensTrace, .doctor, .config, .agent, .place, .execAndForget]
         for kind in CmdKind.allCases {
             XCTAssertEqual(urlCommandRefusal(kind: kind, args: nil) != nil, refused.contains(kind), kind.rawValue)
         }
@@ -115,7 +115,7 @@ final class URLCommandTest: XCTestCase {
     func testParsedVariantsRefuseOnlyTheirInputOrOutputForms() throws {
         for words in [["place", "--dry-run", "--window-id", "42"], ["place", "--dry-run", "--json", "--window-id", "42"],
                       ["workspace", "next", "--stdin"], ["move-node-to-workspace", "next", "--stdin"],
-                      ["lens", "--filter", "-"], ["agent", "skill"], ["config", "status"]] {
+                      ["lens", "--filter", "-"], ["agent", "skill"], ["config", "status"], ["reload-config", "--dry-run"]] {
             let command = try XCTUnwrap(parseCommand(words).cmdOrNil, words.description)
             XCTAssertNotNil(urlCommandRefusal(command), words.description)
         }
@@ -127,16 +127,24 @@ final class URLCommandTest: XCTestCase {
     }
 
     func testURLRefusalsAndHelpNeverExecute() async {
+        let previous = mayArrangeWindows
+        mayArrangeWindows = true
+        defer { mayArrangeWindows = previous }
         var runs = 0
         let service = URLCommandService(enabled: { true }, waitForStartup: {}, execute: { arguments in
             await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
                 traceOrigin: .internalNow(), gate: urlCommandRefusal, refuseHelp: true, didRun: { answer in runs += 1; return answer })
         })
-        for input in ["winmux://run/list-windows", "winmux://run/workspace/--stdin", "winmux://run/workspace/--help",
-                      "winmux://run/mode/-h", "winmux://nope/workspace/2", "winmux://run/no-such-command"] {
+        for (input, reason) in [("winmux://run/list-windows/--all", "list-windows is refused in a URL"),
+                                ("winmux://run/workspace/next/--stdin", "workspace is refused in a URL"),
+                                ("winmux://run/reload-config/--dry-run", "reload-config is refused in a URL"),
+                                ("winmux://run/workspace/--help", "help is refused in a URL"),
+                                ("winmux://run/mode/-h", "help is refused in a URL"),
+                                ("winmux://nope/workspace/2", "Expected run host"),
+                                ("winmux://run/no-such-command", "no-such-command")] {
             let result = await service.handle(input)
             XCTAssertNotEqual(result.exitCode, 0, input)
-            XCTAssertFalse(result.stderr.isEmpty, input)
+            XCTAssertTrue(result.stderr.contains(reason), "\(input): \(result.stderr)")
         }
         XCTAssertEqual(runs, 0)
     }
@@ -184,4 +192,40 @@ final class URLCommandTest: XCTestCase {
         XCTAssertTrue(gated)
         XCTAssertEqual(result.stderr, "gate refusal")
     }
+
+    func testTriggerBindingIsRefusedWhenItsBindingRunsWhatAURLMayNot() throws {
+        let (parsed, errors) = parseConfig("""
+        [mode.main.binding]
+        alt-enter = 'exec-and-forget open -a Ghostty'
+        alt-t = 'trigger-binding --mode main alt-2'
+        alt-2 = 'workspace 2'
+        esc-x = ['exec-and-forget true']
+        """)
+        XCTAssertTrue(errors.isEmpty, "\(errors)")
+        config = parsed
+        for chord in ["alt-enter", "alt-t", "esc-x"] {
+            let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", chord]).cmdOrNil, chord)
+            XCTAssertNotNil(urlCommandRefusal(command), chord)
+        }
+        for chord in ["alt-2", "alt-missing"] {
+            let command = try XCTUnwrap(parseCommand(["trigger-binding", "--mode", "main", chord]).cmdOrNil, chord)
+            XCTAssertNil(urlCommandRefusal(command), chord)
+        }
+    }
+
+    func testFirstRunSetupReleasesWaitingURLsWhenItWaitsForThePerson() async throws {
+        let signal = URLStartupSignal()
+        let shown = expectation(description: "setup shown")
+        let file = FileManager.default.temporaryDirectory.appending(path: "url-setup-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: file) }
+        var grants = PermissionGrants(accessibility: false, screenRecording: false)
+        let setup = FirstRunSetup(readGrants: { grants }, stateUrl: file, present: { _ in shown.fulfill() }, startupSignal: signal)
+        let run = Task { await setup.run() }
+        await fulfillment(of: [shown], timeout: 1)
+        await signal.wait()
+        grants = PermissionGrants(accessibility: true, screenRecording: true)
+        setup.go()
+        await run.value
+    }
+
 }

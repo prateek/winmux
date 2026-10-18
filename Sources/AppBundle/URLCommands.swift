@@ -1,8 +1,19 @@
 import AppKit
 import Common
 
-func urlCommandRefusal(_ command: any Command) -> String? {
-    urlCommandRefusal(kind: command.info.kind, args: command.args)
+@MainActor func urlCommandRefusal(_ command: any Command) -> String? {
+    guard let trigger = command as? TriggerBindingCommand else {
+        return urlCommandRefusal(kind: command.info.kind, args: command.args)
+    }
+    // A binding's commands run past the runner's gate, so a URL may trigger only a binding
+    // whose every command a URL could run directly. A missing binding runs and reports itself.
+    for inner in trigger.bindingCommands ?? [] {
+        let refused = inner is TriggerBindingCommand || urlCommandRefusal(kind: inner.info.kind, args: inner.args) != nil
+        if refused {
+            return "trigger-binding \(trigger.args.binding.val) is refused in a URL: its binding runs \(inner.info.kind.rawValue)"
+        }
+    }
+    return nil
 }
 
 @MainActor
@@ -83,16 +94,17 @@ final class URLAppleEventHandler: NSObject {
         self.service = service ?? URLCommandService(enabled: { config.urlScheme }, waitForStartup: { await urlStartupSignal.wait() }, execute: { arguments in
             let now = LensTimebase.now()
             return await executeExternalCommand(arguments, stdin: "", windowId: nil, workspace: nil,
-                traceOrigin: LensTraceOrigin(start: now, received: now, source: "URL"), gate: urlCommandRefusal, refuseHelp: true)
+                traceOrigin: LensTraceOrigin(start: now, received: now, source: "URL"), event: { .url($0) }, gate: urlCommandRefusal, refuseHelp: true)
         })
         super.init()
     }
 
     private lazy var queue = URLCommandQueue { [self] text in
         let result = await service.handle(text)
-        urlLog.info("URL \(text, privacy: .public) finished with exit \(result.exitCode): \(result.stdout, privacy: .public)")
-        if result.exitCode != 0 {
-            urlLog.error("URL \(text, privacy: .public) refused or failed: \(result.stderr, privacy: .public)")
+        if result.exitCode == 0 {
+            urlLog.info("URL \(text, privacy: .public) finished with exit 0: \(result.stdout, privacy: .public)")
+        } else {
+            urlLog.error("URL \(text, privacy: .public) refused or failed with exit \(result.exitCode): \(result.stderr, privacy: .public)")
         }
     }
 

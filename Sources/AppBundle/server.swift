@@ -37,7 +37,8 @@ private let serverVersionAndHash = "\(winMuxAppVersion) \(gitHash)"
 @MainActor
 func executeExternalCommand(
     _ arguments: [String], stdin: String, windowId: UInt32?, workspace: String?,
-    traceOrigin: LensTraceOrigin, gate: ((any Command) -> String?)? = nil, refuseHelp: Bool = false,
+    traceOrigin: LensTraceOrigin, event: (any CmdArgs) -> RefreshSessionEvent = { .socketServer($0) },
+    gate: (@MainActor (any Command) -> String?)? = nil, refuseHelp: Bool = false,
     setup: FirstRunSetup = .shared,
     didRun: ((ServerAnswer) -> ServerAnswer)? = nil
 ) async -> ServerAnswer {
@@ -62,8 +63,7 @@ func executeExternalCommand(
     }
     if command.isExec { return answer(1, stderr: "exec-and-forget is prohibited in CLI") }
     do {
-        let event: RefreshSessionEvent = traceOrigin.source == "URL" ? .url(command.args) : .socketServer(command.args)
-        let result = try await runLightSession(event, token,
+        let result = try await runLightSession(event(command.args), token,
                                   shouldSchedulePostRefresh: !command.canSkipPostCommandRefresh) {
             let env = CmdEnv(windowId: windowId, workspaceName: workspace)
             let result = try await $lensTraceOrigin.withValue(traceOrigin) { try await command.run(env, CmdStdin(stdin)) }
