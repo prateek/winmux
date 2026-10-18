@@ -86,6 +86,32 @@ swiftc "$HOME/first-run/ui.swift" -o "$HOME/demo/ui"
 "$HOME/demo/frames" > "$HOME/takes/first-run/before.frames.json"
 ```
 
+Set the bundle's directories in the GUI session's launchd domain first, once
+per guest. A `launchctl setenv` run straight from `vm ssh` lands in the ssh
+session's domain, which `open` and macOS's Quit & Reopen never read, so the
+bundle silently loads the default config. A job bootstrapped into
+`gui/$(id -u)` runs the same commands in the right domain:
+
+```sh
+job="$HOME/demo/setup-environment.plist"
+set_env='launchctl setenv XDG_CONFIG_HOME "$HOME/demo/setup-config"; launchctl setenv XDG_STATE_HOME "$HOME/demo/setup-state"; launchctl setenv WINMUX_NICKEL_HELPER "$HOME/winmux/nickel-helper/target/release/winmux-nickel"'
+plutil -create xml1 "$job"
+plutil -insert Label -string local.winmux.setup-environment "$job"
+plutil -insert ProgramArguments -array "$job"
+plutil -insert ProgramArguments.0 -string /bin/bash "$job"
+plutil -insert ProgramArguments.1 -string -c "$job"
+plutil -insert ProgramArguments.2 -string "$set_env" "$job"
+plutil -insert RunAtLoad -bool true "$job"
+launchctl bootstrap "gui/$(id -u)" "$job"
+sleep 1
+launchctl print "gui/$(id -u)" | grep -A6 'environment ='
+```
+
+The last line should list the three variables. When the takes are done, run
+`launchctl bootout "gui/$(id -u)/local.winmux.setup-environment"` and the same
+job with `launchctl unsetenv` for each of the three, so a later `open` in the
+guest gets the default directories. Not `open --env`: Quit & Reopen drops it.
+
 Start the recorder before opening the bundle. Run this as a background host
 tool call and drive the UI through other `vm ssh` calls while it records:
 
@@ -93,17 +119,9 @@ tool call and drive the UI through other `vm ssh` calls while it records:
 app="$HOME/demo/WinMux Setup.app"
 screencapture -x -v -V 300 "$HOME/takes/first-run/setup.mov" &
 recorder=$!
-launchctl setenv XDG_CONFIG_HOME "$HOME/demo/setup-config"
-launchctl setenv XDG_STATE_HOME "$HOME/demo/setup-state"
-launchctl setenv WINMUX_NICKEL_HELPER "$HOME/winmux/nickel-helper/target/release/winmux-nickel"
 open "$app"
 wait "$recorder"
 ```
-
-`launchctl setenv`, not `open --env`: macOS's Quit & Reopen starts the new
-process with launchd's environment, and only `launchctl setenv` reaches it.
-Undo it when the takes are done, with `launchctl unsetenv` for each of the
-three, so a later `open` in the guest gets the default directories.
 
 Stage the standing desk first with `desk/stage-desk.sh`. The wrapper copies the
 debug executable and Sparkle framework, declares the debug bundle identifier and
@@ -130,7 +148,7 @@ running may `open -a` bring its existing setup window forward. Close Settings
 before Start so it does not become part of the tiled desk.
 
 The pending marker and decline live only in `setup-debug.json` (the debug build's name for `setup.json`), which the reopened
-process reads from the `launchctl setenv` state directory. Deleting that file
+process reads from the state directory the GUI-domain job set. Deleting that file
 starts a second take from scratch.
 Film **Continue without Screen Recording** as a separate supported path: it
 leads to the same go step and remembers the choice on later launches.

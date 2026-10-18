@@ -56,7 +56,7 @@ reads a Screen Recording grant the parent cannot yet use. Both WinMux's relaunch
 and macOS's Quit & Reopen return at go, since the pending marker is in the
 state file the reopened process reads. macOS's reopen drops launch options and
 an `open --env` environment, so a take with its own XDG directories sets them
-with `launchctl setenv`. The sidebar also waits for Start. Host and pinned-version guest checks cover these paths.
+with `launchctl setenv` in the GUI session's launchd domain. The sidebar also waits for Start. Host and pinned-version guest checks cover these paths.
 
 - [ ] Installed, downloaded/quarantined build and Gatekeeper first launch.
 - [ ] Second display and real sleep, wake or unlock.
