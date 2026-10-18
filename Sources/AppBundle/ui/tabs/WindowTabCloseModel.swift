@@ -17,7 +17,7 @@ struct WindowTabClosePointer {
 }
 
 /// How long a background close keeps focus where it was, for a window the app closes after the tab's wait.
-let windowTabBackgroundCloseLifetime: TimeInterval = 5
+let windowTabBackgroundCloseLifetime: Duration = .seconds(5)
 
 /// The tab under the pointer, in the strip view's coordinate space; none while a drag is in progress.
 func windowTabHover(pointer: CGPoint?, frames: [UInt32: CGRect], viewport: CGRect, dragging: Bool) -> UInt32? {
@@ -31,12 +31,14 @@ final class WindowTabCloseModel: ObservableObject {
 
     @Published private(set) var closingWindowIds: Set<UInt32> = []
     @Published private(set) var widthHolds: [ObjectIdentifier: WindowTabWidthHold] = [:]
-    /// Background closes by window id, with the system uptime of the click.
-    private(set) var backgroundCloses: [UInt32: TimeInterval] = [:]
+    /// The tab under the pointer, per strip; kept here so hiding a strip can clear it.
+    @Published private(set) var hoveredTabIds: [ObjectIdentifier: UInt32] = [:]
+    /// Background closes by window id, with the time of the click on a clock that counts sleep.
+    private(set) var backgroundCloses: [UInt32: ContinuousClock.Instant] = [:]
 
-    func begin(_ windowId: UInt32, pointer: WindowTabClosePointer?, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+    func begin(_ windowId: UInt32, pointer: WindowTabClosePointer?, now: ContinuousClock.Instant = .now) -> Bool {
         guard closingWindowIds.insert(windowId).inserted else { return false }
-        backgroundCloses = backgroundCloses.filter { now - $0.value < windowTabBackgroundCloseLifetime }
+        backgroundCloses = backgroundCloses.filter { $0.value.duration(to: now) < windowTabBackgroundCloseLifetime }
         if focus.windowOrNil?.windowId == windowId {
             backgroundCloses.removeValue(forKey: windowId)
         } else {
@@ -60,10 +62,10 @@ final class WindowTabCloseModel: ObservableObject {
     func shouldPreserveFocusOnCollection(
         _ windowId: UInt32,
         focusedWindowId: UInt32?,
-        now: TimeInterval = ProcessInfo.processInfo.systemUptime,
+        now: ContinuousClock.Instant = .now,
     ) -> Bool {
         guard let closedAt = backgroundCloses.removeValue(forKey: windowId) else { return false }
-        return now - closedAt < windowTabBackgroundCloseLifetime && focusedWindowId != windowId
+        return closedAt.duration(to: now) < windowTabBackgroundCloseLifetime && focusedWindowId != windowId
     }
 
     func forgetBackgroundClose(_ windowId: UInt32) {
@@ -72,6 +74,12 @@ final class WindowTabCloseModel: ObservableObject {
 
     func pointerLeftStrip(_ id: ObjectIdentifier) {
         widthHolds.removeValue(forKey: id)
+        setHoveredTab(nil, stripId: id)
+    }
+
+    func setHoveredTab(_ windowId: UInt32?, stripId: ObjectIdentifier) {
+        guard hoveredTabIds[stripId] != windowId else { return }
+        hoveredTabIds[stripId] = windowId
     }
 
     func reconcileStrip(_ id: ObjectIdentifier, width: CGFloat, tabCount: Int) {

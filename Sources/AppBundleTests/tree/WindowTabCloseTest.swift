@@ -1,5 +1,6 @@
 @testable import AppBundle
 import AppKit
+import Combine
 import XCTest
 
 @MainActor
@@ -275,11 +276,11 @@ final class WindowTabCloseTest: XCTestCase {
         XCTAssertNil(windowTabHover(pointer: nil, frames: frames([1, 3]), viewport: viewport, dragging: false))
     }
 
-    func testBackgroundCloseRecordExpiresOnTheUptimeClock() async throws {
+    func testBackgroundCloseRecordExpiresOnAClockThatCountsSleep() async throws {
         _ = group()
         let model = WindowTabCloseModel.shared
-        let uptime = ProcessInfo.processInfo.systemUptime
-        XCTAssertTrue(model.begin(2, pointer: nil, now: uptime - windowTabBackgroundCloseLifetime - 1))
+        let expired = ContinuousClock.now - windowTabBackgroundCloseLifetime - .seconds(1)
+        XCTAssertTrue(model.begin(2, pointer: nil, now: expired))
         model.finish(2)
         XCTAssertFalse(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
         XCTAssertNil(model.backgroundCloses[2])
@@ -287,7 +288,7 @@ final class WindowTabCloseTest: XCTestCase {
         model.finish(2)
         XCTAssertTrue(model.shouldPreserveFocusOnCollection(2, focusedWindowId: 1))
         // An expired record is pruned by the next close rather than kept until its window goes.
-        XCTAssertTrue(model.begin(3, pointer: nil, now: uptime - windowTabBackgroundCloseLifetime - 1))
+        XCTAssertTrue(model.begin(3, pointer: nil, now: expired))
         model.finish(3)
         XCTAssertTrue(model.begin(4, pointer: nil))
         model.finish(4)
@@ -296,13 +297,39 @@ final class WindowTabCloseTest: XCTestCase {
 
     func testARefusedPressKeepsItsBackgroundRecordBecauseAnAxTimeoutIsAlsoARefusal() async throws {
         let (_, windows) = group()
-        windows[2].closeResult = .notClosed(.appRefused)
-        try await closeWindowFromTabStrip(3, fallbackWorkspace: "tabs")?.value
-        XCTAssertNotNil(WindowTabCloseModel.shared.backgroundCloses[3])
-        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+        // Primed as testBackgroundTabCloseDoesNotSwitchToTheActiveTabsPreviousFocus, where collecting a
+        // background window without the record would move focus to the previous one.
+        _ = windows[3].focusWindow()
+        windows[3].nativeFocus()
+        refreshModel()
+        _ = windows[4].focusWindow()
+        windows[4].nativeFocus()
+        refreshModel()
+        windows[1].closeResult = .notClosed(.appRefused)
+        try await closeWindowFromTabStrip(2, fallbackWorkspace: "tabs")?.value
+        XCTAssertNotNil(WindowTabCloseModel.shared.backgroundCloses[2])
+        XCTAssertEqual(focus.windowOrNil?.windowId, 5)
         // The app closes it later after all: focus stays where it was.
-        windows[2].unbindAndFocusAfterClosure()
-        XCTAssertEqual(focus.windowOrNil?.windowId, 1)
+        windows[1].unbindAndFocusAfterClosure()
+        XCTAssertEqual(focus.windowOrNil?.windowId, 5)
+    }
+
+    func testHidingAStripClearsItsHoverAndAnUnchangedHoverPublishesNothing() {
+        let (group, _) = group()
+        let id = ObjectIdentifier(group)
+        let model = WindowTabCloseModel.shared
+        var publishes = 0
+        let watch = model.objectWillChange.sink { publishes += 1 }
+        model.setHoveredTab(3, stripId: id)
+        model.setHoveredTab(3, stripId: id)
+        XCTAssertEqual(publishes, 1)
+        XCTAssertEqual(model.hoveredTabIds[id], 3)
+        let panel = WindowTabStripPanelController.shared.stripPanel(for: id)
+        panel.hostingView.strip = WindowTabStripViewModel(id: id, workspaceName: "tabs", frame: .zero,
+            groupFrame: .zero, activeWindowId: 1, activeWindowCornerRadius: 16, tabs: [], occludingFloatingWindowFrames: [])
+        WindowTabStripPanelController.shared.removeStaleStripPanels(activeIds: [])
+        XCTAssertNil(model.hoveredTabIds[id])
+        watch.cancel()
     }
 
     func testWidthHoldToleratesSubPointWidthDifferences() {
