@@ -65,6 +65,8 @@ Closing a window leaves a gap rather than shifting its neighbours. `focus left` 
 
 `move left` and `move right` move the focused window across a Column boundary. An empty neighbour takes it alone; an occupied neighbour takes it into a tab group. Movement within a split keeps the ordinary tree behavior. Swapping Columns exchanges their positions; swapping within a Column keeps its position.
 
+Dragging a tiling window onto another Column previews its resolved placement. Without a `place` hook, the drop fills the pointed Column or joins its tab group when occupied. With a hook, the pointed Column supplies the `'focused` target and nearest-empty anchor; the hook's `column` answer outranks the pointer. The overlay outlines an empty Column or the whole occupied Column for `'tab-group`, its lower half for `'split`, or the rightmost extra Column for `'squeeze`. A resolved `'float` placement hides the Column overlay and floats the window where it is released. While the hook is pending, the preview shows the pointed Column with tab-group Overflow. Drags within the source Column and tab-strip and sidebar drops retain their existing behavior.
+
 At workspace edges, the default move stops. `--boundaries-action fail` returns failure for command fall-through; `create-implicit-container` stops because Columns keep the root horizontal. `--boundaries all-monitors-outer-frame` can move to the next monitor. The same boundary actions apply at a Column's top and bottom.
 
 ## Widths
