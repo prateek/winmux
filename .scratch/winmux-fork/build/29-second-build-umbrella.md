@@ -59,6 +59,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
   - #48 Tabs. The Tile draws an entry, not a window, so that a Tab can be an entry later.
   - #49 Trackpad gestures as Triggers
   - #51 Proactive registration of Accessory apps
+- **A window row above the system switcher**, drafted from the prototype of a row of windows above the system's Cmd-Tab, waits on his answer to whether entering the row closes the system's switcher, and whether to build it at all.
 - **The checks #1 left for him**: installed and release builds, real wake and unlock, two displays. #14 stays open with #1 until he has made them. They are lines in #85, with the second build's.
 
 ## Later, with no issue yet
