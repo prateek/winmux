@@ -154,8 +154,8 @@ func workspaceSidebarOfferedZones(source: TreeNode, target: Window) -> [WindowDr
     // Swapping with a floating source would float the pointed window.
     let swap: [WindowDropZone] = source.parent is TilingContainer ? [.middle] : []
     if parent.layout == .tabGroup { return windowSource != nil ? tab + swap : [] }
-    // A split that is itself a tab cannot hold a split of its group's orientation once normalized, so its windows take
-    // only a swap, like tabs, and stay out of nested containers in tab groups.
+    // A split that is itself a tab is a nested container in a tab group: its windows take only a swap, and nothing that
+    // reshapes the tab. Splitting there can flatten the pointed window into the tab group and turn the new split.
     if (parent.parent as? TilingContainer)?.layout == .tabGroup { return windowSource != nil ? swap : [] }
     return tab + [.left, .right, .top, .bottom] + swap
 }
@@ -169,8 +169,11 @@ private func workspaceSidebarSplit(source: TreeNode, target: Window, position: W
     // one child is flattened into its parent, and a split chosen before that would be turned by normalization to run
     // across its new parent, against the zone.
     sourceWorkspace?.normalizeContainers()
-    // Normalization keeps a tiled window tiled.
-    let parent = (target.parent as? TilingContainer).orDie()
+    guard let parent = target.parent as? TilingContainer else {
+        // Normalization keeps a tiled window tiled; should it not, the source still lands in the tiling tree.
+        (target.nodeWorkspace ?? sourceWorkspace).map { source.bind(to: $0.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST) }
+        return false
+    }
     let binding = target.unbindFromParent()
     let matching = parent.layout == .tiles && parent.orientation == position.orientation &&
         !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)

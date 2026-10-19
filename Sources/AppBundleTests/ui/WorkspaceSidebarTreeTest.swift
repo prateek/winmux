@@ -1143,4 +1143,35 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         try await checkDrop(source, .windowZone(602, zone: .middle), accepted: false)
         XCTAssertEqual(source.lastFloatingSize, CGSize(width: 100, height: 100), "A zone the source is not offered is refused before the AX read")
     }
+
+    @MainActor
+    func testSplitMidDropNormalizationKeepsColumnSlotsAndIgnoresAnotherWorkspace() async throws {
+        for crossWorkspace in [false, true] {
+            setUpWorkspacesForTests()
+            config.enableNormalizationFlattenContainers = true
+            config.enableNormalizationOppositeOrientationForNestedContainers = true
+            let workspace = Workspace.get(byName: "1")
+            workspace.columns = ColumnState(count: 3, widths: [0.28, 0.44, 0.28])
+            let root = workspace.rootTilingContainer
+            let first = TestWindow.new(id: 600, parent: root)
+            first.columnSlot = 1
+            let column = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+            column.columnSlot = 2
+            let other = Workspace.get(byName: "2").rootTilingContainer
+            let source = TestWindow.new(id: 601, parent: crossWorkspace ? other : column)
+            let target = TestWindow.new(id: 602, parent: column)
+            if crossWorkspace { _ = TestWindow.new(id: 603, parent: column) }
+            workspace.normalizeContainers()
+            try await checkDrop(source, .windowZone(602, zone: .left))
+            workspace.normalizeContainers()
+            let pair = try XCTUnwrap(target.parent as? TilingContainer)
+            XCTAssertTrue(source.parent === pair)
+            XCTAssertEqual(pair.orientation, .h)
+            XCTAssertEqual(pair.children.compactMap { ($0 as? Window)?.windowId }, [601, 602])
+            let slotNode: TreeNode = crossWorkspace ? column : pair
+            XCTAssertEqual(slotNode.columnSlot, 2, "The Column keeps one item in slot 2")
+            XCTAssertEqual(root.children.compactMap(\.columnSlot).sorted(), [1, 2])
+            XCTAssertEqual(workspace.columns?.widths, [0.28, 0.44, 0.28])
+        }
+    }
 }
