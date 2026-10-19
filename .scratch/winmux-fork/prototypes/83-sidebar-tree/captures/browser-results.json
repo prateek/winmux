@@ -88,6 +88,151 @@
       {
         "name": "refused drop leaves fixture byte-for-byte intact",
         "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: window upper/lower half 0 uses hidden real split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: window upper/lower half 1 uses hidden real split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: same-parent before/after adjusts source removal",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab index 0",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab index 1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: direct Column child sibling 0 forms vertical split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: direct Column child sibling 1 forms vertical split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab group onto window stays one sibling",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: same workspace row accepted",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto ws-2",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto col-2-1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto root-1-1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto w214",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto w237",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto ws-1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating remains floating on floating window",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating group accepts and floats tiled source",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: sole workspace window still gets a pointed sibling after cleanup",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab group floats as leaf windows on floating target",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation tabgroup-231 → tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation tabgroup-231 → w237",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation col-2-1 → ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation ws-1 → ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule ws-2",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule col-2-1",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule root-1-1",
+        "pass": true
       }
     ]
   },

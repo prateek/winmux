@@ -10,15 +10,19 @@
 #work{scroll-margin-top:80px}#status{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:7px;z-index:15;max-width:92vw}
 .insert.over{background:transparent;height:7px}.insert.over::after{content:"";position:absolute;top:2px;left:0;right:0;height:3px;background:var(--accent)}
 </style>
+<style>#stage-P .row{user-select:none}</style>
+<style>.pick-layout{display:grid;grid-template-columns:minmax(600px,1fr) 480px;gap:24px}#pick .refs{grid-template-columns:1fr 1fr;gap:12px}#pick .refs select{width:100%;margin:8px 0}#pick .refs img{max-height:700px;object-fit:contain;object-position:top}#pick{scroll-margin-top:80px}@media(max-width:1150px){.pick-layout{grid-template-columns:1fr}#pick .refs{max-width:680px}}</style>
+<style>#stage-P{height:850px}#stage-P .mini{width:55%;top:100px;bottom:auto}#stage-P .rail{background:#22252b}#stage-P .rail-ws{min-height:36px;justify-content:center;margin:4px;border:1px solid #ffffff0a;border-radius:10px;padding:3px}#stage-P .rail-ws b{font-size:18px;font-variant-numeric:tabular-nums;color:#ffffffb3;font-weight:600}#stage-P .rail-ws.here{background:#ffffff3d;border-color:#ffffff4d}#stage-P .rail-ws.here b{color:white;font-weight:700}.level-toggle{padding:0;width:17px;height:18px;font-size:12px;flex:none}.mark.hover-column{outline:2px solid var(--accent);outline-offset:2px}.row.before::before,.row.after::after{content:"";position:absolute;left:0;right:0;height:2px;background:var(--accent);z-index:5}.row.before::before{top:0}.row.after::after{bottom:0}</style>
 <main>
-<header class="read"><div class="eyebrow">WinMux · layout study · 83</div><h1>The sidebar as a tree</h1><p class="lede">Four workspaces. Fourteen windows. Three ways to see the same layout before you touch it.</p><p>Compare the Column level, Column marks and a quieter flat tree. Each rail stays visible beside its expanded tree. Unpin a tree to try hover; drag a window or a group to change the shared desk.</p></header>
-<div class="controls"><label for="search">Search the desk</label><input id="search" type="search" placeholder="App or window title" autocomplete="off"><output id="count" aria-live="polite"></output><button id="reset">Reset desk</button><button id="all">Unpin all</button><label>Theme <select id="theme"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Expanded <input id="width" type="range" min="180" max="620" value="360" step="1" aria-label="Expanded width"></label><output id="width-label">360 pt</output></div>
-<section><div id="cards" class="cards"></div><div id="status" role="status" aria-live="polite">Drag a window to a workspace, Column, tab group or split. Drop between split children to insert.</div></section>
+<header class="read"><div class="eyebrow">WinMux · layout study · 83</div><h1>The sidebar as a tree</h1><p class="lede">The pick: workspace numbers, a shallow tree and proportional Column marks.</p><p>Hover the rail, pin it to read, or reveal split and Column levels on one workspace. Drag a window or tab group onto any row. The three original variants remain below for comparison.</p></header>
+<div class="controls"><label for="search">Search the desk</label><input id="search" type="search" placeholder="App or window title" autocomplete="off"><output id="count" aria-live="polite"></output><button id="reset">Reset desk</button><button id="all">Unpin all</button><label>Theme <select id="theme"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label><label>Pick width <input id="width" type="range" min="180" max="620" value="320" step="1" aria-label="Expanded width"></label><output id="width-label">320 pt</output></div>
+<section id="pick"><h2>The pick</h2><p>Prateek’s choice · 2026-10-18: numbers in the rail, a shallow tree with proportional Column marks, optional split and Column levels. Drop on a window to become its sibling.</p><div class="work-head"><code>sidebar.tree.splits = <input type="checkbox" id="default-splits" aria-label="Default split levels"></code><code>sidebar.tree.columns = <input type="checkbox" id="default-columns" aria-label="Default Column levels"></code><span class="hint">Proposed Nickel names; saved in this browser. Changing a default clears that toggle’s workspace overrides.</span><button id="pick-pin" aria-pressed="false">Hover</button></div><div class="pick-layout"><div id="stage-P" class="stage"></div><aside><h3>Live browser trees</h3><p class="hint">Choose expanded, collapsed or search. Click an image to read it full size.</p><div id="references" class="refs"></div></aside></div><p id="pick-metric" class="metric"></p></section>
+<section><h2>The variants he chose from</h2><div id="cards" class="cards"></div><div id="status" role="status" aria-live="polite">Drag a window to any row in the pick.</div></section>
 <section id="work"><div class="work-head"><h2>Try it at desk scale</h2><label>Variant <select id="variant"><option value="A">A · Columns as a level</option><option value="B" selected>B · Columns as marks</option><option value="C">C · Flat tree with layout glyphs</option></select></label><button id="work-pin" aria-pressed="true">Pinned</button><button id="download">Save changed desk.json</button></div><div id="working" class="stage"></div><p class="hint">The miniature follows the focused workspace. Click a window or a workspace to focus it. Search temporarily reveals matching paths, then restores every disclosure choice. Reset restores the captured fixture.</p></section>
 <section><div class="read"><h2>What fits?</h2><p>Measured in this browser at the sidebar’s 12.5-point system font, 14-point icons and 24-point rows. Tree indentation is 18 points. Widths include the 44-point rail. Today’s default is <b>240 points</b>; the rich desk config uses <b>280</b>. Drag the width slider to see clipping.</p></div><div class="tablebox"><table><thead><tr><th>Variant</th><th>Depth → full title width</th><th>First clipping below</th><th>Full tree height</th></tr></thead><tbody id="widths"></tbody></table></div><p class="hint">Numbers describe this desk, not a maximum title length. Group labels and B’s Column tags count too. A tall tree scrolls inside the sidebar.</p></section>
 <section><div class="read"><h2>Today: groups, but no split boundaries</h2><p>The native sidebar already groups two or more tabs, with their children beneath. A split becomes a list of windows; Columns are absent. These are live captures of the fixture’s desk, before Firefox opened.</p></div><div class="refs today" id="today"></div></section>
-<section><div class="read"><h2>What the browser trees teach us</h2><p>Tree Style Tab makes ancestry readable through indentation and disclosure arrows. Sidebery adds panels and groups. These references sit outside the prototype; no extension code or assets implement the WinMux tree.</p><p class="notice">Published project screenshots, not live extension captures. Firefox’s install permission prompts were cancelled under this pass’s no-grants rule. The desk-shaped extension tree and extension search remain unchecked.</p></div><div id="references" class="refs"></div></section>
-<section class="read"><h2>A recommendation to try</h2><p><b>B, Columns as marks.</b> Width-proportional marks retain the layout’s Column boundaries without adding five rows to this desk. Its rail answers which app is waiting in each workspace. A is the clearest model for learning Columns; C is the quietest, but its boundaries are easier to miss.</p><p>Tab groups use a tab glyph and a bracketed child rail. Splits use an orientation glyph and ordinary indentation. Floating windows have a separate group. The <a href="README.md">README</a> gives the drag operation table, evidence and the feature draft that waits on a choice.</p></section>
+<section class="read"><h2>What the browser trees teach us</h2><p>The live guest captures beside the pick show ancestry, folding and filtering. Tree Style Tab’s search uses the TST Tab Search helper; Sidebery’s filter is built in. The <a href="README.md">README</a> records licences and the guest-only profile. No extension code implements WinMux.</p></section>
+<section class="read"><h2>His choice, recorded</h2><p>On 2026-10-18 Prateek picked a numbers-only rail and a flat tree with proportional Column marks. Split and Column levels are independent workspace toggles. A window-row drop inserts a sibling in its actual parent, even while that parent is hidden.</p><p>The <a href="README.md">README</a> gives the operation table, measured widths and the feature draft for this pick. This page ships no native behavior.</p></section>
 <section><h2>Drag-rule checks</h2><p class="hint">Open this file with <code>?selftest</code> to apply every drag rule to a fresh copy of the captured fixture.</p><div id="tests">Not run. <a href="?selftest">Run the fixture checks</a></div></section>
 </main><dialog id="zoom"><img alt="Enlarged reference capture"></dialog>
 <script type="application/json" id="fixture">{"schema":1,"sourceCommit":"1fbbdc72","display":{"width":1920,"height":1080},"workspaces":[{"id":"ws-1","kind":"workspace","name":"1","focused":true,"columns":false,"rememberedFocus":"w204","focusedColumn":1,"children":[{"id":"root-1","kind":"split","layout":"tiles","orientation":"horizontal","children":[{"id":"w204","kind":"window","app":"Zed","title":"winmux.ncl — winmux.ncl","focused":true,"floating":false,"frame":{"height":1025,"width":919,"x":62,"y":42},"size":0.5},{"id":"root-1-1","kind":"split","layout":"tiles","orientation":"vertical","size":0.5,"children":[{"id":"w214","kind":"window","app":"Ghostty","title":"desk","focused":false,"floating":false,"frame":{"height":509,"width":919,"x":989,"y":42},"size":0.5},{"id":"w222","kind":"window","app":"Ghostty","title":"desk","focused":false,"floating":false,"frame":{"height":509,"width":919,"x":989,"y":559},"size":0.5}]}]},{"id":"float-1","kind":"floating","children":[{"id":"w287","kind":"window","app":"Updater","title":"A dialog that is not yours","focused":false,"floating":true,"frame":{"height":202,"width":440,"x":420,"y":150}}]}]},{"id":"ws-2","kind":"workspace","name":"2","focused":false,"columns":true,"rememberedFocus":"w239","focusedColumn":1,"children":[{"id":"col-2-1","kind":"column","index":1,"width":0.28,"children":[{"id":"w239","kind":"window","app":"Notes","title":"Notes – No notes","focused":false,"floating":false,"frame":{"height":1025,"width":709,"x":1919,"y":1048},"size":0.27999999999999997}]},{"id":"col-2-2","kind":"column","index":2,"width":0.44,"children":[{"id":"tabgroup-231","kind":"tabs","layout":"tab-group","orientation":"vertical","active":"w238","size":0.44,"children":[{"id":"w231","kind":"window","app":"Safari","title":"Lenses and Search","focused":false,"floating":false,"frame":{"height":1025,"width":804,"x":1919,"y":1028}},{"id":"w237","kind":"window","app":"Safari","title":"Fixed Columns","focused":false,"floating":false,"frame":{"height":986,"width":798,"x":1919,"y":1028}},{"id":"w238","kind":"window","app":"Safari","title":"Subscription events","focused":false,"floating":false,"frame":{"height":986,"width":798,"x":1919,"y":1028}}]}]},{"id":"col-2-3","kind":"column","index":3,"width":0.28,"children":[{"id":"w249","kind":"window","app":"TextEdit","title":"Things I will get to.rtf","focused":false,"floating":false,"frame":{"height":1025,"width":513,"x":1919,"y":1048},"size":0.27999999999999997}]}]},{"id":"ws-3","kind":"workspace","name":"3","focused":false,"columns":true,"rememberedFocus":"w250","focusedColumn":1,"children":[{"id":"col-3-1","kind":"column","index":1,"width":0.6666666666666666,"children":[{"id":"tabgroup-250","kind":"tabs","layout":"tab-group","orientation":"vertical","active":"w250","size":0.6666666666666666,"children":[{"id":"w250","kind":"window","app":"TextEdit","title":"Grievances.rtf","focused":false,"floating":false,"frame":{"height":986,"width":1221,"x":1919,"y":1048}},{"id":"w251","kind":"window","app":"TextEdit","title":"Soft language.rtf","focused":false,"floating":false,"frame":{"height":986,"width":1221,"x":1919,"y":1048}}]}]},{"id":"col-3-2","kind":"column","index":2,"width":0.3333333333333333,"children":[{"id":"w256","kind":"window","app":"Finder","title":"desk","focused":false,"floating":false,"frame":{"height":1025,"width":611,"x":1919,"y":1028},"size":0.3333333333333333}]}]},{"id":"ws-4","kind":"workspace","name":"4","focused":false,"columns":false,"rememberedFocus":"w265","focusedColumn":1,"children":[{"id":"root-4","kind":"split","layout":"tiles","orientation":"horizontal","children":[{"id":"w265","kind":"window","app":"Preview","title":"wallpaper.jpg","focused":false,"floating":false,"frame":{"height":1025,"width":1846,"x":1919,"y":1028},"size":1}]},{"id":"float-4","kind":"floating","children":[{"id":"w266","kind":"window","app":"Calculator","title":"Calculator","focused":false,"floating":true,"frame":{"height":408,"width":230,"x":1919,"y":1028}}]}]}]}</script>
@@ -26,9 +30,12 @@
 'use strict';
 const fixture = JSON.parse(document.getElementById('fixture').textContent);
 const copy = value => JSON.parse(JSON.stringify(value));
-let desk = copy(fixture), query = '', selected = 'B', expandedWidth = 360, serial = 0, dragId = null;
+let desk = copy(fixture), query = '', selected = 'B', expandedWidth = 360, pickWidth=320, serial = 0, dragId = null;
 const variants = {A:{name:'Columns as a level',note:'Workspace → Column → layout → window. Numbers and Column occupancy in the rail.'},B:{name:'Columns as marks',note:'Width-proportional marks above a shallower tree. A focused app icon in each rail cell.'},C:{name:'Flat tree with layout glyphs',note:'Thin Column dividers, no extra level. Stacked window icons; a tab group counts as one.'}};
-const states = Object.fromEntries(['A','B','C','work'].map(key => [key,{pinned:true,expanded:true,closed:new Set(),timer:0}]));
+const states = Object.fromEntries(['A','B','C','work','P'].map(key => [key,{pinned:key!=='P',expanded:key!=='P',closed:new Set(),timer:0}]));
+let defaults={splits:false,columns:false};try{defaults={...defaults,...JSON.parse(localStorage.getItem('sidebar-tree-defaults')||'{}')};}catch{}
+const overrides={};
+const levels=ws=>({...defaults,...overrides[ws.id]});
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const children = n => n.children || [];
@@ -41,13 +48,24 @@ function relevant(n){return !query||leaves(n).some(match);}
 function label(n){return n.kind==='workspace'?'Workspace '+n.name:n.kind==='column'?'Column '+n.index:n.kind==='tabs'?'Tabs · '+children(n).length:n.kind==='split'?(n.orientation==='horizontal'?'Horizontal':'Vertical')+' '+n.layout:n.kind==='floating'?'Floating':n.title;}
 function icon(w){return '<img src="img/icon-'+esc(w.app.toLowerCase())+'.png" alt="'+esc(w.app)+'">';}
 function representative(n){if(n.kind==='window')return n;return leaves(n).find(w=>w.focused)||leaves(n).find(w=>w.id===(n.rememberedFocus||n.active))||leaves(n)[0];}
-function operation(sourceId,targetId,at=null,data=desk){
+function operation(sourceId,targetId,at=null,data=desk,pick=false){
  const map=index(data),s=map.get(sourceId),t=map.get(targetId);
  const refuse=reason=>({ok:false,reason});
  if(!s||!t)return refuse('That node is absent. Columns exist only where Columns are on.');
  const a=s.node,b=t.node;
  if(!['window','tabs','split'].includes(a.kind))return refuse(a.kind==='column'?'Columns are fixed by config.':'Workspaces and floating sections are fixed.');
  if(has(a,b.id))return refuse('A node cannot be dropped onto itself or its descendant.');
+ if(pick){
+  if(b.kind==='window')return {ok:true,op:'bind at sibling index',target:t.parent.id,at:t.parent.children.indexOf(b)+(at===1?1:0),sibling:b.id,wrap:t.parent.kind==='column',floating:t.parent.kind==='floating',directFloating:true};
+  if(b.kind==='floating')return {ok:true,op:'layout floating; bind',target:b.id,floating:true,directFloating:true};
+  if(b.kind==='workspace'){
+   if(b.columns){const cols=b.children.filter(n=>n.kind==='column'),anchor=b.focusedColumn||1;const empty=cols.filter(c=>!leaves(c).length).sort((a,b)=>Math.abs(a.index-anchor)-Math.abs(b.index-anchor)||a.index-b.index);return {ok:true,op:'move-node-to-workspace',target:(empty[0]||cols.find(c=>c.index===anchor)||cols[0]).id,column:true};}
+   return {ok:true,op:'move-node-to-workspace',target:b.id};
+  }
+  if(b.kind==='column')return {ok:true,op:'move-node-to-column',target:b.id,column:true};
+  if(b.kind==='tabs')return {ok:true,op:'join (tab-group binding)',target:b.id};
+  if(b.kind==='split')return {ok:true,op:'bind at sibling index',target:b.id,at:at??children(b).length};
+ }
  if(b.kind==='window')return refuse('A window has no children. Use an insertion line in its split.');
  if(b.kind==='floating')return refuse('Use layout floating first; this group is not a tiling parent.');
  if(at!==null&&(b.kind!=='split'||!Number.isInteger(at)||at<0||at>children(b).length))return refuse('Insertion needs a valid split index.');
@@ -69,18 +87,23 @@ function tidy(data){
  function clean(n){if(n.kind==='window')return n;n.children=n.children.map(clean).filter(Boolean);if(['tabs','split'].includes(n.kind)&&!n.children.length)return null;if(['tabs','split'].includes(n.kind)&&n.children.length===1)return n.children[0];if(n.kind==='floating'&&!n.children.length)return null;if(n.kind==='tabs'&&!has(n,n.active))n.active=representative(n)?.id;return n;}
  data.workspaces.forEach(ws=>{ws.children=ws.children.map(clean).filter(Boolean);});
 }
-function applyDrop(sourceId,targetId,at=null,data=desk){
- const decision=operation(sourceId,targetId,at,data);if(!decision.ok)return decision;
+function applyDrop(sourceId,targetId,at=null,data=desk,pick=false){
+ const decision=operation(sourceId,targetId,at,data,pick);if(!decision.ok)return decision;
  const before=index(data),entry=before.get(sourceId),source=entry.node,parent=entry.parent;
  let target=before.get(decision.target).node;
  let insertion=decision.at;if(target===parent&&insertion!==undefined&&parent.children.indexOf(source)<insertion)insertion--;
  parent.children.splice(parent.children.indexOf(source),1);
- if(decision.floating){let f=target.children.find(n=>n.kind==='floating');if(!f){f={id:'float-'+target.name,kind:'floating',children:[]};target.children.push(f);}f.children.push(source);}
+ if(pick)leaves(source).forEach(w=>w.floating=Boolean(decision.floating));
+ if(decision.wrap){const list=target.children;list.splice(insertion,0,source);list.forEach(n=>n.size=1);target.children=[{id:'split-'+(++serial),kind:'split',layout:'tiles',orientation:'vertical',children:list}];}
+ else if(decision.floating&&decision.directFloating)target.children.splice(insertion??target.children.length,0,...leaves(source));
+ else if(decision.floating){let f=target.children.find(n=>n.kind==='floating');if(!f){f={id:'float-'+target.name,kind:'floating',children:[]};target.children.push(f);}f.children.push(source);}
  else if(decision.column){
    const existing=target.children[0];
    if(!existing)target.children=[source];
    else {const incoming=source.kind==='window'?[source]:leaves(source);if(existing.kind==='tabs'){existing.children.push(...incoming);existing.active=incoming[0].id;}
      else target.children=[{id:'joined-'+(++serial),kind:'tabs',layout:'tab-group',orientation:'vertical',active:incoming[0].id,children:[existing,...incoming]}];}
+ }else if(decision.sibling&&target.kind==='workspace'){
+   const sibling=before.get(decision.sibling).node,position=target.children.indexOf(sibling);source.size=sibling.size=1;target.children[position]={id:'split-'+(++serial),kind:'split',layout:'tiles',orientation:'horizontal',children:at===1?[sibling,source]:[source,sibling]};
  }else if(target.kind==='workspace'){
    let root=target.children.find(n=>n.kind!=='floating');
    if(!root)target.children.unshift(source);
@@ -97,6 +120,7 @@ function focus(id){const entry=index().get(id);if(!entry)return;const w=represen
 function marks(ws){return '<span class="marks">'+ws.children.filter(n=>n.kind==='column').map(c=>'<button class="mark '+(leaves(c).some(w=>w.focused||w.id===ws.rememberedFocus)?'active':'')+'" style="flex:'+c.width+'" data-target="'+c.id+'" title="Column '+c.index+' · '+Math.round(c.width*100)+'%" aria-label="Column '+c.index+' on workspace '+ws.name+'"></button>').join('')+'</span>';}
 function railHTML(v){return desk.workspaces.filter(relevant).map(ws=>{
  let content='';const rep=representative(ws);
+ if(v==='P')content='<b>'+ws.name+'</b>';
  if(v==='A')content='<b>'+ws.name+'</b>'+(ws.columns?marks(ws):'<small>—</small>');
  if(v==='B')content=(rep?icon(rep):'')+'<small>'+ws.name+'</small>';
  if(v==='C'){function units(n){if(n.kind==='window'||n.kind==='tabs')return [n];return children(n).flatMap(units);}content='<b>'+ws.name+'</b><span class="stack">'+units(ws).filter(relevant).map(n=>{const w=representative(n);return '<span class="stack-unit">'+(w?icon(w):'')+(n.kind==='tabs'?'<small>'+children(n).length+'</small>':'')+'</span>';}).join('')+'</span>';}
@@ -106,7 +130,9 @@ function rowsHTML(v,key,measure=false){
  const state=states[key],map=index();
  function visit(n,depth=0){
   if(!measure&&!relevant(n))return '';
-  if(n.kind==='column'&&v!=='A')return (v==='C'?'<div class="divider" data-target="'+n.id+'"><button class="column-target" data-target="'+n.id+'" title="Drop into Column '+n.index+'">Column '+n.index+' · '+Math.round(n.width*100)+'%</button></div>':'')+children(n).map(c=>visit(c,depth)).join('');
+  const settings=levels(map.get(n.id).ws);
+  if(v==='P'&&n.kind==='split'&&!settings.splits)return children(n).map(c=>visit(c,depth)).join('');
+  if(n.kind==='column'&&v!=='A'&&!(v==='P'&&settings.columns))return (v==='C'?'<div class="divider" data-target="'+n.id+'"><button class="column-target" data-target="'+n.id+'" title="Drop into Column '+n.index+'">Column '+n.index+' · '+Math.round(n.width*100)+'%</button></div>':'')+children(n).map(c=>visit(c,depth)).join('');
   const branch=n.kind!=='window',closed=state.closed.has(n.id),show=measure||!closed||query;
   const current=n.kind==='window'?n.focused:n.kind==='workspace'?n.focused:false;
   const glyph=n.kind==='tabs'?'▣':n.kind==='split'?(n.orientation==='horizontal'?'◫':'⬒'):n.kind==='floating'?'◇':n.kind==='column'?'▥':'';
@@ -115,8 +141,9 @@ function rowsHTML(v,key,measure=false){
   let row='<div class="node '+n.kind+'" data-node="'+n.id+'"><div class="row '+n.kind+(current?' focused':'')+(query&&!match(n)?' ancestor':'')+'" data-target="'+n.id+'" data-depth="'+depth+'" data-kind="'+n.kind+'" draggable="'+['window','tabs','split'].includes(n.kind)+'" title="'+esc(n.kind==='window'?n.app+' · '+n.title:label(n))+'">'+
    (branch?'<button class="twisty" data-toggle="'+n.id+'" aria-label="'+(show?'Collapse ':'Expand ')+esc(label(n))+'" aria-expanded="'+Boolean(show)+'">'+(closed&&!query?'▸':'▾')+'</button>':'<span class="glyph" style="width:12px"></span>')+
    (n.kind==='window'?icon(n):'<span class="glyph" aria-hidden="true">'+glyph+'</span>')+'<span class="title">'+esc(label(n))+'</span>'+tag+(n.kind==='workspace'&&v==='B'&&n.columns?marks(n):'')+'</div>';
+  if(v==='P'&&n.kind==='workspace')row=row.slice(0,-6)+(n.columns?marks(n):'')+['splits',...(n.columns?['columns']:[])].map(level=>'<button class="level-toggle" data-level="'+level+'" data-workspace="'+n.id+'" aria-pressed="'+settings[level]+'" title="'+(level==='splits'?'Splits':'Columns')+'" aria-label="'+(level==='splits'?'Splits':'Columns')+' on workspace '+n.name+'">'+(level==='splits'?'◫':'▥')+'</button>').join('')+'</div>';
   if(branch&&show)row+='<div class="children">'+children(n).map((c,i)=>{
-    const insertion=n.kind==='split'?'<div class="insert" data-target="'+n.id+'" data-at="'+i+'" title="Insert at '+i+' in '+label(n)+'"></div>':'';
+    const insertion=n.kind==='split'&&v!=='P'?'<div class="insert" data-target="'+n.id+'" data-at="'+i+'" title="Insert at '+i+' in '+label(n)+'"></div>':'';
     return '<div style="position:relative">'+insertion+visit(c,depth+1)+'</div>';
   }).join('')+(n.kind==='split'?'<div style="position:relative"><div class="insert last" data-target="'+n.id+'" data-at="'+n.children.length+'" title="Insert last in '+label(n)+'"></div></div>':'')+'</div>';
   return row+'</div>';
@@ -138,17 +165,20 @@ function miniatureHTML(){
  return '<div class="mini" aria-label="Workspace '+ws.name+' layout miniature">'+tiles+'</div><div class="mini-label">Workspace '+ws.name+' · 16:9 layout sketch</div>';
 }
 function setupStage(stage,v,key){
- const st=states[key];stage.innerHTML=miniatureHTML()+'<div class="sidebar '+(st.expanded?'expanded':'')+'" style="--expanded:'+expandedWidth+'px"><div class="rail">'+railHTML(v)+'</div><div class="tree-pane"><div class="tree-label">'+v+' · layout tree <span>'+windows().length+' windows</span></div><div class="tree">'+rowsHTML(v,key)+'</div></div></div>';
+ const st=states[key];stage.innerHTML=miniatureHTML()+'<div class="sidebar '+(st.expanded?'expanded':'')+'" style="--expanded:'+(v==='P'?pickWidth:expandedWidth)+'px"><div class="rail">'+railHTML(v)+'</div><div class="tree-pane"><div class="tree-label">'+(v==='P'?'The pick':v)+' · layout tree <span>'+windows().length+' windows</span></div><div class="tree">'+rowsHTML(v,key)+'</div></div></div>';
  const side=stage.querySelector('.sidebar');
  side.onmouseenter=()=>{clearTimeout(st.timer);st.timer=setTimeout(()=>{st.expanded=true;side.classList.add('expanded');},50);};
  side.onmouseleave=()=>{clearTimeout(st.timer);if(!st.pinned)st.timer=setTimeout(()=>{if(dragId)return;st.expanded=false;side.classList.remove('expanded');},80);};
- side.onclick=e=>{const toggle=e.target.closest('[data-toggle]');if(toggle){const id=toggle.dataset.toggle;st.closed.has(id)?st.closed.delete(id):st.closed.add(id);render();return;}const row=e.target.closest('[data-focus],.row.window,.row.workspace');if(row)focus(row.dataset.focus||row.dataset.target);};
+ side.onclick=e=>{const level=e.target.closest('[data-level]');if(level){const ws=index().get(level.dataset.workspace).node;overrides[ws.id]={...overrides[ws.id],[level.dataset.level]:!levels(ws)[level.dataset.level]};render();return;}const toggle=e.target.closest('[data-toggle]');if(toggle){const id=toggle.dataset.toggle;st.closed.has(id)?st.closed.delete(id):st.closed.add(id);render();return;}const row=e.target.closest('[data-focus],.row.window,.row.workspace');if(row)focus(row.dataset.focus||row.dataset.target);};
+ side.onpointerover=e=>{if(v!=='P')return;side.querySelectorAll('.hover-column').forEach(n=>n.classList.remove('hover-column'));const row=e.target.closest('.row.window'),col=row&&index().get(row.dataset.target).col;if(col)side.querySelectorAll('.mark[data-target="'+col.id+'"]').forEach(n=>n.classList.add('hover-column'));};
+ side.onpointerleave=()=>side.querySelectorAll('.hover-column').forEach(n=>n.classList.remove('hover-column'));
  side.ondragstart=e=>{const row=e.target.closest('.row');if(!row)return;const n=index().get(row.dataset.target).node;if(!['window','tabs','split'].includes(n.kind)){e.preventDefault();return;}dragId=n.id;e.dataTransfer.setData('text/plain',dragId);e.dataTransfer.effectAllowed='move';row.classList.add('dragging');};
  side.ondragend=()=>{dragId=null;side.querySelectorAll('.dragging,.over,.refused').forEach(el=>el.classList.remove('dragging','over','refused'));clearTimeout(st.timer);if(!st.pinned)st.timer=setTimeout(()=>{const live=stage.querySelector('.sidebar');if(!live.matches(':hover')){st.expanded=false;live.classList.remove('expanded');}},80);};
- side.ondragover=e=>{const target=e.target.closest('[data-target]');if(!target||!dragId)return;e.preventDefault();side.querySelectorAll('.over,.refused').forEach(el=>el.classList.remove('over','refused'));const d=operation(dragId,target.dataset.target,target.hasAttribute('data-at')?+target.dataset.at:null);target.classList.add(d.ok?'over':'refused');target.title=d.ok?d.op:d.reason;e.dataTransfer.dropEffect=d.ok?'move':'none';$('status').textContent=d.ok?d.op+' → '+label(index().get(d.target).node):'Refused: '+d.reason;};
+ const dropIndex=(e,target)=>v==='P'&&target.classList.contains('window')?(e.clientY<target.getBoundingClientRect().top+target.getBoundingClientRect().height/2?0:1):target.hasAttribute('data-at')?+target.dataset.at:null;
+ side.ondragover=e=>{const target=e.target.closest('[data-target]');if(!target||!dragId)return;e.preventDefault();side.querySelectorAll('.over,.refused,.before,.after').forEach(el=>el.classList.remove('over','refused','before','after'));const at=dropIndex(e,target),d=operation(dragId,target.dataset.target,at,desk,v==='P');target.classList.add(d.ok?'over':'refused');if(d.ok&&d.sibling)target.classList.add(at===0?'before':'after');target.title=d.ok?d.op:d.reason;e.dataTransfer.dropEffect=d.ok?'move':'none';$('status').textContent=d.ok?d.op+' → '+label(index().get(d.target).node):'Refused: '+d.reason;};
  side.ondragenter=side.ondragover;
- side.ondrop=e=>{const target=e.target.closest('[data-target]');if(!target)return;e.preventDefault();const source=dragId||e.dataTransfer.getData('text/plain');const d=applyDrop(source,target.dataset.target,target.hasAttribute('data-at')?+target.dataset.at:null);dragId=null;$('status').textContent=d.ok?'Applied: '+d.op+'. The tree, rail and miniature now share the changed desk.':'Refused: '+d.reason;render();};
- side.querySelectorAll('.row[draggable=false]').forEach(row=>row.addEventListener('pointerdown',()=>{$('status').textContent='Fixed: '+label(index().get(row.dataset.target).node)+'. Layout drags move windows, tab groups or splits.';}));
+ side.ondrop=e=>{const target=e.target.closest('[data-target]');if(!target)return;e.preventDefault();const source=dragId||e.dataTransfer.getData('text/plain');const d=applyDrop(source,target.dataset.target,dropIndex(e,target),desk,v==='P');dragId=null;$('status').textContent=d.ok?'Applied: '+d.op+'. The tree, rail and miniature now share the changed desk.':'Refused: '+d.reason;render();};
+ side.querySelectorAll('.row[draggable=false]').forEach(row=>{const reason='Fixed: '+label(index().get(row.dataset.target).node)+'. Layout drags move windows, tab groups or splits.';if(v==='P')row.title=reason;row.addEventListener('pointerdown',()=>{$('status').textContent=reason;});});
 }
 function widthMetrics(v){
  const box=document.createElement('div');box.className='tree';box.style.cssText='position:absolute;visibility:hidden;width:1000px';box.innerHTML=rowsHTML(v,v,true);document.body.append(box);
@@ -157,6 +187,8 @@ function widthMetrics(v){
  const height=Math.ceil(box.getBoundingClientRect().height)+49;box.remove();return {needed,byDepth,height};
 }
 function render(){
+ setupStage($('stage-P'),'P','P');$('pick-pin').textContent=states.P.pinned?'Pinned':'Hover';$('pick-pin').setAttribute('aria-pressed',states.P.pinned);
+ const saved={...defaults},savedOverrides={...overrides};Object.keys(overrides).forEach(k=>delete overrides[k]);defaults={splits:false,columns:false};const flat=widthMetrics('P');defaults={splits:true,columns:true};const full=widthMetrics('P');defaults=saved;Object.assign(overrides,savedOverrides);$('pick-metric').textContent='Pick: flat '+flat.needed+' pt unclipped · both levels '+full.needed+' pt · default 320 pt';
  $('count').textContent=(query?windows().filter(match).length:windows().length)+' matches';
  Object.keys(variants).forEach(v=>{setupStage($('stage-'+v),v,v);$('pin-'+v).textContent=states[v].pinned?'Pinned':'Hover';$('pin-'+v).setAttribute('aria-pressed',states[v].pinned);});
  setupStage($('working'),selected,'work');$('work-pin').textContent=states.work.pinned?'Pinned':'Hover';$('work-pin').setAttribute('aria-pressed',states.work.pinned);
@@ -165,15 +197,36 @@ function render(){
 function pin(key){const st=states[key];clearTimeout(st.timer);st.pinned=!st.pinned;st.expanded=st.pinned;render();}
 Object.entries(variants).forEach(([v,info])=>{const card=document.createElement('article');card.className='card';card.innerHTML='<header><button id="select-'+v+'" aria-label="Select variant '+v+'">'+v+' · '+info.name+'</button><button id="pin-'+v+'" aria-pressed="true">Pinned</button></header><p>'+info.note+'</p><div class="stage" id="stage-'+v+'"></div><div class="metric" id="metric-'+v+'"></div>';$('cards').append(card);$('pin-'+v).onclick=()=>pin(v);$('select-'+v).onclick=()=>{selected=v;$('variant').value=v;render();};});
 $('variant').onchange=e=>{selected=e.target.value;render();};$('work-pin').onclick=()=>pin('work');
+$('pick-pin').onclick=()=>pin('P');
+for(const level of ['splits','columns']){$('default-'+level).checked=defaults[level];$('default-'+level).onchange=e=>{defaults[level]=e.target.checked;Object.values(overrides).forEach(o=>delete o[level]);try{localStorage.setItem('sidebar-tree-defaults',JSON.stringify(defaults));}catch{}render();};}
 $('search').oninput=e=>{query=e.target.value.trim().toLowerCase();render();};
-$('width').oninput=e=>{expandedWidth=+e.target.value;$('width-label').textContent=expandedWidth+' pt';render();};
+$('width').oninput=e=>{pickWidth=expandedWidth=+e.target.value;$('width-label').textContent=expandedWidth+' pt';render();};
 $('theme').onchange=e=>{if(e.target.value==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=e.target.value;render();};
 $('all').onclick=()=>{const pinning=!Object.values(states).every(st=>st.pinned);Object.values(states).forEach(st=>{clearTimeout(st.timer);st.pinned=pinning;st.expanded=pinning;});$('all').textContent=pinning?'Unpin all':'Pin all';render();};
 $('reset').onclick=()=>{desk=copy(fixture);query='';$('search').value='';Object.values(states).forEach(st=>st.closed.clear());$('status').textContent='Captured desk restored.';render();};
 $('download').onclick=()=>{const blob=new Blob([JSON.stringify(desk,null,2)+'\n'],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='desk.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
 $('today').innerHTML=[1,2,3,4].map(n=>'<figure><div class="reference-pair"><img src="img/today-'+n+'-collapsed.png" alt="Today workspace '+n+', rail collapsed"><img src="img/today-'+n+'-expanded.png" alt="Today workspace '+n+', hover expanded"></div><figcaption>Workspace '+n+' · collapsed / expanded'+(n===2?' · three Columns, Safari tabs':n===3?' · two Columns, TextEdit tabs':n===1?' · nested vertical split':' · floating Calculator')+'</figcaption></figure>').join('');
-$('references').innerHTML=[['tst',0,'Tree Style Tab · overview'],['tst',2,'Tree Style Tab · drag and tree'],['tst',5,'Tree Style Tab · themes'],['sidebery',0,'Sidebery · sidebar, panels and group page'],['sidebery',1,'Sidebery · bookmarks and history'],['sidebery',2,'Sidebery · themes']].map(([app,i,title])=>'<figure><img src="img/'+app+'-published-'+i+'.png" alt="Published '+esc(title)+'"><figcaption>'+esc(title)+' · <a href="https://addons.mozilla.org/en-US/firefox/addon/'+(app==='tst'?'tree-style-tab':'sidebery')+'/">'+(app==='tst'?'Piro (piro_or)':'mbnuqw')+' on Mozilla Add-ons</a> · published reference, not the staged desk</figcaption></figure>').join('');
+$('references').innerHTML=[['tst','Tree Style Tab','Search via TST Tab Search · Grievances: 1'],['sidebery','Sidebery','Built-in filter · Grievances: 1']].map(([app,title,note])=>'<figure><h3>'+title+'</h3><select data-reference="'+app+'" aria-label="'+title+' capture"><option value="expanded">Expanded tree</option><option value="collapsed">Collapsed branches</option><option value="search">Search / filter</option></select><img id="reference-'+app+'" src="img/'+app+'-live-expanded.png" alt="Live '+title+' expanded tree"><figcaption>Live guest capture · '+note+' · <a href="https://addons.mozilla.org/en-US/firefox/addon/'+(app==='tst'?'tree-style-tab':'sidebery')+'/">'+(app==='tst'?'Piro':'mbnuqw')+'</a></figcaption></figure>').join('');
+document.querySelectorAll('[data-reference]').forEach(select=>select.onchange=()=>{const img=$('reference-'+select.dataset.reference);img.src='img/'+select.dataset.reference+'-live-'+select.value+'.png';img.alt='Live '+select.dataset.reference+' · '+select.value;});
 document.addEventListener('click',e=>{if(e.target.matches('figure img')){$('zoom').firstElementChild.src=e.target.src;$('zoom').showModal();}});$('zoom').onclick=()=>$('zoom').close();
+function pickTests(){
+ const tests=[],fresh=()=>copy(fixture),test=(name,fn,changed=true)=>{try{if(!fn())throw Error('assertion failed');tests.push({name:'Pick: '+name,pass:true,changed});}catch(e){tests.push({name:'Pick: '+name,pass:false,changed,error:e.message});}};
+ const move=(d,s,t,at=null)=>applyDrop(s,t,at,d,true),order=(d,id)=>index(d).get(id).node.children.map(n=>n.id).join(',');
+ for(const [at,expected] of [[0,'w239,w214,w222'],[1,'w214,w239,w222']])test('window upper/lower half '+at+' uses hidden real split',()=>{const d=fresh();return move(d,'w239','w214',at).ok&&order(d,'root-1-1')===expected;});
+ test('same-parent before/after adjusts source removal',()=>{const d=fresh();return move(d,'w214','w222',1).ok&&index(d).get('w222').parent.children.map(n=>n.id).join(',')==='w222,w214';});
+ for(const [at,expected] of [[0,'w231,w214,w237,w238'],[1,'w231,w237,w214,w238']])test('tab index '+at,()=>{const d=fresh();return move(d,'w214','w237',at).ok&&order(d,'tabgroup-231')===expected;});
+ for(const at of [0,1])test('direct Column child sibling '+at+' forms vertical split',()=>{const d=fresh();move(d,'w214','w239',at);const p=index(d).get('w239').parent;return p.kind==='split'&&p.orientation==='vertical'&&p.children.map(n=>n.id).join(',')===(at?'w239,w214':'w214,w239')&&index(d).get('w214').col.id==='col-2-1';});
+ test('tab group onto window stays one sibling',()=>{const d=fresh();return move(d,'tabgroup-231','w214',0).ok&&order(d,'root-1-1')==='tabgroup-231,w214,w222';});
+ test('same workspace row accepted',()=>{const d=fresh();return move(d,'w214','ws-1').ok;});
+ for(const target of ['ws-2','col-2-1','tabgroup-231','root-1-1','w214','w237','ws-1'])test('floating tiles onto '+target,()=>{const d=fresh();const r=move(d,'w266',target);return r.ok&&!index(d).get('w266').node.floating&&index(d).get('w266').parent.kind!=='floating';});
+ test('floating remains floating on floating window',()=>{const d=fresh();return move(d,'w266','w287',0).ok&&order(d,'float-1')==='w266,w287'&&index(d).get('w266').node.floating;});
+ test('floating group accepts and floats tiled source',()=>{const d=fresh();return move(d,'w214','float-4').ok&&index(d).get('w214').node.floating;});
+ test('sole workspace window still gets a pointed sibling after cleanup',()=>{const d=fresh();move(d,'w214','ws-1');return move(d,'w239','w265',0).ok&&index(d).get('w265').parent.kind==='split'&&index(d).get('w265').parent.children.map(n=>n.id).join(',')==='w239,w265';});
+ test('tab group floats as leaf windows on floating target',()=>{const d=fresh();return move(d,'tabgroup-231','float-4').ok&&!index(d).has('tabgroup-231')&&index(d).get('float-4').node.children.map(n=>n.id).join(',')==='w266,w231,w237,w238'&&['w231','w237','w238'].every(id=>index(d).get(id).node.floating);});
+ for(const [s,t] of [['tabgroup-231','tabgroup-231'],['tabgroup-231','w237'],['col-2-1','ws-4'],['ws-1','ws-4']])test('refusal without mutation '+s+' → '+t,()=>{const d=fresh(),before=JSON.stringify(d);return !move(d,s,t).ok&&JSON.stringify(d)===before;},false);
+ for(const target of ['ws-4','ws-2','col-2-1','tabgroup-231','root-1-1'])test('unchanged parent rule '+target,()=>{const d=fresh(),r=move(d,'w214',target),location=index(d).get('w214');if(!r.ok||d.workspaces.flatMap(leaves).length!==14)return false;if(target==='ws-4')return location.ws.id==='ws-4';if(target==='ws-2'){const empty=fresh();move(empty,'tabgroup-231','ws-4');move(empty,'w214','ws-2');return location.col.id==='col-2-1'&&location.parent.kind==='tabs'&&index(empty).get('w214').col.id==='col-2-2';}if(target==='col-2-1')return location.col.id===target&&location.parent.kind==='tabs';if(target==='tabgroup-231')return order(d,target)==='w231,w237,w238,w214';return order(d,target)==='w222,w214';},false);
+ return tests;
+}
 function selftest(){
  const tests=[];const test=(name,fn)=>{try{if(!fn())throw Error('assertion failed');tests.push({name,pass:true});}catch(e){tests.push({name,pass:false,error:e.message});}};
  const fresh=()=>copy(fixture),ids=data=>data.workspaces.flatMap(leaves).map(w=>w.id).sort().join(',');
@@ -198,7 +251,7 @@ function selftest(){
  test('refuse floating window into tab group inside Column',()=>!operation('w266','tabgroup-231',null,fresh()).ok);
  test('floating workspace move preserves floating state',()=>{const d=fresh();applyDrop('w266','ws-1',null,d);return index(d).get('w266').ws.name==='1'&&index(d).get('w266').node.floating;});
  test('refused drop leaves fixture byte-for-byte intact',()=>{const d=fresh(),before=JSON.stringify(d);applyDrop('root-1','root-1-1',null,d);return before===JSON.stringify(d);});
- $('tests').innerHTML=tests.map(t=>'<div class="'+(t.pass?'pass':'fail')+'">'+(t.pass?'PASS':'FAIL')+' · '+esc(t.name)+(t.error?' · '+esc(t.error):'')+'</div>').join('');window.selftestResults=tests;return tests;
+ tests.push(...pickTests());$('tests').innerHTML=tests.map(t=>'<div class="'+(t.pass?'pass':'fail')+'">'+(t.pass?'PASS':'FAIL')+' · '+esc(t.name)+(t.error?' · '+esc(t.error):'')+'</div>').join('');window.selftestResults=tests;return tests;
 }
 const params=new URLSearchParams(location.search);
 if(variants[params.get('variant')]){selected=params.get('variant');$('variant').value=selected;}
@@ -206,5 +259,6 @@ if(params.get('expanded')==='0')Object.values(states).forEach(st=>{st.pinned=fal
 if(['light','dark'].includes(params.get('theme'))){document.documentElement.dataset.theme=params.get('theme');$('theme').value=params.get('theme');}
 render();if(params.has('selftest'))selftest();
 if(params.get('view')==='work')requestAnimationFrame(()=>$('work').scrollIntoView());
-window.prototype={get desk(){return desk;},operation,applyDrop,selftest,widthMetrics,index};
+if(params.get('view')==='pick')requestAnimationFrame(()=>$('pick').scrollIntoView());
+window.prototype={get desk(){return desk;},operation,applyDrop,selftest,pickTests,widthMetrics,index,render};
 </script></html>
