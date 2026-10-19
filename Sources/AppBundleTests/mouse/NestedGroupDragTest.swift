@@ -69,6 +69,8 @@ final class NestedGroupDragTest: XCTestCase {
             case .treeSidebar:
                 updateSidebarWindowDrag(fixture.representative.windowId, subject: subject(fixture), pointer: CGPoint(x: 1100, y: 700))
         }
+        // These tests supply pointer samples; a native display tick would finish the drag as a missed mouse-up.
+        DisplayRefreshDriver.shared.remove(owner: WindowMouseInteractionDriver.shared)
         XCTAssertEqual(getCurrentMouseDragSubject(), subject(fixture))
         if header != .strip {
             XCTAssertEqual(currentActiveWorkspaceSidebarDrag()?.source, .container(fixture.outer.stableId, workspace: fixture.workspace.name))
