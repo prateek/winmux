@@ -4,60 +4,62 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Build the native sidebar from the layout tree, using the variant Prateek chooses from **Prototype: the sidebar as a tree**. This draft recommends B: Column marks on workspace rows, oriented splits and bracketed tab groups below them, and a focused-app rail. It waits on Prateek's choice of variant. His pick may replace this draft's recommendation before implementation starts.
+Build Prateek's 2026-10-18 pick from **Prototype: the sidebar as a tree**: a numbers-only rail, expanding on hover to a shallow layout tree with width-proportional Column marks. Two independent workspace toggles reveal split and Column levels. Drop windows or tab groups on any row; a window target means “insert as its sibling at the pointed index”.
 
-The current sidebar already groups tab groups with more than one child. It flattens other containers into windows and omits Columns. Preserve those missing boundaries and make the tree a usable view and editor of the layout.
-
-Start with a native tree snapshot that keeps workspace, Column, container and window identities, with Column widths and container layout/orientation. Render the selected variant from that snapshot before adding drag mutations. Extend the existing sidebar snapshot, row and drag owners; use WinMux's binding and Column placement seams. The prototype's JavaScript and layout sketch are evidence, not implementation to import.
-
-The prototype, fixture, native baseline captures, measurements and drag-rule table are in `prototypes/83-sidebar-tree/`. Its published extension screenshots are references, not live extension behavior verification.
+Extend the existing native sidebar snapshot, row and drag owners. Keep stable workspace, Column, container and window identities, Column widths, tab order and container layout/orientation. Resolve drops through the binding and Column-placement seams. Start by rendering the flat view from that snapshot, then add optional levels and mutations. The [prototype](../prototypes/83-sidebar-tree/index.html#pick) is evidence; its JavaScript is not native implementation to import.
 
 ## Decisions
 
-The prototype issue's settled Decisions carry forward below. Each proposed application to the shipping feature is the relay's recommendation awaiting Prateek's variant pick; this draft does not reopen the prototype's contract.
-
-- **The tree is the layout:** workspace, Column, tab group or split, window. B represents the Column with marks and tags rather than an extra row level. (Relay recommendation; awaiting Prateek's pick.)
-- **Rows collapse, drag to a new parent, and can be searched.** Preserve the person's disclosure choices through search and layout updates. (Relay recommendation; awaiting Prateek's pick.)
-- **A tab group and a split look different.** Use a tab glyph with bracketed children for a tab group and orientation glyphs with ordinary indentation for splits. Preserve the actual layout label, including accordion when present. (Relay recommendation; awaiting Prateek's pick.)
-- **The sidebar runs collapsed, expanding on hover.** The rail shows the workspace's remembered focused app icon with its workspace number underneath. Keep the existing hover timing and leave its activation behavior intact. (Relay recommendation; awaiting Prateek's pick.)
-- **The prototype is a clickable page with variants side by side.** Retain it as the comparison evidence. This issue implements the selected design in the app, not another page. (Relay recommendation; awaiting Prateek's pick.)
-- **A prototype answers questions; it does not ship.** The selected native implementation is a separate change, gated on the pick. Copy no extension code or assets into WinMux. (Relay recommendation; awaiting Prateek's pick.)
-- **Recommend B, Columns as marks.** Workspace rows carry one width-proportional mark per Column, with its remembered focused Column filled. Windows carry their Column number. No Column nesting level is inserted. Marks are explicit Column drop targets. (Relay recommendation; awaiting Prateek's pick.)
-- **A drop maps to one existing operation.** Workspace drops retain their sidebar transfer path; invariant placement prefers the nearest empty Column, then the focused occupied Column. Explicit Column drops resolve through the Column placement path. Joining tabs and inserting into splits share the existing binding seams. Hooks remain authoritative where the existing path invokes them; the prototype demonstrates the no-hook rich config. (Relay recommendation; awaiting Prateek's pick.)
-- **A group moves as a subject.** Preserve the node on an ordinary parent or empty Column; an occupied Column merges its leaf windows into tabs, as `bindToColumn` does. Preview the actual outcome. (Relay recommendation; awaiting Prateek's pick.)
-- **Refuse invalid layout parents before mutation.** Explain self/descendant drops, a window row used as a parent, a nonexistent Column, and a floating drag into a Column that needs `layout tiling` first. Column and workspace headings are not draggable layout nodes; existing workspace ordering remains a separate interaction. (Relay recommendation; awaiting Prateek's pick.)
-- **Floating windows stay under their workspace.** A floating workspace transfer preserves floating state. Do not insert a floating window into a tab group by expanding the tree. (Relay recommendation; awaiting Prateek's pick.)
+- The tree is the layout: workspace, Column, tab group or split, window. Hiding a structural level changes presentation and never changes the real parent or drop result.
+- Rows collapse, drag to a new parent, and can be searched. Preserve disclosure choices through search and layout updates.
+- A tab group and a split look different. Tab groups remain a row with their tabs on a bracketed child rail. Revealed splits show orientation glyphs and actual layout labels, including accordion.
+- The sidebar runs collapsed, expanding on hover. The rail shows workspace numbers only, with today's focused-workspace highlight; no app icons or Column marks.
+- The prototype is a clickable comparison page, retained with its variants below **The pick**. It answers questions and ships no native behavior. Copy no extension code or assets into WinMux.
+- Default to a flat, shallow tree. Ordinary tiled windows sit directly under the workspace; tab groups retain their tabs; floating windows retain their floating group. Windows have no Column tag. Each workspace with Columns carries proportional marks, its focused Column filled; hovering a window highlights its Column's mark.
+- Tiny **Splits** and **Columns** buttons at the right of each workspace have tooltips and accessible labels. The Columns button is absent on workspaces without native Columns. They affect only that workspace and are independent: both on gives workspace → Column → split/tab group → window.
+- Two config defaults, both false, set starting states. A workspace click overrides its default until that default changes. Proposed names: `sidebar.tree.splits` and `sidebar.tree.columns`.
+- A window-row drop inserts before the target in its upper half and after it in its lower half, in its actual parent. A tab target joins its group at that index. A direct Column child gains a sibling in that Column's container; a lone window becomes a vertical split, matching `bindToColumn`'s `.split` branch.
+- Workspace rows and rail numbers keep invariant placement: nearest empty Column, then focused occupied Column. Column rows/marks use `move-node-to-column`; tab group rows join; split rows insert or append. Occupied Columns merge incoming group leaves into tabs; empty Columns preserve the group. Existing native hooks remain authoritative.
+- A floating window on a tiled target is tiled first (`layout tiling`) and placed by the same rule. A floating group/window target keeps it floating. Floating a dragged group floats its leaf windows, as `bindToColumn` does.
+- Refuse self/descendant cycles and dragging structural workspace/Column rows as layout nodes, with the reason visible before mutation. A window row is a sibling destination, never a request to give a window children. No other existing row is refused for a window or tab group.
 
 ## Defaults chosen for you
 
-- **Expanded width:** 320 points when unset. The prototype needs 297 points on the captured desk; 320 leaves 23 points of headroom. Preserve an explicit configured width. Retain 44 points collapsed. Truncate arbitrary longer titles at the tail with their full title available on hover.
-- **Rows:** native 12.5-point window text, 13-point group headers, 14-point app icons, 24-point window rows and 18-point tree indentation. Workspace rows remain 32 points. A tree taller than the usable sidebar scrolls.
-- **Disclosure state:** keep stable node identities and maintain the person's open/closed choices for surviving nodes. Search reveals matched paths without writing to that state. No new persistent state is needed for the first implementation.
-- **Search:** case-insensitive substring matches in app or title, one match per window, with the count visible. Retain and dim ancestors; hide unrelated branches. Clearing restores the saved disclosures.
-- **Pin:** provide an explicit expanded reading state through the sidebar's existing expansion lock. Hover continues to open and close when unpinned. The prototype retains the rail beside the expanded tree for comparison; the native sidebar may replace compact contents as it does today.
-- **Drop affordances:** an insertion line for a split index, an outline for a parent destination and a visible reason for refusal. Keep hit areas stable while drawing the line. Resolve against current tree/Column state at commit so a removed parent cannot receive a stale drop.
+- Expanded width: 320 points when unset. The captured pick measures 307 points in flat and both-level views, including the prototype's retained 44-point rail. Native Nickel defaults use 50 collapsed and 280 expanded; the config initializer has 240 expanded. Preserve explicit configured widths and native compact geometry; tail-clip arbitrary longer titles and expose them on hover.
+- Rows: native 12.5-point window text, 13-point group headers, 14-point icons, 24-point window rows, 32-point workspace rows and 18-point indentation. Taller trees scroll.
+- Search: case-insensitive app/title substring, counted once per window. Keep ancestors visible and dimmed; reveal matching paths without changing disclosure state.
+- Disclosure: tab groups and revealed layout levels start open. Keep choices by stable node identity for the sidebar session; no new persistent disclosure store.
+- Pin: an explicit expanded reading state using the existing expansion lock. Retain native hover timing and activation behavior. The page retains its rail beside the tree for comparison; native compact contents can be replaced during expansion as today.
+- Toggle state: defaults are config-owned and survive reload. Overrides live in sidebar session state by workspace identity. Changing a default clears that toggle's overrides only. The page models defaults in local storage and overrides in memory.
+- Drop affordances: stable upper/lower insertion lines, container outlines and visible refusal reasons. With levels off, preview the actual hidden-parent insertion; native preview and layout readback must agree with the prototype's sketch. A native sketch is not part of this feature. Resolve current identities/indices again before native binding.
 
 ## Depends on
 
-- **Prototype: the sidebar as a tree**, its staged-desk fixture and recommendation.
-- **Prateek's choice of variant.** This is a blocking product decision. The driver records his choice; the builder creates no separate question or feature issue from this draft.
+Nothing. The prototype and Prateek's choice are available. Exact-index window targeting needs a sidebar adapter over existing sibling-binding seams, within this feature.
 
 ## Done when
 
-- [ ] On the fourteen-window rich desk, the native sidebar shows workspace 1's horizontal root and two vertically split Ghostty windows, distinct from workspace 2's three Safari tabs and workspace 3's two TextEdit tabs. Both floating Updater and Calculator are under their workspaces. An accordion fixture retains its own layout label.
-- [ ] Column marks on workspace 2 have widths 28/44/28 and on workspace 3 have widths 2/3 and 1/3; every tiled window has the right Column tag. Empty Columns remain targetable, and Columns-off workspaces have no marks or Column targets.
-- [ ] At 1920 × 1080, capture the selected rail collapsed and expanded under hover on every workspace. Remembered focus supplies Zed, Notes, TextEdit and Preview icons on the captured desk. Pinning and unpinning use the existing expansion lifetime and keyboard activation rules.
-- [ ] Collapse the Safari and TextEdit groups and the vertical Ghostty split. Search reveals the right ancestors and clearing it restores those disclosures. `Safari` finds exactly three windows in workspace 2's tab group, `Grievances` finds one in workspace 3's tab group, and `qzxnomatch` finds none.
-- [ ] Behavior tests and a native live run cover workspace transfers with Columns off/on, nearest-empty and occupied-focused placement, all explicit Column destinations, adding a tab, exact-index insertion and moving a group intact. An occupied Column visibly merges the incoming group's leaves as the preview predicts. Placement hooks follow their existing destination rules.
-- [ ] Test and show refusals without mutation for self/descendant, a window parent, an absent Column and a floating source into a Column. Config headings cannot become layout children. A floating workspace transfer stays floating. Stale/removed parents and changed Column counts refuse or re-resolve before binding.
-- [ ] Focus, tree rows and rail cues update together after a move, a tab change, a close and a workspace switch. No new thumbnail or window-inventory pipeline is introduced. Existing workspace ordering and sidebar keyboard activation retain their behavior.
-- [ ] Measure title clipping at each depth with the actual native fonts and controls. Show 240, 280 and 320 points on the rich desk, in light and dark, and check scrolling at a smaller usable height. Explain any departure from the prototype's 297-point threshold.
-- [ ] Host and pinned-version guest `make check` pass, and GitHub's latest `Build and test` passes before landing. Keep screenshot/video evidence of the visible changes and record the final native layout readback.
-- [ ] Prateek checks the installed build with his normal sidebar config and real pointer timing, a second display, and real sleep/wake/unlock. Any by-hand upgrade or permission step is recorded in **Prateek's checks on an installed build and real hardware**.
+- [ ] On the fourteen-window rich desk in a 1920 × 1080 guest, the collapsed rail shows numbers only and focused numbers use today's treatment. Capture collapsed and hover-expanded states on all workspaces; pin/unpin and existing activation work.
+- [ ] The default tree has no split/Column levels or window Column tags. Tabs remain grouped; Updater and Calculator remain in floating groups. Workspace 2's marks are 28/44/28, workspace 3's are 2/3–1/3, and hovering windows highlights their marks. Workspaces 1 and 4 have none.
+- [ ] Each toggle reveals its level on workspace 2 only. Both on shows Column → tab group → tab and any split produced by a sibling drop, with the actual orientation glyph. Columns is absent on workspaces 1 and 4.
+- [ ] Each config default sets starting state and survives config/app reload. A local click affects one workspace; changing a default clears only that toggle's overrides. Check each default separately and both together.
+- [ ] Drop on the upper/lower halves of a window with levels off and on. `list-windows`/the agent layout show the source before/after the target in its actual split; the preview agrees. Repeat on a tab and a direct Column child, the latter forming a vertical split without adding a Column.
+- [ ] Floating Calculator dropped on a tiled row becomes tiled at the pointed destination, confirmed by `list-windows` and the layout. A floating target keeps it floating; a dragged group floats as leaf windows. Workspace/Column rows, marks, tab groups, splits and rail numbers accept drops, including same-workspace destinations.
+- [ ] Self/descendant drops and dragging workspace/Column headings are refused with visible reasons and no layout mutation. No other existing target is refused. Stale targets are re-resolved or safely cancelled before binding.
+- [ ] Collapse Safari/TextEdit groups, search and clear. `Safari` finds 3 windows in workspace 2 / Column 2 / Safari tabs; `Grievances` finds 1 in workspace 3 / Column 1 / TextEdit tabs; `qzxnomatch` finds 0. Counts and ancestor paths agree and clearing restores disclosures.
+- [ ] Behavior tests and a native guest run cover invariant workspace placement, explicit Columns, occupied-Column group merging and native hooks. Focus, marks, rail and rows update together after moves, tab changes, closes and workspace switches.
+- [ ] Measure native clipping in flat and both-level views at 240, 280 and 320 points, light/dark, and a shorter usable height. Explain any departure from the prototype's 307-point threshold.
+- [ ] Host and pinned-version guest `make check` pass; latest GitHub `Build and test` passes before landing. Retain visible evidence and the final native layout readback.
+- [ ] Prateek checks the installed build with his sidebar config and pointer timing, a second display and real sleep/wake/unlock. Record any by-hand upgrade or permission step in [Prateek's checks on an installed build and real hardware](https://github.com/prateek/winmux/issues/85).
 
 ## Sources
 
-- **Prototype: the sidebar as a tree**, its settled Decisions and four questions; Prateek's Tree Style Tab / Sidebery direction and request for collapse, drag and search.
-- [Prototype README, evidence and drag-rule table](../prototypes/83-sidebar-tree/README.md), including the extension permission fallback and the recommendation awaiting a pick.
+Prateek, 2026-10-18, verbatim:
+
+> - in the rail - i prefer it to be just the numbers
+> - i like the proportional marks to be displayed with a shallow/flat tree by default. and to have tiny icons on the right of workspace to toggle the tree showing bsp groupings and column groupings if the user clicks/configures it as such
+> - i also want to be able to drag and drop windows in the sidebar on any targets. if someone drops it on a window, not a container - it should just assume we want to make it a sibling for now
+
+- **Prototype: the sidebar as a tree**, its Decisions and [README](../prototypes/83-sidebar-tree/README.md).
 - [Captured desk](../prototypes/83-sidebar-tree/desk.json) and [raw agent tree](../prototypes/83-sidebar-tree/raw/agent.json).
-- At `1fbbdc72`: `WorkspaceSidebarContainerItemBuilder`, `WorkspaceSidebarRows`, `WorkspaceSidebarDimensions`, `WorkspaceSidebarHoverExpansion`, `WorkspaceSidebarPanelController`, `WorkspaceSidebarDropDelegate`, `WindowDragWorkspaceMove`, `WindowDragWorkspaceBinding`, `WindowDragColumnDestination`, `ColumnPolicy.dropDecision`, `ColumnPlacement`, `Columns.bindToColumn` and `MoveCommand`.
+- At [`1fbbdc72`](https://github.com/prateek/winmux/tree/1fbbdc72): sidebar snapshot/row/drop owners, `WindowDragWorkspaceBinding`, `ColumnPolicy.dropDecision`, `ColumnPlacement`, `Columns.bindToColumn` and `MoveCommand.moveNodeToSiblingIndex`. The README links the operations and names the adapter this feature needs.
