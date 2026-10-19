@@ -15,10 +15,7 @@ final class WorkspaceSidebarViewportDropTest: XCTestCase {
             .init(kind: .workspace("hidden"), frame: CGRect(x: 0, y: 380, width: 320, height: 40)),
         ]
         let frames = workspaceSidebarVisibleTargets(sections, viewport: viewport)
-        let targets = frames.map {
-            WorkspaceSidebarDropTarget(kind: $0.kind, rect: rect($0.frame), viewport: $0.viewport.map(rect))
-        }
-        return targets + [.init(kind: .monitor("display"), rect: Rect(topLeftX: 20, topLeftY: 0, width: 120, height: 24))]
+        return workspaceSidebarScreenDropTargets(frames, convert: rect) + [.init(kind: .monitor("display"), rect: Rect(topLeftX: 20, topLeftY: 0, width: 120, height: 24))]
     }
 
     private func rect(_ frame: CGRect) -> Rect {
@@ -47,6 +44,36 @@ final class WorkspaceSidebarViewportDropTest: XCTestCase {
         XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 60, y: 34), targets: targets, hitSlop: slop)?.kind, .monitor("display"))
         let visible = targets.filter { $0.kind == .workspace("visible") }
         XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 110), targets: visible, hitSlop: slop)?.kind, .workspace("visible"))
+    }
+
+    func testSlopStillCrossesTheGapBetweenSplitPanes() {
+        // Two panes side by side, each its own scroll view, 8 points apart.
+        let left = CGRect(x: 0, y: 50, width: 156, height: 300)
+        let right = CGRect(x: 164, y: 50, width: 156, height: 300)
+        let frames = workspaceSidebarVisibleTargets([.init(kind: .workspace("left"), frame: CGRect(x: 0, y: 60, width: 156, height: 40))], viewport: left) +
+            workspaceSidebarVisibleTargets([.init(kind: .workspace("right"), frame: CGRect(x: 164, y: 60, width: 156, height: 60))], viewport: right)
+        let targets = workspaceSidebarScreenDropTargets(frames, convert: rect)
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 80), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("left"))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 115), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("right"))
+    }
+
+    func testScrollingDoesNotChangeWhichSectionTakesASlopDrop() {
+        // A tall section scrolled mostly under the top chrome, then a shorter one fully visible, 6 points below.
+        let frames = workspaceSidebarVisibleTargets([
+            .init(kind: .workspace("tall"), frame: CGRect(x: 0, y: -200, width: 320, height: 280)),
+            .init(kind: .workspace("short"), frame: CGRect(x: 0, y: 86, width: 320, height: 60)),
+        ], viewport: viewport)
+        let targets = workspaceSidebarScreenDropTargets(frames, convert: rect)
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 83), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("short"))
+    }
+
+    func testScreenConversionCarriesTheViewportWithTheFrames() {
+        let frames = workspaceSidebarVisibleTargets([.init(kind: .workspace("edge"), frame: CGRect(x: 0, y: 20, width: 320, height: 360))], viewport: viewport)
+        let flip = { (frame: CGRect) in Rect(topLeftX: frame.minX + 1000, topLeftY: 720 - frame.maxY, width: frame.width, height: frame.height) }
+        let target = workspaceSidebarScreenDropTargets(frames, convert: flip).first
+        XCTAssertEqual(target?.rect, flip(viewport))
+        XCTAssertEqual(target?.rowRect, flip(CGRect(x: 0, y: 20, width: 320, height: 360)))
+        XCTAssertEqual(target?.viewport, flip(viewport))
     }
 
     @MainActor

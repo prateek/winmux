@@ -66,7 +66,7 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
         }
         return false
     } : exact
-    guard let target = candidates.min(by: { $0.rect.width * $0.rect.height < $1.rect.width * $1.rect.height }) else { return nil }
+    guard let target = candidates.min(by: { $0.rankingArea < $1.rankingArea }) else { return nil }
     if case .tree(let tree) = target.kind {
         let row = target.rowRect ?? target.rect
         if let id = tree.windowRowId, let zone = workspaceSidebarDropZone(at: point, row: row, offered: windowZones(id)) {
@@ -81,13 +81,23 @@ struct WorkspaceSidebarDropTarget {
     let kind: WorkspaceSidebarDropTargetKind
     /// Where the target takes drops, clipped to the scroll viewport for targets inside it.
     let rect: Rect
-    /// The whole row, when only part of it is on screen. Its halves decide before or after.
+    /// The whole frame, when only part of it is on screen. A row's halves decide before or after.
     var rowRect: Rect? = nil
     var viewport: Rect? = nil
 
+    /// A row ranks by the part on screen, other targets by their whole frame, so scrolling does not change which one wins.
+    var rankingArea: CGFloat {
+        if case .tree = kind { return rect.area }
+        return (rowRect ?? rect).area
+    }
+
+    /// Slop stops at the viewport's top and bottom, where the fixed chrome starts. Across, it reaches as far as before.
     func interactionRect(hitSlop: NSEdgeInsets) -> Rect {
         let expanded = rect.expanded(left: hitSlop.left, right: hitSlop.right, top: hitSlop.top, bottom: hitSlop.bottom)
-        return viewport.map { expanded.intersection($0) } ?? expanded
+        guard let viewport else { return expanded }
+        let minY = max(expanded.minY, viewport.minY)
+        let maxY = min(expanded.maxY, viewport.maxY)
+        return Rect(topLeftX: expanded.minX, topLeftY: minY, width: expanded.width, height: max(maxY - minY, 0))
     }
 }
 
@@ -110,13 +120,19 @@ func workspaceSidebarVisibleTargets(_ targets: [WorkspaceSidebarDropTargetFrame]
     targets.compactMap { target in
         let visible = target.frame.intersection(viewport)
         guard !visible.isNull, visible.height > 0, visible.width > 0 else { return nil }
-        let rowFrame: CGRect?
-        if case .tree = target.kind {
-            rowFrame = target.rowFrame ?? (visible == target.frame ? nil : target.frame)
-        } else {
-            rowFrame = nil
-        }
+        let rowFrame: CGRect? = visible == target.frame ? nil : target.frame
         return WorkspaceSidebarDropTargetFrame(kind: target.kind, frame: visible, rowFrame: rowFrame, viewport: viewport)
+    }
+}
+
+func workspaceSidebarScreenDropTargets(_ targets: [WorkspaceSidebarDropTargetFrame], convert: (CGRect) -> Rect) -> [WorkspaceSidebarDropTarget] {
+    targets.map { target in
+        WorkspaceSidebarDropTarget(
+            kind: target.kind,
+            rect: convert(target.frame),
+            rowRect: target.rowFrame.map(convert),
+            viewport: target.viewport.map(convert),
+        )
     }
 }
 

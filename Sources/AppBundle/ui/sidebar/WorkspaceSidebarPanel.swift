@@ -110,14 +110,7 @@ extension WorkspaceSidebarPanel {
     }
 
     func convertDropTargets(_ targets: [WorkspaceSidebarDropTargetFrame]) -> [WorkspaceSidebarDropTarget] {
-        targets.compactMap { target in
-            WorkspaceSidebarDropTarget(
-                kind: target.kind,
-                rect: screenRectNormalized(target.frame),
-                rowRect: target.rowFrame.map(screenRectNormalized),
-                viewport: target.viewport.map(screenRectNormalized),
-            )
-        }
+        workspaceSidebarScreenDropTargets(targets, convert: screenRectNormalized)
     }
 
     private func screenRectNormalized(_ frame: CGRect) -> Rect {

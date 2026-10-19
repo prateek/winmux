@@ -638,7 +638,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let section = WorkspaceSidebarDropTargetFrame(kind: .workspace("1"), frame: CGRect(x: 0, y: 20, width: 320, height: 360))
         let create = WorkspaceSidebarDropTargetFrame(kind: .newWorkspace(projectId: workspaceProjectDefaultId, monitorScopeId: "display"), frame: section.frame)
         for target in [section, create] {
-            XCTAssertEqual(workspaceSidebarVisibleTargets([target], viewport: viewport), [.init(kind: target.kind, frame: viewport, viewport: viewport)])
+            XCTAssertEqual(workspaceSidebarVisibleTargets([target], viewport: viewport), [.init(kind: target.kind, frame: viewport, rowFrame: target.frame, viewport: viewport)])
         }
     }
 
