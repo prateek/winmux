@@ -5,6 +5,7 @@ set -eu
 : "${TART_HOME:?Set TART_HOME in the vm ssh shell}"
 export PATH=/opt/homebrew/bin:$PATH
 out=$HOME/takes/sidebar-tree/pick
+mkdir -p "$out"
 capture() { screencapture -x "$out/$1.png"; "$HOME/sidebar-tree/read-page" > "$out/$1.txt"; }
 reset() { cliclick c:727,114 w:300; }
 take_drag() {
@@ -43,8 +44,8 @@ for term in Safari Grievances qzxnomatch; do
   capture "search-$term"
 done
 reset
-capture final-flat
-take_drag refuse-workspace-drag 375 485 420 381
+capture flat-after-search
+take_drag refuse-workspace-drag-from-number 375 485 420 381
 reset
 take_drag column-sibling-flat 420 381 420 519
 cliclick c:375,461 m:1800,900 w:300
