@@ -30,7 +30,7 @@ struct ActiveWorkspaceSidebarDrag: Equatable {
 
 enum WorkspaceSidebarDragSource: Equatable {
     case window(UInt32)
-    case container(UInt64, workspace: String)
+    case container(UInt64)
 }
 
 @MainActor
@@ -58,17 +58,13 @@ func beginActiveWorkspaceSidebarDrag(windowId: UInt32, subject: WindowDragSubjec
     if let activeWorkspaceSidebarDrag, activeWorkspaceSidebarDrag.windowId == windowId,
        activeWorkspaceSidebarDrag.subject == subject { return }
     guard let window = Window.get(byId: windowId) else { return }
-    guard let node = dragSubjectNode(for: window, subject: subject) else {
+    guard dragSubjectNode(for: window, subject: subject) != nil else {
         clearActiveWorkspaceSidebarDrag()
         return
     }
-    let source: WorkspaceSidebarDragSource
-    switch subject {
-        case .group(let id):
-            guard let workspace = node.nodeWorkspace else { return }
-            source = .container(id, workspace: workspace.name)
-        case .window:
-            source = .window(windowId)
+    let source: WorkspaceSidebarDragSource = switch subject {
+        case .group(let id): .container(id)
+        case .window: .window(windowId)
     }
     activeWorkspaceSidebarDrag = ActiveWorkspaceSidebarDrag(windowId: windowId, subject: subject, source: source, sidebarOnly: sidebarOnly)
 }

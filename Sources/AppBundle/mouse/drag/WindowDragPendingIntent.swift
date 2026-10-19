@@ -14,9 +14,7 @@ func updatePendingWindowDragIntent(
     detachOrigin: TabDetachOrigin,
 ) -> Bool {
     guard dragSubjectNode(for: sourceWindow, subject: subject) != nil else {
-        clearPendingWindowDragIntent()
-        setWorkspaceSidebarDropPreviewIfChanged(nil)
-        WindowDragCursorProxyPanel.shared.hide()
+        clearStaleDragSubjectFeedback()
         return false
     }
     if detachOrigin != .tabStrip, !getCurrentMouseDragStartedInSidebar() {
@@ -273,7 +271,7 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
             guard let targetWindow = Window.get(byId: targetWindowId)
             else { return false }
             syncClosedWindowsCacheToCurrentWorld()
-            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId, targetWindow.windowId])
+            suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId) + [targetWindow.windowId])
             return applyWindowStackSplitDragIntent(
                 sourceWindow: sourceWindow,
                 sourceSubject: pendingWindowDragIntent.sourceSubject,
@@ -284,7 +282,7 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
             guard let targetWindow = Window.get(byId: targetWindowId)
             else { return false }
             syncClosedWindowsCacheToCurrentWorld()
-            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId, targetWindow.windowId])
+            suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId) + [targetWindow.windowId])
             return applyWindowSwapDragIntent(
                 sourceWindow: sourceWindow,
                 sourceSubject: pendingWindowDragIntent.sourceSubject,
@@ -293,7 +291,7 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
         case .moveToWorkspace(let workspaceName):
             guard let targetWorkspace = Workspace.existing(byName: workspaceName) else { return false }
             syncClosedWindowsCacheToCurrentWorld()
-            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])
+            suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId))
             if pendingWindowDragIntent.previewStyle == .sidebarWorkspaceMove {
                 applySidebarWorkspaceMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace)
             } else {
@@ -303,12 +301,12 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
         case .moveToWorkspaceZone(let workspaceName, let zone):
             guard let targetWorkspace = Workspace.existing(byName: workspaceName) else { return false }
             syncClosedWindowsCacheToCurrentWorld()
-            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])
+            suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId))
             applyWorkspaceZoneMove(sourceNode: sourceNode, sourceWindow: sourceWindow, targetWorkspace: targetWorkspace, zone: zone)
             return true
         case .createWorkspace(let projectId, let monitorScopeId):
             syncClosedWindowsCacheToCurrentWorld()
-            suppressPostDragAxObserverEvents(for: [sourceWindow.windowId])
+            suppressPostDragAxObserverEvents(for: sourceNode.allLeafWindowsRecursive.map(\.windowId))
             return createWorkspaceFromSidebarDrag(
                 sourceNode: sourceNode,
                 sourceWindow: sourceWindow,

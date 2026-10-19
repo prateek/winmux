@@ -73,7 +73,7 @@ final class NestedGroupDragTest: XCTestCase {
         DisplayRefreshDriver.shared.remove(owner: WindowMouseInteractionDriver.shared)
         XCTAssertEqual(getCurrentMouseDragSubject(), subject(fixture))
         if header != .strip {
-            XCTAssertEqual(currentActiveWorkspaceSidebarDrag()?.source, .container(fixture.outer.stableId, workspace: fixture.workspace.name))
+            XCTAssertEqual(currentActiveWorkspaceSidebarDrag()?.source, .container(fixture.outer.stableId))
         }
     }
 
@@ -322,6 +322,44 @@ final class NestedGroupDragTest: XCTestCase {
             XCTAssertNil(pendingWindowDragIntent)
             XCTAssertTrue(f.representative.nodeWorkspace === f.workspace)
             XCTAssertTrue(other.rootTilingContainer.children.isEmpty)
+        }
+    }
+
+    func testNestedHeaderDropSuppressesPostDragEventsForEveryOuterLeaf() throws {
+        let kinds: [(Fixture) -> WindowDragIntentKind] = [
+            { .stackSplit(targetWindowId: $0.target.windowId, position: .right) },
+            { _ in .moveToWorkspace(workspaceName: "2") },
+        ]
+        for inner in [false, true] {
+            for kind in kinds {
+                let f = try fixture(innerTabs: inner)
+                _ = Workspace.get(byName: "2")
+                resetPostDragAxObserverSuppressionForTests()
+                start(f, from: .strip)
+                pending(f, kind(f))
+                XCTAssertTrue(applyPendingWindowDragIntentIfPossible(), "\(kind(f))")
+                for leaf in f.leaves {
+                    XCTAssertTrue(shouldIgnoreAxObserverEventForPostDragSuppression(windowId: leaf.windowId, notif: kAXMovedNotification as String),
+                                  "window \(leaf.windowId) of the moved group")
+                }
+            }
+        }
+    }
+
+    func testFlattenedOuterIdentityMidSidebarHeaderDragClearsItsFeedback() throws {
+        for inner in [false, true] {
+            let f = try fixture(innerTabs: inner)
+            start(f, from: .flatSidebar)
+            setWorkspaceSidebarDropPreviewIfChanged(try XCTUnwrap(workspaceSidebarSourcePreview(sourceWindow: f.representative, subject: subject(f))))
+            pending(f, .moveToWorkspace(workspaceName: "2"))
+            setPinnedDraggedWindowId(f.representative.windowId)
+            Window.get(byId: 701)?.unbindFromParent()
+            f.workspace.normalizeContainers()
+            makeWorkspaceSidebarActionsAdapter().tabGroupDragChanged(f.outer.stableId, CGPoint(x: 1100, y: 690))
+            XCTAssertNil(currentActiveWorkspaceSidebarDrag())
+            XCTAssertNil(pendingWindowDragIntent)
+            XCTAssertNil(TrayMenuModel.shared.workspaceSidebarDropPreview)
+            XCTAssertFalse(hasPinnedDraggedWindow())
         }
     }
 }

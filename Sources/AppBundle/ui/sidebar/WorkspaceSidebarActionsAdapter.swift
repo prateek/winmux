@@ -26,7 +26,11 @@ func makeWorkspaceSidebarActionsAdapter(
             finishSidebarWindowDrag(pointer: pointer)
         },
         tabGroupDragChanged: { containerIdentity, pointer in
-            guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else { return }
+            guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else {
+                clearStaleDragSubjectFeedback()
+                clearActiveWorkspaceSidebarDrag()
+                return
+            }
             updateSidebarWindowDrag(window.windowId, subject: .group(containerIdentity), pointer: pointer)
         },
         tabGroupDragEnded: { _, pointer in

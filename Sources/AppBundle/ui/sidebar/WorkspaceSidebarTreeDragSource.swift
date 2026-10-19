@@ -5,7 +5,7 @@ func workspaceSidebarDragSource(_ window: Window, subject: WindowDragSubject) ->
     if let active = currentActiveWorkspaceSidebarDrag(), active.windowId == window.windowId, active.subject == subject {
         switch active.source {
             case .window(let id): return Window.get(byId: id)
-            case .container(let id, _): return workspaceSidebarLiveContainer(id)
+            case .container(let id): return workspaceSidebarLiveContainer(id)
         }
     }
     return dragSubjectNode(for: window, subject: subject)

@@ -176,23 +176,20 @@ func isWindowInDraggableTabGroup(_ window: Window) -> Bool {
 func shouldContinueCurrentGroupDrag(windowId: UInt32, subject: WindowDragSubject) -> Bool {
     getCurrentMouseManipulationKind() == .move &&
         currentlyManipulatedWithMouseWindowId == windowId &&
-        getCurrentMouseDragSubject().isGroup &&
+        subject.isGroup &&
         getCurrentMouseDragSubject() == subject
 }
 
 @MainActor
 func resolvedMouseDragSubject(for window: Window) -> WindowDragSubject {
-    if shouldContinueCurrentGroupDrag(windowId: window.windowId, subject: getCurrentMouseDragSubject()) {
-        return getCurrentMouseDragSubject()
+    let current = getCurrentMouseDragSubject()
+    if shouldContinueCurrentGroupDrag(windowId: window.windowId, subject: current) {
+        return current
     }
     let isOptionPressed = currentSessionModifierFlags().contains(.maskAlternate)
-    if shouldPromoteWindowDragToTabGroupDrag(
-        isOptionPressed: isOptionPressed,
-        isTabbedWindow: isWindowInDraggableTabGroup(window),
-    ), let parent = window.parent as? TilingContainer {
-        return .group(parent.stableId)
-    }
-    return .window
+    guard shouldPromoteWindowDragToTabGroupDrag(isOptionPressed: isOptionPressed, isTabbedWindow: isWindowInDraggableTabGroup(window)),
+          let parent = window.parent as? TilingContainer else { return .window }
+    return .group(parent.stableId)
 }
 
 @MainActor
@@ -268,6 +265,12 @@ func suppressPostDragAxObserverEvents(for windowIds: some Sequence<UInt32>) {
     for windowId in windowIds {
         suppressedPostDragAxObserverEventsByWindowId[windowId] = suppressionDeadline
     }
+}
+
+@MainActor
+func resetPostDragAxObserverSuppressionForTests() {
+    suppressedPostDragAxObserverEventsByWindowId = [:]
+    suppressedPostDragAxObserverEventsUntil = nil
 }
 
 @MainActor
