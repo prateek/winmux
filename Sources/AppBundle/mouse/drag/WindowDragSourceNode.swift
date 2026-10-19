@@ -102,6 +102,7 @@ private func sidebarDragPreviewTabItems(for moveNode: TreeNode, isTabGroup: Bool
 
 @MainActor
 func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject, destination: WindowDragIntentDestination?) {
+    guard currentActiveWorkspaceSidebarDrag() == nil else { return }
     guard let destination, destination.previewStyle == .sidebarWorkspaceMove else {
         let hadPinnedWindow = hasPinnedDraggedWindow()
         setPinnedDraggedWindowId(nil)

@@ -2,6 +2,19 @@ import Foundation
 import AppKit
 
 @MainActor
+func toggleWorkspaceSidebarPin(_ panel: WorkspaceSidebarPanel) {
+    removeWorkspaceSidebarCommandMouseUnlockMonitor(panel)
+    panel.shouldLockNextSidebarSearchExpansion = false
+    panel.commandExpansionLocksCollapse.toggle()
+    if panel.commandExpansionLocksCollapse {
+        panel.expandSidebar(to: CGFloat(config.workspaceSidebar.width))
+    } else {
+        panel.inlineTextEditingLocksExpansion = false
+        panel.updateHoverStateFromMousePosition()
+    }
+}
+
+@MainActor
 func openWorkspaceSidebarFromCommand() {
     guard TrayMenuModel.shared.isEnabled, config.workspaceSidebar.enabled else { return }
     WorkspaceSidebarPanel.refreshAll()

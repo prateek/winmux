@@ -43,6 +43,7 @@ func currentActiveWorkspaceSidebarDrag() -> ActiveWorkspaceSidebarDrag? {
 @MainActor
 func clearActiveWorkspaceSidebarDrag() {
     activeWorkspaceSidebarDrag = nil
+    workspaceSidebarDraggedContainer = nil
 }
 
 func shouldLockWorkspaceSidebarExpansion(

@@ -6,9 +6,23 @@ struct WorkspaceSidebarWorkspaceViewModel: Hashable, Identifiable {
     let isGeneratedName: Bool
     let monitorScopeId: String
     let monitorName: String?
-    let isFocused: Bool
-    let isVisible: Bool
-    let items: [WorkspaceSidebarItemViewModel]
+    var isFocused: Bool
+    var isVisible: Bool
+    var items: [WorkspaceSidebarItemViewModel]
+    var columnWidths: [Double] = []
+    var focusedColumn: Int? = nil
+    var showsSplits: Bool = false
+    var showsColumns: Bool = false
+    var collapsedNodes: Set<WorkspaceSidebarNodeIdentity> = []
+
+    var projectedItems: [WorkspaceSidebarItemViewModel] {
+        workspaceSidebarProjectItems(items, splits: showsSplits, columns: showsColumns)
+    }
+
+    func columnSlot(for windowId: UInt32?) -> Int? {
+        guard let windowId else { return nil }
+        return items.flatMap(\.descendantItems).first { $0.identity == .window(windowId) }?.columnSlot
+    }
 
     var id: String { name }
 }

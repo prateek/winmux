@@ -18,6 +18,7 @@ struct WorkspaceSidebarTabGroupViewModel: Hashable, Identifiable {
     let isFocused: Bool
     let tabs: [WorkspaceSidebarWindowViewModel]
     var searchVisibleTabs: [WorkspaceSidebarWindowViewModel]? = nil
+    var containerIdentity: ObjectIdentifier? = nil
 
     var id: String { "group:\(representativeWindowId)" }
 }

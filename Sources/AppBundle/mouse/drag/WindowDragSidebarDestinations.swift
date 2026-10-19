@@ -25,6 +25,8 @@ func isActionableSidebarWorkspaceDropTarget(
             return true
         case nil:
             return false
+        case .tree:
+            return false
     }
 }
 
@@ -33,10 +35,11 @@ func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation:
     let sourceLabel = sidebarDragSourceTitle(for: sourceWindow, subject: subject)
     let isGroup = subject == .group
     let sourceWorkspaceName = dragSubjectNode(for: sourceWindow, subject: subject).nodeWorkspace?.name
-    if let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop),
+    if let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop, includesTreeTargets: false),
        isActionableSidebarWorkspaceDropTarget(sourceWorkspaceName: sourceWorkspaceName, targetKind: target.kind)
     {
         switch target.kind {
+            case .tree: return nil
             case .monitor(let scopeId):
                 guard let monitor = workspaceSidebarMonitor(forScopeId: scopeId) else { return nil }
                 let workspace = monitor.activeWorkspace

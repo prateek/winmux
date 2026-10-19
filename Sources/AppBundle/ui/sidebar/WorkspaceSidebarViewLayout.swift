@@ -43,6 +43,20 @@ extension WorkspaceSidebarView {
         )
 
         return VStack(alignment: .leading, spacing: 0) {
+            if !isCompact {
+                HStack {
+                    Text("Workspaces").font(.system(size: 10, weight: .medium)).foregroundStyle(.secondary)
+                    Spacer()
+                    Button { actions.send(.togglePin) } label: {
+                        Image(systemName: snapshot.isPinned ? "pin.fill" : "pin")
+                            .font(.system(size: 11)).frame(width: 24, height: 24)
+                    }
+                    .buttonStyle(.plain)
+                    .help(snapshot.isPinned ? "Unpin sidebar" : "Pin sidebar")
+                    .accessibilityLabel(snapshot.isPinned ? "Unpin sidebar" : "Pin sidebar")
+                }
+                .padding(.horizontal, leadingInset)
+            }
             if showsMonitorSelector {
                 monitorSelectorSection(
                     expansionProgress: expansionProgress,

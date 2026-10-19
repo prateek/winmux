@@ -2,6 +2,14 @@ import AppKit
 import Common
 
 @MainActor
+func workspaceSidebarSiblingBindingData(source: TreeNode, target: TreeNode, after: Bool) -> BindingData? {
+    guard let parent = target.parent as? TilingContainer, let targetIndex = target.ownIndex else { return nil }
+    var index = targetIndex + (after ? 1 : 0)
+    if source.parent === parent, let sourceIndex = source.ownIndex, sourceIndex < index { index -= 1 }
+    return BindingData(parent: parent, adaptiveWeight: WEIGHT_AUTO, index: index)
+}
+
+@MainActor
 func workspaceMoveBindingData(
     targetWorkspace: Workspace,
     swapTarget: Window?,

@@ -3,6 +3,19 @@ import AppKit
 import XCTest
 
 extension WorkspaceSidebarDragTest {
+    func testInnermostTreeRowWinsOverSectionAndAdjacentRowHitSlop() {
+        let targets: [WorkspaceSidebarDropTarget] = [
+            .init(kind: .workspace("1"), rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 200)),
+            .init(kind: .tree(.window(1, after: false)), rect: Rect(topLeftX: 20, topLeftY: 40, width: 280, height: 24)),
+            .init(kind: .tree(.window(2, after: false)), rect: Rect(topLeftX: 20, topLeftY: 65, width: 280, height: 24)),
+        ]
+        let slop = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 44), targets: targets, hitSlop: slop)?.kind, .tree(.window(1, after: false)))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 62), targets: targets, hitSlop: slop)?.kind, .tree(.window(1, after: true)))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 66), targets: targets, hitSlop: slop)?.kind, .tree(.window(2, after: false)))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 64.5), targets: targets, hitSlop: slop)?.kind, .workspace("1"))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 44), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("1"))
+    }
     func testSameWorkspaceSidebarDropTargetIsNotActionable() {
         XCTAssertFalse(
             isActionableSidebarWorkspaceDropTarget(
