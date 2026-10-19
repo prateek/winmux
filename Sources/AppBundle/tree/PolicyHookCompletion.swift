@@ -44,6 +44,7 @@ struct PolicyHookCompletion {
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
                      supervisor: any PolicyHookHelper = PolicyHooks.current, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
         guard let path else { return nil }
+        let kind = path.split(separator: ".").last.map(String.init) ?? path
         let captureStore = HookCaptureStore.shared
         let capture = captureStore.beginCall()
         let started = ContinuousClock.now
@@ -57,7 +58,7 @@ struct PolicyHookCompletion {
             if let capture, shouldCapture {
                 captureStore.append(HookCaptureRecord(
                     time: HookCaptureStore.timestamp(capture.time), hook: path,
-                    kind: path.split(separator: ".").last.map(String.init) ?? path,
+                    kind: kind,
                     windowId: window.windowId, args: capturedArgs.map(JSONValue.array) ?? .null,
                     result: capturedResult, error: capturedError.map(JSONValue.string) ?? .null,
                     argumentsMs: policyMilliseconds(argumentDuration ?? started.duration(to: .now)),
@@ -65,10 +66,7 @@ struct PolicyHookCompletion {
                 ), call: capture)
             }
             if isDebug, ProcessInfo.processInfo.environment["WINMUX_DEBUG_POLICY_TIMING"] == "1", let argumentDuration {
-                func milliseconds(_ duration: Duration) -> Double {
-                    Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
-                }
-                debugFocusLog("policy-timing arguments-ms=\(milliseconds(argumentDuration)) total-ms=\(milliseconds(started.duration(to: .now)))")
+                debugFocusLog("policy-timing arguments-ms=\(policyMilliseconds(argumentDuration)) total-ms=\(policyMilliseconds(started.duration(to: .now)))")
             }
         }
         do {
@@ -102,7 +100,7 @@ struct PolicyHookCompletion {
             switch answer {
                 case .success(let result):
                     if capture != nil { capturedResult = result }
-                    guard ColumnPolicy.accepts(result, hook: path.split(separator: ".").last.map(String.init) ?? path) else {
+                    guard ColumnPolicy.accepts(result, hook: kind) else {
                         let error = "\(path): helper returned an invalid hook result"
                         if capture != nil { capturedError = error }
                         supervisor.recordHookFailure(error)

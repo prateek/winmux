@@ -165,7 +165,7 @@ final class HookCaptureTest: XCTestCase {
         try FileManager.default.createDirectory(at: store.path, withIntermediateDirectories: true)
         _ = await call("arrive")
         XCTAssertFalse(store.status().capturing)
-        XCTAssertNotNil(store.status().error)
+        XCTAssertNotEqual(store.status().error, .null)
         XCTAssertEqual(store.status().records, 0)
         XCTAssertTrue(events.isEmpty)
     }
@@ -240,10 +240,10 @@ final class HookCaptureTest: XCTestCase {
         let result = try await parseCommand("debug-hooks on --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertNotEqual(result.exitCode, 0)
         XCTAssertFalse(store.status().capturing)
-        XCTAssertNotNil(store.status().error)
+        XCTAssertNotEqual(store.status().error, .null)
         let json = try JSONDecoder().decode(JSONValue.self, from: Data(result.stdout.joined().utf8))
         XCTAssertEqual(json["capturing"], .bool(false))
-        XCTAssertEqual(json["error"], store.status().error.map(JSONValue.string))
+        XCTAssertEqual(json["error"], store.status().error)
     }
 
     func testCommandFormsJSONAndConfigRefusal() async throws {
@@ -257,8 +257,40 @@ final class HookCaptureTest: XCTestCase {
             XCTAssertEqual(json["capturing"], .bool(form == " on"))
             XCTAssertNotNil(json["until"])
             XCTAssertEqual(json["records"], .int(0))
+            XCTAssertEqual(json["error"], .null)
         }
         XCTAssertNil(parseCmdArgs(["debug-hooks", "bad"].slice).cmdOrNil)
         XCTAssertTrue((parseCmdArgs(["subscribe", "--all"].slice).cmdOrNil as? SubscribeCmdArgs)?.events.contains(.hookCalled) == true)
+    }
+
+    func testOnWhileOnRecreatesARemovedFileAndKeepsItPrivate() async throws {
+        try store.start()
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: store.path.path)[.posixPermissions] as? Int, 0o600)
+        _ = await call("arrive")
+        try FileManager.default.removeItem(at: store.path)
+        try store.start()
+        _ = await call("arrive")
+        XCTAssertTrue(store.status().capturing)
+        XCTAssertEqual(store.status().error, .null)
+        XCTAssertEqual(try records().count, 1)
+        XCTAssertEqual(store.status().records, 2)
+        XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: store.path.path)[.posixPermissions] as? Int, 0o600)
+    }
+
+    func testRecordLinesDoNotEscapeSlashes() async throws {
+        try store.start()
+        _ = await call("workspace.a/b.columns.place", answer: .success(.object(["column": .int(2), "overflow": .string("tab-group")])))
+        let text = try String(contentsOf: store.path, encoding: .utf8)
+        XCTAssertTrue(text.contains("\"workspace.a/b.columns.place\""), text)
+    }
+
+    func testOffAfterTheDeadlineSaysCaptureStoppedItself() async throws {
+        _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        now.addTimeInterval(901)
+        let result = try await parseCommand("debug-hooks off").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertTrue(result.stdout.joined().contains("stopped itself at"), result.stdout.joined())
+        _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let again = try await parseCommand("debug-hooks off").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertFalse(again.stdout.joined().contains("stopped itself"))
     }
 }

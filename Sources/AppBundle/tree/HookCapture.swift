@@ -26,7 +26,7 @@ struct HookCaptureStatus: Encodable {
     let path: String
     let until: JSONValue
     let records: Int
-    let error: String?
+    let error: JSONValue
 }
 
 @MainActor
@@ -36,12 +36,14 @@ final class HookCaptureStore {
     private let now: () -> Date
     private let emit: (ServerEvent) -> Void
     private var until: Date?
+    /// When the last capture passed its deadline, until the next `on`.
+    private(set) var stoppedItselfAt: Date?
     private var records = 0
     private var error: String?
     private var generation = UUID()
     private let log = Logger(subsystem: winMuxAppId, category: "hook-capture")
 
-    init(path: URL = winMuxStateDirectory().appending(path: "hook-capture.jsonl"), now: @escaping () -> Date = Date.init,
+    init(path: URL = winMuxStateDirectory().appending(path: isDebug ? "hook-capture-debug.jsonl" : "hook-capture.jsonl"), now: @escaping () -> Date = Date.init,
          emit: @escaping (ServerEvent) -> Void = broadcastEvent) {
         self.path = path
         self.now = now
@@ -53,25 +55,41 @@ final class HookCaptureStore {
         let generation: UUID
     }
 
-    static func timestamp(_ date: Date) -> String {
+    private static let formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
+
+    /// The file's records and the `hook-called` event are encoded alike, so a line and its event match byte for byte apart from `_event`.
+    static let encoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
+        return encoder
+    }()
+
+    static func timestamp(_ date: Date) -> String { formatter.string(from: date) }
 
     func start() throws {
-        if !isCapturing() {
-            do {
+        let extending = isCapturing()
+        do {
+            // Extending keeps the records; a file removed meanwhile is created again, empty.
+            if !extending || !FileManager.default.fileExists(atPath: path.path) {
                 try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data().write(to: path)
-                records = 0
-                error = nil
-                generation = UUID()
-            } catch {
-                fail(error)
-                throw error
+                // The records hold window titles and documents.
+                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path.path)
             }
+        } catch {
+            fail(error)
+            throw error
         }
+        if !extending {
+            records = 0
+            error = nil
+            generation = UUID()
+        }
+        stoppedItselfAt = nil
         until = now().addingTimeInterval(15 * 60)
     }
 
@@ -81,6 +99,7 @@ final class HookCaptureStore {
         guard let deadline = until else { return false }
         guard now() < deadline else {
             until = nil
+            stoppedItselfAt = deadline
             log.info("Hook capture stopped itself after 15 minutes")
             return false
         }
@@ -89,24 +108,23 @@ final class HookCaptureStore {
 
     func status() -> HookCaptureStatus {
         let capturing = isCapturing()
-        return HookCaptureStatus(capturing: capturing, path: path.path, until: until.map { .string(Self.timestamp($0)) } ?? .null, records: records, error: error)
+        return HookCaptureStatus(capturing: capturing, path: path.path, until: until.map { .string(Self.timestamp($0)) } ?? .null, records: records, error: error.map(JSONValue.string) ?? .null)
     }
 
     func beginCall() -> Call? {
-        guard until != nil, isCapturing() else { return nil }
+        guard isCapturing() else { return nil }
         return Call(time: now(), generation: generation)
     }
 
     func append(_ record: HookCaptureRecord, call: Call) {
         guard isCapturing(), call.generation == generation else { return }
         do {
-            var data = try JSONEncoder().encode(record)
+            var data = try Self.encoder.encode(record)
             data.append(0x0a)
             let file = try FileHandle(forWritingTo: path)
             defer { try? file.close() }
             try file.seekToEnd()
             try file.write(contentsOf: data)
-            try file.synchronize()
             records += 1
             emit(.hookCalled(record))
         } catch { fail(error) }

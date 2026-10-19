@@ -232,7 +232,7 @@ On starts a fresh capture, or extends an active capture, for 15 minutes.
 Off prints the path and record count. Status also reports any write error.
 
 OPTIONS:
-  --json       Print capturing, path, until and records as JSON
+  --json       Print capturing, path, until, records and error as JSON
   -h, --help   Show this help
 """
 
