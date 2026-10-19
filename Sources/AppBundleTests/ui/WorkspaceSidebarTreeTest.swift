@@ -120,6 +120,17 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                     if context == "column" { target.columnSlot = 2; if sameParent { source.columnSlot = 1 } }
                     target.setWeight(parent.orientation, 400)
                     try await checkDrop(source, .windowZone(602, zone: zone))
+                    if sameParent, context != "column", let position = zone.stackSplitPosition, position.orientation != parent.orientation {
+                        // The source leaves the pointed window alone in its split: what counts is the tree the shipped normalization leaves.
+                        config.enableNormalizationFlattenContainers = true
+                        config.enableNormalizationOppositeOrientationForNestedContainers = true
+                        workspace.normalizeContainers()
+                        let pair = try XCTUnwrap(target.parent as? TilingContainer)
+                        XCTAssertTrue(source.parent === pair)
+                        XCTAssertEqual(pair.orientation, position.orientation)
+                        XCTAssertEqual(pair.children.map { ($0 as! Window).windowId }, position.isPositive ? [602, 601] : [601, 602])
+                        continue
+                    }
                     if zone == .middle {
                         XCTAssertTrue(source.parent === parent)
                         XCTAssertTrue(target.parent === sourceParent)
@@ -203,8 +214,9 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                         workspace.normalizeContainers()
                         XCTAssertFalse(container.isBound)
                         XCTAssertEqual(root.allLeafWindowsRecursive.map(\.windowId), [600, 601, 602, 603])
-                        XCTAssertTrue(root.children[1] === child || !nested)
-                        XCTAssertEqual(root.children.count, nested ? 3 : 4)
+                        // The nested split runs the root's way, so Ungroup splices its windows in rather than letting normalization turn it.
+                        XCTAssertFalse(child.isBound && nested)
+                        XCTAssertEqual(root.children.count, 4)
                     } else {
                         XCTAssertEqual(container.layout, action == .tabs ? .tabGroup : .tiles)
                         if action == .tabs && !unchanged { XCTAssertTrue(container.children.allSatisfy { $0 is Window }) }
@@ -342,7 +354,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         _ = TestWindow.new(id: 601, parent: nested)
         _ = TestWindow.new(id: 602, parent: nested)
         _ = TestWindow.new(id: 603, parent: split)
-        XCTAssertTrue(ungroupWorkspaceSidebarContainer(identity: split.stableId, workspaceName: "1"))
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.ungroup, identity: split.stableId, workspaceName: "1"))
         workspace.normalizeContainers()
         XCTAssertEqual(root.children.map { ($0 as! Window).windowId }, [600, 601, 602, 603])
         XCTAssertFalse(split.isBound)
@@ -1030,5 +1042,54 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
             XCTAssertEqual(a.getWeight(.h), along ? 600 : 350, accuracy: 0.001)
             XCTAssertEqual(b.getWeight(.h), along ? 100 : 350, accuracy: 0.001)
         }
+    }
+
+    @MainActor
+    func testSplitWithTheTargetsOnlySiblingKeepsTheAskedOrientationAfterNormalization() async throws {
+        for position: WindowDropZone in [.left, .right, .top, .bottom] {
+            setUpWorkspacesForTests()
+            config.enableNormalizationFlattenContainers = true
+            config.enableNormalizationOppositeOrientationForNestedContainers = true
+            let workspace = Workspace.get(byName: "1")
+            let root = workspace.rootTilingContainer
+            root.changeOrientation(.h)
+            _ = TestWindow.new(id: 600, parent: root)
+            let stack = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+            let source = TestWindow.new(id: 601, parent: stack)
+            let target = TestWindow.new(id: 602, parent: stack)
+            try await checkDrop(source, .windowZone(602, zone: position))
+            workspace.normalizeContainers()
+            let orientation = position.stackSplitPosition.orDie().orientation
+            let pair = try XCTUnwrap(source.parent as? TilingContainer)
+            XCTAssertTrue(target.parent === pair, "\(position)")
+            XCTAssertEqual(pair.orientation, orientation, "\(position): the split is the one the zone named; root \(root.orientation) \(root.children.map { ($0 as? Window).map { "w\($0.windowId)" } ?? "c\(($0 as! TilingContainer).orientation)\($0.children.count)" })")
+            let order = pair.children.compactMap { ($0 as? Window)?.windowId }.filter { [601, 602].contains($0) }
+            XCTAssertEqual(order, position == .left || position == .top ? [601, 602] : [602, 601], "\(position)")
+        }
+    }
+
+    @MainActor
+    func testUngroupSplicesASplitThatRunsTheParentsWaySoItsWindowsKeepTheirDirection() {
+        setUpWorkspacesForTests()
+        config.enableNormalizationFlattenContainers = true
+        config.enableNormalizationOppositeOrientationForNestedContainers = true
+        let workspace = Workspace.get(byName: "1")
+        let root = workspace.rootTilingContainer
+        root.changeOrientation(.h)
+        _ = TestWindow.new(id: 600, parent: root, adaptiveWeight: 400)
+        let stack = TilingContainer(parent: root, adaptiveWeight: 600, .v, .tiles, index: 1)
+        _ = TestWindow.new(id: 601, parent: stack)
+        let pair = TilingContainer(parent: stack, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 1)
+        let left = TestWindow.new(id: 602, parent: pair, adaptiveWeight: 3)
+        let right = TestWindow.new(id: 603, parent: pair, adaptiveWeight: 1)
+        workspace.normalizeContainers()
+        XCTAssertEqual(pair.orientation, .h)
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.ungroup, identity: stack.stableId, workspaceName: "1"))
+        workspace.normalizeContainers()
+        XCTAssertTrue(left.parent === right.parent)
+        XCTAssertEqual((left.parent as? TilingContainer)?.orientation, .h, "602 and 603 stay side by side")
+        XCTAssertEqual(root.children.compactMap { ($0 as? Window)?.windowId }, [600, 601, 602, 603])
+        XCTAssertEqual(left.getWeight(.h), 225, accuracy: 0.001, "The pair's half of the stack's 600 keeps its 3:1 split")
+        XCTAssertEqual(right.getWeight(.h), 75, accuracy: 0.001)
     }
 }

@@ -18,9 +18,7 @@ enum WorkspaceSidebarContainerAction: CaseIterable {
 }
 
 @MainActor
-@discardableResult
-func changeWorkspaceSidebarContainer(identity: UInt64, workspaceName: String, layout: Layout?, orientation: Orientation?, flattenTabs: Bool = false) -> Bool {
-    guard let container = workspaceSidebarLiveContainer(identity, workspaceName: workspaceName) else { return false }
+private func changeWorkspaceSidebarContainer(_ container: TilingContainer, layout: Layout?, orientation: Orientation?, flattenTabs: Bool = false) {
     if flattenTabs, layout == .tabGroup, container.children.contains(where: { $0 is TilingContainer }) {
         workspaceSidebarPreservingMru(of: container) {
             for case let child as TilingContainer in container.children {
@@ -29,7 +27,6 @@ func changeWorkspaceSidebarContainer(identity: UInt64, workspaceName: String, la
         }
     }
     container.changeLayout(layout, orientation: orientation)
-    return true
 }
 
 @MainActor
@@ -42,24 +39,31 @@ func workspaceSidebarUngroupRefusal(_ container: TilingContainer) -> String? {
 }
 
 @MainActor
-@discardableResult
-func ungroupWorkspaceSidebarContainer(identity: UInt64, workspaceName: String) -> Bool {
-    guard let container = workspaceSidebarLiveContainer(identity, workspaceName: workspaceName),
-          workspaceSidebarUngroupRefusal(container) == nil,
+private func ungroupWorkspaceSidebarContainer(_ container: TilingContainer) -> Bool {
+    guard workspaceSidebarUngroupRefusal(container) == nil,
           let parent = container.parent as? TilingContainer, let index = container.ownIndex else { return false }
     workspaceSidebarPreservingMru(of: parent) {
         if parent.layout == .tabGroup {
             workspaceSidebarJoinLeaves(container, to: parent, index: index)
             return
         }
-        // The children share the container's space along the parent's axis, in their own proportions when they lie along it.
-        let children = container.children
-        let share = container.getWeight(parent.orientation)
+        // The children share the container's space along the parent's axis, in their own proportions when they lie
+        // along it. A child split that runs the parent's way is spliced in the same way: bound whole, normalization
+        // would turn it across the parent and rotate its windows.
+        @MainActor func spread(_ children: [TreeNode], share: CGFloat, alongParent: Bool) -> [(TreeNode, CGFloat)] {
+            let total: CGFloat = alongParent ? children.reduce(CGFloat(0)) { $0 + $1.getWeight(parent.orientation) } : CGFloat(children.count)
+            return children.flatMap { child -> [(TreeNode, CGFloat)] in
+                let weight: CGFloat = alongParent && total > 0 ? share * child.getWeight(parent.orientation) / total : share / CGFloat(children.count)
+                if let split = child as? TilingContainer, split.layout == .tiles, split.orientation == parent.orientation {
+                    return spread(split.children, share: weight, alongParent: true)
+                }
+                return [(child, weight)]
+            }
+        }
         let alongParent = container.layout == .tiles && container.orientation == parent.orientation
-        let total = alongParent ? children.reduce(CGFloat(0)) { $0 + $1.getWeight(parent.orientation) } : CGFloat(children.count)
-        let weights = children.map { alongParent && total > 0 ? share * $0.getWeight(parent.orientation) / total : share / CGFloat(children.count) }
-        for (offset, child) in children.enumerated() {
-            child.bind(to: parent, adaptiveWeight: weights[offset], index: index + offset)
+        let pieces = spread(container.children, share: container.getWeight(parent.orientation), alongParent: alongParent)
+        for (offset, piece) in pieces.enumerated() {
+            piece.0.bind(to: parent, adaptiveWeight: piece.1, index: index + offset)
         }
     }
     return true
@@ -94,16 +98,18 @@ func applyWorkspaceSidebarContainerAction(_ action: WorkspaceSidebarContainerAct
     if action == .tabs, !config.windowTabs.enabled { return false }
     if workspaceSidebarContainerActionIsCurrent(action, container: container) { return true }
     switch action {
-        case .tabs: return changeWorkspaceSidebarContainer(identity: identity, workspaceName: workspaceName, layout: .tabGroup, orientation: nil, flattenTabs: true)
-        case .sideBySide: return changeWorkspaceSidebarContainer(identity: identity, workspaceName: workspaceName, layout: .tiles, orientation: .h)
-        case .stacked: return changeWorkspaceSidebarContainer(identity: identity, workspaceName: workspaceName, layout: .tiles, orientation: .v)
-        case .ungroup: return ungroupWorkspaceSidebarContainer(identity: identity, workspaceName: workspaceName)
+        case .tabs: changeWorkspaceSidebarContainer(container, layout: .tabGroup, orientation: nil, flattenTabs: true)
+        case .sideBySide: changeWorkspaceSidebarContainer(container, layout: .tiles, orientation: .h)
+        case .stacked: changeWorkspaceSidebarContainer(container, layout: .tiles, orientation: .v)
+        case .ungroup: return ungroupWorkspaceSidebarContainer(container)
     }
+    return true
 }
 
 @MainActor
 @discardableResult
 func flipWorkspaceSidebarSplit(identity: UInt64, workspaceName: String) -> Bool {
     guard let container = workspaceSidebarLiveContainer(identity, workspaceName: workspaceName), container.layout == .tiles else { return false }
-    return changeWorkspaceSidebarContainer(identity: identity, workspaceName: workspaceName, layout: nil, orientation: container.orientation.opposite)
+    changeWorkspaceSidebarContainer(container, layout: nil, orientation: container.orientation.opposite)
+    return true
 }

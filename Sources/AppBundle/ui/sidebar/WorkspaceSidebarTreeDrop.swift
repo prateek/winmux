@@ -77,6 +77,9 @@ func workspaceSidebarTreeDropDescription(_ target: WorkspaceSidebarTreeDropTarge
 func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTreeDropTarget) async throws -> Bool {
     guard source.isBound, let destination = workspaceSidebarTreeDestination(target),
           workspaceSidebarTreeRefusal(source: source, destination: destination) == nil else { return false }
+    if case .windowZone(_, let zone) = target {
+        guard let window = destination.node as? Window, workspaceSidebarOfferedZones(source: source, target: window).contains(zone) else { return false }
+    }
     let windows = source.allLeafWindowsRecursive
     switch target {
         case .floatingGroup, .floatingWindow:
@@ -146,28 +149,37 @@ func workspaceSidebarOfferedZones(source: TreeNode, target: Window) -> [WindowDr
     let windowSource = source as? Window
     if parent.layout == .tabGroup, source.parent === parent { return [] }
     let tab: [WindowDropZone] = windowSource != nil && config.windowTabs.enabled ? [.tab] : []
-    // Swapping with a floating source would float the pointed window; the issue tiles floating windows and arranges nothing else.
-    let swap: [WindowDropZone] = windowSource?.isFloating == true ? [] : [.middle]
+    // Swapping with a source outside the tiling tree would move the pointed window out of it: a floating source is tiled, and nothing else.
+    let swap: [WindowDropZone] = source.parent is TilingContainer ? [.middle] : []
     if parent.layout == .tabGroup { return windowSource != nil ? tab + swap : [] }
     return tab + [.left, .right, .top, .bottom] + swap
 }
 
 @MainActor
 private func workspaceSidebarSplit(source: TreeNode, target: Window, position: WindowStackSplitPosition) -> Bool {
-    guard let parent = target.parent as? TilingContainer else { return false }
+    func takesSibling(_ parent: TilingContainer) -> Bool {
+        parent.layout == .tiles && parent.orientation == position.orientation &&
+            !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
+    }
+    guard target.parent is TilingContainer else { return false }
+    let sharedParent = source.parent === target.parent
     source.unbindFromParent()
-    let binding = target.unbindFromParent()
-    let matching = parent.layout == .tiles && parent.orientation == position.orientation &&
-        !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
+    // A split the source leaves with only the pointed window is flattened by normalization, which would then flip a
+    // new split's orientation to differ from the split's parent: split beside that one-window split instead.
+    var anchor: TreeNode = target
+    if sharedParent, let lone = target.parent as? TilingContainer, lone.children.count == 1, !lone.isRootContainer, !takesSibling(lone) { anchor = lone }
+    guard let parent = anchor.parent as? TilingContainer else { return false }
+    let binding = anchor.unbindFromParent()
+    let matching = takesSibling(parent)
     let container = matching ? parent : TilingContainer(replacing: binding, position.orientation, .tiles)
     let index = matching ? binding.index : 0
     let weight = matching ? binding.adaptiveWeight / 2 : WEIGHT_AUTO
     if position.isPositive {
-        target.bind(to: container, adaptiveWeight: weight, index: index)
+        anchor.bind(to: container, adaptiveWeight: weight, index: index)
         source.bind(to: container, adaptiveWeight: weight, index: index + 1)
     } else {
         source.bind(to: container, adaptiveWeight: weight, index: index)
-        target.bind(to: container, adaptiveWeight: weight, index: index + 1)
+        anchor.bind(to: container, adaptiveWeight: weight, index: index + 1)
     }
     return true
 }
