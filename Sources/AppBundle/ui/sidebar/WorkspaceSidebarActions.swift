@@ -615,9 +615,7 @@ func updateSidebarWindowDrag(_ windowId: UInt32, subject: WindowDragSubject = .w
         postWorkspaceSidebarDragPointerNotification(workspaceSidebarDragPointerChangedNotification, pointer: pointer)
     }
     guard let window = Window.get(byId: windowId) else {
-        clearWorkspaceSidebarDropPreview()
-        clearPendingWindowDragIntent()
-        WindowDragCursorProxyPanel.shared.hide()
+        clearStaleDragSubjectFeedback()
         clearActiveWorkspaceSidebarDrag()
         return
     }

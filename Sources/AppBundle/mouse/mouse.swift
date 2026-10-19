@@ -289,7 +289,7 @@ private func hasActiveGlobalPostDragAxObserverSuppression() -> Bool {
 }
 
 @MainActor
-private func hasActivePostDragAxObserverSuppression(for windowId: UInt32) -> Bool {
+func hasActivePostDragAxObserverSuppression(for windowId: UInt32) -> Bool {
     guard let suppressionDeadline = suppressedPostDragAxObserverEventsByWindowId[windowId] else { return false }
     if suppressionDeadline > ContinuousClock.now {
         return true

@@ -105,16 +105,12 @@ func preservesWorkspaceSidebarTreePreview(isOverSidebar: Bool) -> Bool {
     currentActiveWorkspaceSidebarDrag() != nil && isOverSidebar
 }
 
-/// A group drag whose container is gone shows nothing and lets a pinned window go back to its layout.
+/// A drag whose subject is gone shows nothing.
 @MainActor
 func clearStaleDragSubjectFeedback() {
     clearPendingWindowDragIntent()
     setWorkspaceSidebarDropPreviewIfChanged(nil)
     WindowDragCursorProxyPanel.shared.hide()
-    if hasPinnedDraggedWindow() {
-        setPinnedDraggedWindowId(nil)
-        scheduleRefreshSession(.globalObserver("sidebarGhostExit"), optimisticallyPreLayoutWorkspaces: true)
-    }
 }
 
 @MainActor
