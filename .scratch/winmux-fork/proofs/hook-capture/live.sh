@@ -3,7 +3,7 @@ export TART_HOME="${TART_HOME:?Set TART_HOME before running this proof}"
 set -euxo pipefail
 out="$HOME/takes/hook-capture"
 w="$HOME/winmux/.build/debug/winmux"
-capture="$HOME/demo/hook-state/winmux/hook-capture.jsonl"
+capture="$HOME/demo/hook-state/winmux/hook-capture-debug.jsonl"
 pkill -x WinMuxApp || true
 sleep 3
 pkill -x ghostty || true
