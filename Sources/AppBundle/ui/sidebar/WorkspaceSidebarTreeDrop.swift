@@ -2,10 +2,10 @@ import AppKit
 import Common
 
 @MainActor
-func workspaceSidebarLiveContainer(_ identity: ObjectIdentifier, workspaceName: String) -> TilingContainer? {
+func workspaceSidebarLiveContainer(_ identity: UInt64, workspaceName: String) -> TilingContainer? {
     guard let workspace = Workspace.existing(byName: workspaceName) else { return nil }
     func find(_ node: TreeNode) -> TilingContainer? {
-        if let container = node as? TilingContainer, ObjectIdentifier(container) == identity { return container }
+        if let container = node as? TilingContainer, container.sidebarIdentity == identity { return container }
         for child in node.children { if let found = find(child) { return found } }
         return nil
     }
@@ -23,11 +23,11 @@ func workspaceSidebarTreeDestination(_ target: WorkspaceSidebarTreeDropTarget) -
             return (workspace, window)
         case .tabGroup(let identity, let name):
             guard let node = workspaceSidebarLiveContainer(identity, workspaceName: name), node.layout == .tabGroup,
-                  let workspace = node.nodeWorkspace else { return nil }
+                  let workspace = node.nodeWorkspace, !workspaceSidebarIsColumnsRoot(node, workspace: workspace) else { return nil }
             return (workspace, node)
         case .split(let identity, let name):
             guard let node = workspaceSidebarLiveContainer(identity, workspaceName: name), node.layout == .tiles,
-                  let workspace = node.nodeWorkspace else { return nil }
+                  let workspace = node.nodeWorkspace, !workspaceSidebarIsColumnsRoot(node, workspace: workspace) else { return nil }
             return (workspace, node)
         case .column(let name, let slot), .columnMark(let name, let slot):
             guard let workspace = Workspace.existing(byName: name), let columns = workspace.columns,
@@ -39,8 +39,14 @@ func workspaceSidebarTreeDestination(_ target: WorkspaceSidebarTreeDropTarget) -
 }
 
 @MainActor
-func workspaceSidebarTreeRefusal(source: TreeNode, target: WorkspaceSidebarTreeDropTarget) -> String? {
-    guard let destination = workspaceSidebarTreeDestination(target) else { return "Destination no longer exists" }
+private func workspaceSidebarIsColumnsRoot(_ node: TilingContainer, workspace: Workspace) -> Bool {
+    guard let columns = workspace.columns else { return false }
+    return node === columns.root || node === workspace.rootTilingContainer
+}
+
+@MainActor
+func workspaceSidebarTreeRefusal(source: TreeNode, destination: (workspace: Workspace, node: TreeNode?)?) -> String? {
+    guard let destination else { return "Destination no longer exists" }
     if let node = destination.node, node.parentsWithSelf.contains(where: { $0 === source }) {
         return "Cannot drop an item on itself or its descendants"
     }
@@ -48,8 +54,8 @@ func workspaceSidebarTreeRefusal(source: TreeNode, target: WorkspaceSidebarTreeD
 }
 
 @MainActor
-func workspaceSidebarTreeDropDescription(_ target: WorkspaceSidebarTreeDropTarget) -> String {
-    guard let destination = workspaceSidebarTreeDestination(target) else { return "Destination no longer exists" }
+func workspaceSidebarTreeDropDescription(_ target: WorkspaceSidebarTreeDropTarget, destination: (workspace: Workspace, node: TreeNode?)?) -> String {
+    guard let destination else { return "Destination no longer exists" }
     switch target {
         case .window(_, let after), .tab(_, let after):
             let window = destination.node as? Window
@@ -67,8 +73,8 @@ func workspaceSidebarTreeDropDescription(_ target: WorkspaceSidebarTreeDropTarge
 @MainActor
 @discardableResult
 func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTreeDropTarget) async throws -> Bool {
-    guard source.isBound, workspaceSidebarTreeRefusal(source: source, target: target) == nil,
-          let destination = workspaceSidebarTreeDestination(target) else { return false }
+    guard source.isBound, let destination = workspaceSidebarTreeDestination(target),
+          workspaceSidebarTreeRefusal(source: source, destination: destination) == nil else { return false }
     let windows = source.allLeafWindowsRecursive
     switch target {
         case .floatingGroup, .floatingWindow:
@@ -78,15 +84,10 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
                 index = ownIndex + (after ? 1 : 0)
                 index -= windows.filter { $0.parent === destination.workspace && ($0.ownIndex ?? Int.max) < index }.count
             }
+            destination.workspace.bindLeavesAsFloating(source, at: index)
             for window in windows {
-                window.unbindFromParent()
-                window.bindAsFloatingWindow(to: destination.workspace)
-                if index != INDEX_BIND_LAST {
-                    window.bind(to: destination.workspace, adaptiveWeight: WEIGHT_AUTO, index: min(index, destination.workspace.children.count - 1))
-                    index += 1
-                }
+                if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
             }
-            if source is TilingContainer, source.isBound { source.unbindFromParent() }
             return true
         default: break
     }
@@ -94,8 +95,8 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
         window.lastFloatingSize = try await window.getAxSize() ?? window.lastFloatingSize
     }
     // AX size reads can suspend; resolve again before mutation.
-    guard source.isBound, workspaceSidebarTreeRefusal(source: source, target: target) == nil,
-          let live = workspaceSidebarTreeDestination(target) else { return false }
+    guard source.isBound, let live = workspaceSidebarTreeDestination(target),
+          workspaceSidebarTreeRefusal(source: source, destination: live) == nil else { return false }
     switch target {
         case .column(_, let slot), .columnMark(_, let slot):
             source.unbindFromParent()
@@ -110,11 +111,7 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
             guard let node = live.node, let parent = node.parent as? TilingContainer,
                   let binding = workspaceSidebarSiblingBindingData(source: source, target: node, after: after) else { return false }
             if live.workspace.columns != nil, parent === live.workspace.rootTilingContainer {
-                let old = node.unbindFromParent()
-                let wrapper = TilingContainer(parent: old.parent, adaptiveWeight: old.adaptiveWeight, .v, .tiles, index: old.index)
-                wrapper.columnSlot = old.columnSlot
-                node.columnSlot = nil
-                node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
+                let wrapper = live.workspace.wrapColumnChildInVerticalSplit(node)
                 source.columnSlot = nil
                 source.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: after ? 1 : 0)
             } else if parent.layout == .tabGroup, source is TilingContainer {

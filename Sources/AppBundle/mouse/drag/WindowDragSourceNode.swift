@@ -73,9 +73,9 @@ func isInvalidGroupSelfTarget(sourceNode: TreeNode, targetNode: TreeNode, subjec
 
 @MainActor
 func sidebarDragSourceTitle(for sourceWindow: Window, subject: WindowDragSubject) -> String {
-    let moveNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    let moveNode = workspaceSidebarDragSource(sourceWindow, subject: subject)
     if let group = moveNode as? TilingContainer {
-        let windowCount = max(moveNode.allLeafWindowsRecursive.count, 1)
+        let windowCount = max(group.allLeafWindowsRecursive.count, 1)
         let representativeWindow =
             group.tabActiveWindow ??
             group.mostRecentWindowRecursive ??
@@ -101,8 +101,14 @@ private func sidebarDragPreviewTabItems(for moveNode: TreeNode, isTabGroup: Bool
 }
 
 @MainActor
+func preservesWorkspaceSidebarTreePreview(isOverSidebar: Bool) -> Bool {
+    currentActiveWorkspaceSidebarDrag() != nil && isOverSidebar
+}
+
+@MainActor
 func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject, destination: WindowDragIntentDestination?) {
-    guard currentActiveWorkspaceSidebarDrag() == nil else { return }
+    let point = MousePointerTracker.shared.currentSample.point
+    guard !preservesWorkspaceSidebarTreePreview(isOverSidebar: WorkspaceSidebarPanel.panel(containing: point) != nil) else { return }
     guard let destination, destination.previewStyle == .sidebarWorkspaceMove else {
         let hadPinnedWindow = hasPinnedDraggedWindow()
         setPinnedDraggedWindowId(nil)

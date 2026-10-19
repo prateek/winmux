@@ -5,39 +5,50 @@ func workspaceSidebarFilteredWorkspacesByProject(
     projects: [WorkspaceSidebarProjectViewModel],
     query: String,
 ) -> [WorkspaceProjectId: [WorkspaceSidebarWorkspaceViewModel]] {
-    let query = query.trimmingCharacters(in: .whitespacesAndNewlines).localizedLowercase
-    guard !query.isEmpty else { return workspacesByProject }
+    let terms = query.split(whereSeparator: { $0.isWhitespace }).map { String($0).localizedLowercase }
+    guard !terms.isEmpty else { return workspacesByProject }
+    let projectNames = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.displayName) })
     return workspacesByProject.mapValues { workspaces in
         workspaces.compactMap { workspace in
             var result = workspace
-            result.items = workspace.items.compactMap { workspaceSidebarSearchResultItem($0, query: query) }
-            return result.items.isEmpty ? nil : result
+            let projectName = projectNames[workspace.projectId]
+            result.items = workspace.items.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
+            if !result.items.isEmpty { return result }
+            let workspaceMatches = workspaceSidebarSearchTextMatches(
+                [workspace.displayName, workspace.sidebarLabel, workspace.name, workspace.monitorName, projectName], terms: terms)
+            return workspaceMatches ? workspace : nil
         }
     }
 }
 
-private func workspaceSidebarWindowMatches(_ window: WorkspaceSidebarWindowViewModel, query: String) -> Bool {
-    window.appName.localizedLowercase.contains(query) || window.title?.localizedLowercase.contains(query) == true
+private func workspaceSidebarSearchTextMatches(_ values: [String?], terms: [String]) -> Bool {
+    let text = values.compactMap { $0?.localizedLowercase }.joined(separator: " ")
+    return terms.allSatisfy { text.contains($0) }
 }
 
-private func workspaceSidebarSearchResultItem(_ item: WorkspaceSidebarItemViewModel, query: String) -> WorkspaceSidebarItemViewModel? {
+private func workspaceSidebarWindowMatches(_ window: WorkspaceSidebarWindowViewModel, workspace: WorkspaceSidebarWorkspaceViewModel, projectName: String?, terms: [String]) -> Bool {
+    workspaceSidebarSearchTextMatches(
+        [window.title, window.appName, window.appBundleId, window.appBundlePath, workspace.displayName, workspace.name, projectName], terms: terms)
+}
+
+private func workspaceSidebarSearchResultItem(_ item: WorkspaceSidebarItemViewModel, workspace: WorkspaceSidebarWorkspaceViewModel, projectName: String?, terms: [String]) -> WorkspaceSidebarItemViewModel? {
     var result = item
-    if !item.children.isEmpty {
-        result.children = item.children.compactMap { workspaceSidebarSearchResultItem($0, query: query) }
-        guard !result.children.isEmpty else { return nil }
-        result.isSearchAncestor = true
-        result.isSearchRevealed = true
-        return result
-    }
     switch item.kind {
         case .window(let window):
-            return workspaceSidebarWindowMatches(window, query: query) ? result : nil
+            return workspaceSidebarWindowMatches(window, workspace: workspace, projectName: projectName, terms: terms) ? item : nil
         case .tabGroup(var group):
-            let matches = group.tabs.filter { workspaceSidebarWindowMatches($0, query: query) }
-            guard !matches.isEmpty else { return nil }
+            let matches = group.tabs.filter { workspaceSidebarWindowMatches($0, workspace: workspace, projectName: projectName, terms: terms) }
+            result.children = item.children.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
+            guard !matches.isEmpty || !result.children.isEmpty || workspaceSidebarSearchTextMatches(
+                [group.title, workspace.displayName, workspace.name, projectName], terms: terms) else { return nil }
             group.searchVisibleTabs = matches
-            result = .init(kind: .tabGroup(group), realParent: item.realParent, indexInParent: item.indexInParent, columnSlot: item.columnSlot, isSearchAncestor: true, isSearchRevealed: true)
+            result = .init(kind: .tabGroup(group), children: result.children, realParent: item.realParent, indexInParent: item.indexInParent, columnSlot: item.columnSlot, isSearchAncestor: true, isSearchRevealed: true)
             return result
-        case .split, .column, .floating: return nil
+        case .split, .column, .floating:
+            result.children = item.children.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
+            guard !result.children.isEmpty else { return nil }
+            result.isSearchAncestor = true
+            result.isSearchRevealed = true
+            return result
     }
 }

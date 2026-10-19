@@ -424,18 +424,6 @@ extension WorkspaceSidebarWorkspaceSection {
     }
 
     @ViewBuilder
-    func workspaceItemView(_ item: WorkspaceSidebarItemViewModel) -> some View {
-        switch item.kind {
-            case .window(let window):
-                workspaceWindowButton(window, allowsDrag: true)
-            case .tabGroup(let group):
-                workspaceTabGroupView(group)
-            case .split, .column, .floating:
-                treeItemView(item)
-        }
-    }
-
-    @ViewBuilder
     var dropPreviewRow: some View {
         if dragPreview?.targetWorkspaceName == workspace.name, dragPreview?.treeTarget == nil {
             WorkspaceSidebarDropPreviewView(preview: dragPreview.orDie(), rowHeight: rowHeight)
@@ -562,7 +550,6 @@ extension WorkspaceSidebarWorkspaceSection {
         .modifier(WorkspaceSidebarOptionalDragModifier(
             isEnabled: true,
             onChanged: {
-                if let identity = group.containerIdentity { workspaceSidebarDraggedContainer = (identity, workspace.name) }
                 actions.tabGroupDragChanged(group.representativeWindowId, $0)
             },
             onEnded: { actions.tabGroupDragEnded(group.representativeWindowId, $0) },

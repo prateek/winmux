@@ -1,16 +1,22 @@
 @MainActor
 func makeWorkspaceSidebarTabGroupViewModel(
     for container: TilingContainer,
+    children: [WorkspaceSidebarItemViewModel],
     workspaceName: String,
     currentFocus: LiveFocus,
-) async -> WorkspaceSidebarTabGroupViewModel? {
+) -> WorkspaceSidebarTabGroupViewModel? {
     let representativeWindow = container.tabActiveWindow ?? container.mostRecentWindowRecursive ?? container.anyLeafWindowRecursive
     guard let representativeWindow else { return nil }
-    let tabs = await buildWorkspaceSidebarTabItems(
-        for: container,
-        workspaceName: workspaceName,
-        currentFocus: currentFocus,
-    )
+    let windows = children.flatMap(\.descendantItems).compactMap { item -> WorkspaceSidebarWindowViewModel? in
+        if case .window(let window) = item.kind { return window }
+        return nil
+    }
+    let windowsById = Dictionary(uniqueKeysWithValues: windows.map { ($0.windowId, $0) })
+    let tabs = container.children.compactMap { child -> WorkspaceSidebarWindowViewModel? in
+        guard let representative = child.tabRepresentativeWindow ?? child.mostRecentWindowRecursive ?? child.anyLeafWindowRecursive,
+              representative.isBound else { return nil }
+        return windowsById[representative.windowId]
+    }
     guard !tabs.isEmpty else { return nil }
     return WorkspaceSidebarTabGroupViewModel(
         representativeWindowId: representativeWindow.windowId,
@@ -19,26 +25,6 @@ func makeWorkspaceSidebarTabGroupViewModel(
         windowCount: container.allLeafWindowsRecursive.count,
         isFocused: representativeWindow.moveNode == currentFocus.windowOrNil?.moveNode,
         tabs: tabs,
-        containerIdentity: ObjectIdentifier(container),
+        containerIdentity: container.sidebarIdentity,
     )
-}
-
-@MainActor
-private func buildWorkspaceSidebarTabItems(
-    for container: TilingContainer,
-    workspaceName: String,
-    currentFocus: LiveFocus,
-) async -> [WorkspaceSidebarWindowViewModel] {
-    var tabs: [WorkspaceSidebarWindowViewModel] = []
-    for child in container.children {
-        guard let representative = child.tabRepresentativeWindow ?? child.mostRecentWindowRecursive ?? child.anyLeafWindowRecursive,
-              representative.isBound
-        else { continue }
-        tabs.append(await makeWorkspaceSidebarWindowViewModel(
-            for: representative,
-            workspaceName: workspaceName,
-            currentFocus: currentFocus,
-        ))
-    }
-    return tabs
 }

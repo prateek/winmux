@@ -408,7 +408,7 @@ final class WorkspaceSidebarDragTest: XCTestCase {
         XCTAssertEqual(workspaceSidebarSearchSelections(workspaces: appResults), [.window(202)])
     }
 
-    func testWorkspaceSidebarSearchMatchesWindowsRatherThanWorkspaceNames() {
+    func testWorkspaceSidebarSearchKeepsWholeWorkspaceForWorkspaceMatch() {
         let workspaces = makeWorkspaceSidebarSearchFixture()
 
         let results = workspaceSidebarFilteredWorkspacesByProject(
@@ -417,12 +417,8 @@ final class WorkspaceSidebarDragTest: XCTestCase {
             query: "coding",
         )[workspaceProjectDefaultId] ?? []
 
-        XCTAssertTrue(results.isEmpty)
-        for query in ["com.apple", "release notes", "research"] {
-            XCTAssertTrue(workspaceSidebarFilteredWorkspacesByProject(
-                [workspaceProjectDefaultId: workspaces], projects: [], query: query,
-            )[workspaceProjectDefaultId]!.isEmpty)
-        }
+        XCTAssertEqual(results.map(\.name), ["coding"])
+        XCTAssertEqual(results.first?.items.map(\.id), ["window:101", "window:102"])
     }
 
     func testWorkspaceSidebarInlineTextDeletesLastWord() {

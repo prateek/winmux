@@ -42,7 +42,6 @@ struct WorkspaceSidebarConfiguration: Equatable {
     var chromeStyle: ChromeStyle
     var solidChromeColor: ChromeSolidColor
     var solidChromeCustomColor: String
-    var tree = WorkspaceSidebarTreeConfig()
 
     static let empty = WorkspaceSidebarConfiguration(
         collapsedWidth: 0,

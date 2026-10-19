@@ -82,9 +82,8 @@ extension WorkspaceSidebarWorkspaceSection {
                 }
                     .buttonStyle(.plain)
                     .modifier(WorkspaceSidebarOptionalDragModifier(isEnabled: true, onChanged: { point in
-                        workspaceSidebarDraggedContainer = (identity, workspace.name)
                         if let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name), let window = container.anyLeafWindowRecursive {
-                            updateSidebarWindowDrag(window.windowId, subject: .group, pointer: point)
+                            updateSidebarWindowDrag(window.windowId, subject: .group, pointer: point, container: container, sidebarOnly: true)
                         }
                     }, onEnded: { point in finishSidebarWindowDrag(pointer: point) })))
                 target = .split(identity, workspace: workspace.name)

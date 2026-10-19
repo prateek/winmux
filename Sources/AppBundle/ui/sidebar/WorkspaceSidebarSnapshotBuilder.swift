@@ -15,6 +15,5 @@ func workspaceSidebarConfiguration() -> WorkspaceSidebarConfiguration {
         chromeStyle: config.workspaceSidebar.chromeStyle,
         solidChromeColor: config.workspaceSidebar.solidChromeColor,
         solidChromeCustomColor: config.workspaceSidebar.solidChromeCustomColor,
-        tree: config.workspaceSidebar.tree,
     )
 }

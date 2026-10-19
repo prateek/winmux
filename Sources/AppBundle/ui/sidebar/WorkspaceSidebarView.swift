@@ -957,6 +957,7 @@ extension WorkspaceSidebarView {
             .padding(.top, topPadding)
             .padding(.bottom, 10)
         }
+        .modifier(WorkspaceSidebarViewportModifier())
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 

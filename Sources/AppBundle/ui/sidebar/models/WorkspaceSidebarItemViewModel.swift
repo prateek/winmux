@@ -24,14 +24,14 @@ struct WorkspaceSidebarItemViewModel: Hashable, Identifiable, Sendable {
 enum WorkspaceSidebarItemKind: Hashable, Sendable {
     case window(WorkspaceSidebarWindowViewModel)
     case tabGroup(WorkspaceSidebarTabGroupViewModel)
-    case split(ObjectIdentifier, orientation: String, layout: String)
+    case split(UInt64, orientation: String, layout: String)
     case column(workspace: String, slot: Int, fraction: Double)
     case floating(workspace: String)
 }
 
 enum WorkspaceSidebarNodeIdentity: Hashable, Sendable {
     case workspace(String)
-    case container(ObjectIdentifier)
+    case container(UInt64)
     case column(String, Int)
     case floating(String)
     case window(UInt32)

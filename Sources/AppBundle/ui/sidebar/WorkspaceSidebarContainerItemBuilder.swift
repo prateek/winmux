@@ -11,7 +11,10 @@ func buildWorkspaceSidebarLayoutTree(for workspace: Workspace, currentFocus: Liv
                 children.append(await workspaceSidebarTreeItem(child, workspace: workspace, slot: slot, currentFocus: currentFocus))
             }
             items.append(.init(kind: .column(workspace: workspace.name, slot: slot, fraction: Double(columns.widths[slot - 1])),
-                               children: children, realParent: .container(ObjectIdentifier(root)), indexInParent: slot - 1, columnSlot: slot))
+                               children: children, realParent: .container(root.sidebarIdentity), indexInParent: slot - 1, columnSlot: slot))
+        }
+        for child in root.children where !(1...columns.slotCount).contains(child.columnSlot ?? 0) {
+            items.append(await workspaceSidebarTreeItem(child, workspace: workspace, slot: nil, currentFocus: currentFocus))
         }
     } else if !root.children.isEmpty {
         items.append(await workspaceSidebarTreeItem(root, workspace: workspace, slot: nil, currentFocus: currentFocus))
@@ -30,7 +33,7 @@ func buildWorkspaceSidebarLayoutTree(for workspace: Workspace, currentFocus: Liv
 
 @MainActor
 private func workspaceSidebarTreeItem(_ node: TreeNode, workspace: Workspace, slot: Int?, currentFocus: LiveFocus) async -> WorkspaceSidebarItemViewModel {
-    let parent: WorkspaceSidebarNodeIdentity? = (node.parent as? TilingContainer).map { .container(ObjectIdentifier($0)) } ?? .workspace(workspace.name)
+    let parent: WorkspaceSidebarNodeIdentity? = (node.parent as? TilingContainer).map { .container($0.sidebarIdentity) } ?? .workspace(workspace.name)
     let kind: WorkspaceSidebarItemKind
     var children: [WorkspaceSidebarItemViewModel] = []
     if let window = node as? Window {
@@ -40,10 +43,10 @@ private func workspaceSidebarTreeItem(_ node: TreeNode, workspace: Workspace, sl
             children.append(await workspaceSidebarTreeItem(child, workspace: workspace, slot: slot, currentFocus: currentFocus))
         }
         if container.layout == .tabGroup, container.children.count > 1,
-           let group = await makeWorkspaceSidebarTabGroupViewModel(for: container, workspaceName: workspace.name, currentFocus: currentFocus) {
+           let group = makeWorkspaceSidebarTabGroupViewModel(for: container, children: children, workspaceName: workspace.name, currentFocus: currentFocus) {
             kind = .tabGroup(group)
         } else {
-            kind = .split(ObjectIdentifier(container), orientation: container.orientation == .v ? "vertical" : "horizontal", layout: container.layout.rawValue)
+            kind = .split(container.sidebarIdentity, orientation: container.orientation == .v ? "vertical" : "horizontal", layout: container.layout.rawValue)
         }
     } else { preconditionFailure("Sidebar tree contains only layout nodes") }
     return .init(kind: kind, children: children, realParent: parent, indexInParent: node.ownIndex ?? 0, columnSlot: slot)

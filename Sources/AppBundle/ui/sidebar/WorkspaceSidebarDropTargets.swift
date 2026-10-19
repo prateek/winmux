@@ -10,8 +10,8 @@ enum WorkspaceSidebarDropTargetKind: Equatable {
 enum WorkspaceSidebarTreeDropTarget: Hashable, Sendable {
     case window(UInt32, after: Bool)
     case tab(UInt32, after: Bool)
-    case tabGroup(ObjectIdentifier, workspace: String)
-    case split(ObjectIdentifier, workspace: String)
+    case tabGroup(UInt64, workspace: String)
+    case split(UInt64, workspace: String)
     case column(String, slot: Int)
     case columnMark(String, slot: Int)
     case floatingGroup(String)
@@ -33,6 +33,12 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
         return true
     }
     let exact = targets.filter { $0.rect.contains(point) }
+    if let control = exact.first(where: {
+        switch $0.kind {
+            case .monitor, .newWorkspace: true
+            case .workspace, .tree: false
+        }
+    }) { return control }
     let candidates = exact.isEmpty ? targets.filter {
         guard case .tree = $0.kind else {
             return $0.rect.expanded(left: hitSlop.left, right: hitSlop.right, top: hitSlop.top, bottom: hitSlop.bottom).contains(point)
@@ -64,12 +70,31 @@ struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
     }
 }
 
+func workspaceSidebarVisibleTreeTargets(_ targets: [WorkspaceSidebarDropTargetFrame], viewport: CGRect) -> [WorkspaceSidebarDropTargetFrame] {
+    targets.filter {
+        guard case .tree = $0.kind else { return true }
+        return viewport.contains($0.frame)
+    }
+}
+
+struct WorkspaceSidebarViewportModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        GeometryReader { geometry in
+            let viewport: CGRect = geometry.frame(in: .named("workspaceSidebarContent"))
+            content.transformPreference(WorkspaceSidebarDropTargetPreferenceKey.self) { targets in
+                targets = workspaceSidebarVisibleTreeTargets(targets, viewport: viewport)
+            }
+        }
+    }
+}
+
 @MainActor
 func workspaceSidebarDropTarget(at mouseLocation: CGPoint, hitSlop: NSEdgeInsets = NSEdgeInsets(), includesTreeTargets: Bool = true) -> WorkspaceSidebarDropTarget? {
     WorkspaceSidebarPanel.panel(containing: mouseLocation)
         .flatMap { panel in
-            resolveWorkspaceSidebarDropTarget(at: mouseLocation, targets: workspaceSidebarDropTargets.filter {
-                panel.visibleScreenRectNormalized()?.contains($0.rect.center) == true
+            let visibleRect = panel.visibleScreenRectNormalized()
+            return resolveWorkspaceSidebarDropTarget(at: mouseLocation, targets: workspaceSidebarDropTargets.filter {
+                visibleRect?.contains($0.rect.center) == true
             }, hitSlop: hitSlop, includesTreeTargets: includesTreeTargets)
         }
 }
