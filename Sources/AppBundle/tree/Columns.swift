@@ -174,15 +174,12 @@ extension Workspace {
     }
 
     @MainActor
-    func columnPlacementSlot(excluding window: TreeNode? = nil, focusedSlot: Int? = nil, excludingWindows: [Window] = []) -> Int {
+    func columnPlacementSlot(excluding window: TreeNode? = nil, focusedSlot: Int? = nil) -> Int {
         guard let columns else { return 1 }
         let root = rootTilingContainer
         let anchor = max(1, min(columns.slotCount, focusedSlot ?? columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
             root.childrenByMostRecentUse.first?.columnSlot ?? 1))
-        let excluded = Set((excludingWindows + (window?.allLeafWindowsRecursive ?? [])).map(ObjectIdentifier.init))
-        let occupied = Set(root.children.filter { child in
-            child.allLeafWindowsRecursive.contains { !excluded.contains(ObjectIdentifier($0)) }
-        }.compactMap(\.columnSlot))
+        let occupied = Set(root.children.filter { ColumnPlacement.isOccupied($0, excluding: window) }.compactMap(\.columnSlot))
         return (1...columns.slotCount).filter { !occupied.contains($0) }.min {
             let left = abs($0 - anchor)
             let right = abs($1 - anchor)

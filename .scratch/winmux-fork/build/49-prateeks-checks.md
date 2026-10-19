@@ -145,6 +145,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Shortcut hints on tabs while the modifier is held**
 - [ ] On the installed build with a real keyboard, focus a window in a tab group of more than nine tabs and hold Option. Pass: after about half a second each of the first eight tabs shows its digit where its icon was, the last tab shows `9`, the tabs between show their icons, and releasing Option brings the icons back. Then press Option-3 the way you usually do, quickly, and also Option-3 followed by keeping Option down. Pass: neither shows a hint, and both focus the third tab. Say here if half a second is too long or too short.
 
+**Dragging a window shows no overlay when Columns are on**
+- [ ] On the installed build with your own Columns config, drag a window by its title bar over each Column, one empty and one occupied. Pass: each shows an outline where the window will land (the whole Column, its lower half for a `'split` hook, a new Column for `'squeeze`), and the drop lands inside that outline. Then drag with Columns off. Pass: the overlays look as they did before.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

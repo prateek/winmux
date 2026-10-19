@@ -3,7 +3,6 @@ import AppKit
 @MainActor
 func currentColumnDragDestination(sourceWindow: Window, workspace: Workspace, mouseLocation: CGPoint,
                                   subject: WindowDragSubject, detachOrigin: TabDetachOrigin) -> WindowDragIntentDestination? {
-    let incoming = dragSubjectNode(for: sourceWindow, subject: subject)
     guard let columns = workspace.columns, !sourceWindow.isFloating,
           detachOrigin != .tabStrip else { return nil }
     let rect = workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect ?? workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
@@ -20,6 +19,7 @@ func currentColumnDragDestination(sourceWindow: Window, workspace: Workspace, mo
     let slot = (1...columns.slotCount).min { left, right in
         return distance(left) < distance(right)
     }.orDie()
+    let incoming = dragSubjectNode(for: sourceWindow, subject: subject)
     guard workspace.columnSlot(containing: incoming) != slot else { return nil }
     let decision = ColumnDropDecisionCache.shared.preview(window: sourceWindow, workspace: workspace, slot: slot, incoming: incoming) {
         guard isLeftMouseButtonDown, currentlyManipulatedWithMouseWindowId == sourceWindow.windowId else { return }
@@ -44,7 +44,7 @@ func columnDragDestination(workspace: Workspace, slot: Int, decision: PlacementD
         case .float: title = "Float"
         case .split: title = "Column \(placement.slot) · split"
         case .attach:
-            if placement.slot > workspace.columns.orDie().count, decision.overflow == .squeeze {
+            if placement.widths.count > workspace.columns.orDie().widths.count {
                 title = "New Column · squeeze"
             } else if ColumnPlacement.isOccupied(workspace.rootTilingContainer.children.first { $0.columnSlot == placement.slot }, excluding: incoming) {
                 title = "Column \(placement.slot) · tab group"

@@ -97,7 +97,8 @@ final class ColumnDropTest: XCTestCase {
         }
         helper.answers["columns.place"] = .failure(.unavailable("Broken hook"))
         let failed = await ColumnPolicy.dropDecision(window: a, workspace: workspace, slot: 2)
-        XCTAssertEqual(failed.slot, 1, "Nearest empty breaks the tie toward the lower Column")
+        XCTAssertEqual(failed.slot, 2, "A failed hook leaves the pointed Column, as with no hook")
+        XCTAssertEqual(failed.overflow, .tabGroup)
         XCTAssertNotNil(failed.failure)
         XCTAssertEqual(helper.failures.count, 1)
     }
@@ -190,7 +191,7 @@ final class ColumnDropTest: XCTestCase {
         for change in ["clear", "columns", "window", "workspace"] {
             let gate = ReloadGate()
             var evaluations = 0, redraws = 0
-            let cache = ColumnDropDecisionCache { _, _, slot, _, _ in
+            let cache = ColumnDropDecisionCache { _, _, slot, _ in
                 evaluations += 1
                 await gate.hold()
                 return PlacementDecision(slot: slot, target: "focused", overflow: .split, hook: "columns.place")
@@ -227,7 +228,7 @@ final class ColumnDropTest: XCTestCase {
         other.columns = ColumnState(count: 3)
         let gate = ReloadGate()
         var evaluations = 0, oldRedraws = 0
-        let cache = ColumnDropDecisionCache { _, destination, slot, _, _ in
+        let cache = ColumnDropDecisionCache { _, destination, slot, _ in
             evaluations += 1
             if destination === workspace, evaluations == 1 { await gate.hold() }
             return PlacementDecision(slot: slot, target: "focused", overflow: .split, hook: "columns.place")
@@ -350,7 +351,7 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertEqual(lookup(b, point, origin: .tabStrip)?.kind, stripExpected?.kind)
     }
 
-    func testGroupDropMovesEveryLeafInOrderAcrossWorkspacesAndExcludesGroupRecords() async throws {
+    func testGroupDropBindsAsOneNodeAcrossWorkspacesWithOneHookCall() async throws {
         let (source, a, _, _) = try await fixture()
         let c = TestWindow.new(id: 43, parent: source)
         source.bindToColumn(c, slot: 1)
@@ -379,11 +380,109 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertEqual(destination.columnSlot(containing: a), 2)
         XCTAssertEqual(destination.columnSlot(containing: c), 2)
         XCTAssertEqual(a.parent?.allLeafWindowsRecursive.map(\.windowId), [44, 41, 43])
-        XCTAssertEqual(helper.calls.count, 2)
-        XCTAssertEqual(helper.calls.map { $0.args[0]["id"] }, [.int(43), .int(41)])
-        for call in helper.calls {
-            let ids = call.args[2].arrayOrNil!.flatMap { $0["windows"]!.arrayOrNil! }.map { $0["id"] }
-            XCTAssertEqual(ids, [.int(44)], "All dragged leaves stay excluded after the first leaf moves")
+        XCTAssertEqual(helper.calls.count, 1, "The group is placed once, with the answer the overlay drew")
+        XCTAssertEqual(helper.calls.map { $0.args[0]["id"] }, [.int(43)])
+        let ids = helper.calls[0].args[2].arrayOrNil!.flatMap { $0["windows"]!.arrayOrNil! }.map { $0["id"] }
+        XCTAssertEqual(ids, [.int(44)], "Every dragged leaf is excluded from the hook's records")
+    }
+
+    private func groupFixture() async throws -> (Workspace, TestWindow, TestWindow, TestWindow, ControlledPolicyHooks) {
+        let (workspace, a, b, _) = try await fixture()
+        let c = TestWindow.new(id: 43, parent: workspace)
+        workspace.bindToColumn(c, slot: 1)
+        workspace.normalizeContainers()
+        XCTAssertTrue(c.focusWindow())
+        try await workspace.layoutWorkspace()
+        let helper = ControlledPolicyHooks()
+        PolicyHooks.setOverrideForTests(helper)
+        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
+        return (workspace, a, b, c, helper)
+    }
+
+    private func dropGroup(_ c: TestWindow, on workspace: Workspace, slot: Int) async throws -> Bool {
+        let rect = workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!
+        let incoming = dragSubjectNode(for: c, subject: .group)
+        let answer = await ColumnDropDecisionCache.shared.decision(window: c, workspace: workspace, slot: slot, incoming: incoming)
+        let decision = try XCTUnwrap(answer)
+        let preview = columnDragDestination(workspace: workspace, slot: slot, decision: decision, incoming: incoming, rect: rect, subject: .group)
+        MousePointerTracker.shared.note(point: rect.center)
+        _ = setPendingWindowDragIntent(sourceWindowId: c.windowId, sourceSubject: .group, detachOrigin: .window, destination: preview)
+        return try await applyPendingWindowDragIntentWithPolicy()
+    }
+
+    func testGroupSplitDropKeepsTheGroupInTheLowerHalf() async throws {
+        let (workspace, a, b, c, helper) = try await groupFixture()
+        helper.answers["columns.place"] = .success(.object(["column": .string("focused"), "overflow": .string("split")]))
+        let applied = try await dropGroup(c, on: workspace, slot: 2)
+        XCTAssertTrue(applied)
+        let group = try XCTUnwrap(c.parent as? TilingContainer)
+        XCTAssertEqual(group.layout, .tabGroup)
+        XCTAssertEqual(group.children.compactMap { ($0 as? Window)?.windowId }.sorted(), [a.windowId, c.windowId])
+        let column = try XCTUnwrap(group.parent as? TilingContainer)
+        XCTAssertEqual(column.orientation, .v)
+        XCTAssertTrue(column.children.first === b, "The occupant keeps the upper half")
+        XCTAssertTrue(column.children.last === group)
+        XCTAssertEqual(workspace.columnSlot(containing: c), 2)
+    }
+
+    func testGroupMruDropExcludesTheWholeGroup() async throws {
+        let (workspace, _, b, c, helper) = try await groupFixture()
+        helper.answers["columns.place"] = .success(.object(["column": .string("mru"), "overflow": .string("tab-group")]))
+        let incoming = dragSubjectNode(for: c, subject: .group)
+        let decision = await ColumnPolicy.dropDecision(window: c, workspace: workspace, slot: 3, incoming: incoming)
+        XCTAssertEqual(decision.slot, workspace.columnSlot(containing: b), "The group's own Column is not its MRU target")
+    }
+
+    func testOccupancyChangeMidDragAsksTheHookAgain() async throws {
+        let (workspace, a, _, _) = try await fixture()
+        var evaluations = 0
+        let cache = ColumnDropDecisionCache { _, _, slot, _ in
+            evaluations += 1
+            return PlacementDecision(slot: slot, target: "focused", overflow: .split, hook: "columns.place")
         }
+        _ = await cache.decision(window: a, workspace: workspace, slot: 3, incoming: a)
+        XCTAssertEqual(cache.answer(window: a, workspace: workspace, slot: 3)?.overflow, .split)
+        let arrival = TestWindow.new(id: 45, parent: workspace)
+        workspace.bindToColumn(arrival, slot: 3)
+        XCTAssertNil(cache.answer(window: a, workspace: workspace, slot: 3), "An answer for the old occupancy is not reused")
+        _ = await cache.decision(window: a, workspace: workspace, slot: 3, incoming: a)
+        XCTAssertEqual(evaluations, 2)
+    }
+
+    func testClearingTheIntentWhileTheHookRunsDoesNotAbandonTheDrop() async throws {
+        let (workspace, a, _, rect) = try await fixture()
+        let helper = ControlledPolicyHooks()
+        PolicyHooks.setOverrideForTests(helper)
+        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
+        helper.answers["columns.place"] = .success(.object(["column": .int(2), "overflow": .string("tab-group")]))
+        let gate = ReloadGate()
+        helper.gates["columns.place"] = gate
+        let provisional = PlacementDecision(slot: 2, target: "2", overflow: .tabGroup, hook: nil)
+        let destination = columnDragDestination(workspace: workspace, slot: 2, decision: provisional, incoming: a,
+                                                rect: workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!, subject: .window)
+        MousePointerTracker.shared.note(point: CGPoint(x: 600, y: rect.midY))
+        _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window, detachOrigin: .window, destination: destination)
+        let drop = Task { @MainActor in try await applyPendingWindowDragIntentWithPolicy() }
+        await gate.entered.wait()
+        clearPendingWindowDragIntent()
+        gate.release()
+        let applied = try await drop.value
+        XCTAssertTrue(applied)
+        XCTAssertEqual(workspace.columnSlot(containing: a), 2)
+    }
+
+    func testSqueezeIntoAnExistingExtraColumnIsATabGroup() async throws {
+        let (workspace, a, _, rect) = try await fixture()
+        let c = TestWindow.new(id: 43, parent: workspace.rootTilingContainer)
+        c.columnSlot = 3
+        let d = TestWindow.new(id: 44, parent: workspace.rootTilingContainer)
+        d.columnSlot = 4
+        workspace.columns!.widths = [0.25, 0.25, 0.25, 0.25]
+        try await workspace.layoutWorkspace()
+        let decision = PlacementDecision(slot: 2, target: "focused", overflow: .squeeze, hook: "columns.place")
+        let destination = columnDragDestination(workspace: workspace, slot: 2, decision: decision, incoming: a,
+                                                rect: Rect(topLeftX: rect.minX, topLeftY: rect.minY, width: rect.width, height: rect.height),
+                                                subject: .window)
+        XCTAssertEqual(destination.title, "Column 4 · tab group")
     }
 }

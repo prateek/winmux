@@ -130,7 +130,6 @@ func setPendingWindowDragIntent(
 
 @MainActor
 func clearPendingWindowDragIntent() {
-    if !isLeftMouseButtonDown { ColumnDropDecisionCache.shared.clear() }
     let preservesSidebarDragUI = currentActiveWorkspaceSidebarDrag() != nil
     if let pendingWindowDragIntent {
         logWindowDragIntentIfNeeded(
@@ -192,30 +191,40 @@ func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
     let intent = pendingWindowDragIntent
     let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
     if let intent, case .column(let workspaceName, let slot) = intent.kind {
-        defer { ColumnDropDecisionCache.shared.clear(); clearPendingWindowDragIntent() }
-        guard let source, let workspace = Workspace.existing(byName: workspaceName), workspace.columns != nil,
-              intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
+        let cache = ColumnDropDecisionCache.shared
+        let target = Workspace.existing(byName: workspaceName)
+        let inside = intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point)
+        let cached = source.flatMap { source in target.flatMap { cache.answer(window: source, workspace: $0, slot: slot) } }
+        // Hide the overlay and end the previews before the hook can suspend: nothing after this reads them.
+        clearPendingWindowDragIntent()
+        let generation = cache.beginDrop()
+        guard let source, let workspace = target, workspace.columns != nil, inside else { return false }
+        // The whole subject binds once with the answer the overlay drew for it, as one node.
         let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
-        let windows = incoming.allLeafWindowsRecursive
         syncClosedWindowsCacheToCurrentWorld()
-        suppressPostDragAxObserverEvents(for: windows.map(\.windowId))
-        var applied = false
-        for window in windows {
-            let placed = try await PolicyHookCompletion.perform(window: window, workspace: workspace, normalizes: true,
-                evaluate: { await ColumnDropDecisionCache.shared.decision(window: window, workspace: workspace, slot: slot, incoming: incoming, excludingWindows: windows) },
-                runList: { ($0?.hook, $0?.run ?? []) }, abandoned: { false }) { decision, _ in
-                    guard let decision else { return .fallback(false) }
-                    if window.nodeWorkspace !== workspace {
-                        applyWorkspaceMove(sourceNode: window, sourceWindow: window,
-                            mouseLocation: MousePointerTracker.shared.currentSample.point, targetWorkspace: workspace)
+        suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))
+        return try await PolicyHookCompletion.perform(window: source, workspace: workspace, normalizes: true,
+            evaluate: {
+                if let cached { return cached }
+                return await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming)
+            },
+            runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
+                guard cache.generation == generation else { return .fallback(false) }
+                let arrives = incoming.nodeWorkspace !== workspace
+                let placement = ColumnPlacement.resolve(decision, columns: workspace.columns.orDie(),
+                                                        children: workspace.rootTilingContainer.children, incoming: incoming)
+                if case .float = placement.effect, !(incoming is Window) {
+                    for window in incoming.allLeafWindowsRecursive {
+                        window.unbindFromParent()
+                        window.bindAsFloatingWindow(to: workspace)
                     }
-                    if window.isBound { window.unbindFromParent() }
-                    workspace.bindToColumn(window, slot: decision.slot, overflow: decision.overflow)
-                    return .completed(true)
+                } else {
+                    if incoming.isBound { incoming.unbindFromParent() }
+                    workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
                 }
-            applied = applied || placed
-        }
-        return applied
+                if arrives { _ = source.focusWindow() }
+                return .completed(true)
+            }
     }
     let windows = source.map { dragSubjectNode(for: $0, subject: intent!.sourceSubject).allLeafWindowsRecursive } ?? []
     let previous = windows.map { ($0, $0.nodeWorkspace, $0.isFloating, $0.nodeWorkspace?.columnSlot(containing: $0)) }
