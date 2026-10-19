@@ -259,12 +259,9 @@ extension Workspace {
     }
     @MainActor
     func bindLeavesAsFloating(_ node: TreeNode, at index: Int = INDEX_BIND_LAST) {
-        var insertionIndex = index
-        for window in node.allLeafWindowsRecursive {
+        for (offset, window) in node.allLeafWindowsRecursive.enumerated() {
             if window.isBound { window.unbindFromParent() }
-            let index = insertionIndex == INDEX_BIND_LAST ? INDEX_BIND_LAST : min(insertionIndex, children.count)
-            window.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: index)
-            if insertionIndex != INDEX_BIND_LAST { insertionIndex += 1 }
+            window.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: index == INDEX_BIND_LAST ? INDEX_BIND_LAST : min(index + offset, children.count))
         }
         if node is TilingContainer, node.isBound { node.unbindFromParent() }
     }

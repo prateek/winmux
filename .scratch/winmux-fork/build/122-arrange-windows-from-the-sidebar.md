@@ -35,7 +35,7 @@ projection and `WorkspaceSidebarTreeRows`,
 not the retained prototype JavaScript or the dormant SwiftUI drop delegate.
 
 `WorkspaceSidebarDropTargetKind.tree` carries `WorkspaceSidebarTreeDropTarget`.
-Tree targets are clipped to the scroll viewport. `resolveWorkspaceSidebarDropTarget`
+Tree targets wholly outside the scroll viewport register nothing; partly visible rows keep their whole frame. `resolveWorkspaceSidebarDropTarget`
 prioritizes exact monitor/new-workspace controls, then picks the smallest containing
 row and resolves its half once. `workspaceSidebarDragTarget` serves preview and commit;
 `applyWorkspaceSidebarTreeDrop` resolves live container/window identities and performs

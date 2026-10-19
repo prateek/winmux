@@ -549,8 +549,15 @@ extension WorkspaceSidebarWorkspaceSection {
         .contentShape(Rectangle())
         .modifier(WorkspaceSidebarOptionalDragModifier(
             isEnabled: true,
-            onChanged: {
-                actions.tabGroupDragChanged(group.representativeWindowId, $0)
+            onChanged: { pointer in
+                // The header names its own container: the representative window can sit in a
+                // nested split or a nested tab group, where neither `moveNode` nor an ancestor walk finds it.
+                if let identity = group.containerIdentity,
+                   let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name) {
+                    updateSidebarWindowDrag(group.representativeWindowId, subject: .group, pointer: pointer, container: container)
+                } else {
+                    actions.tabGroupDragChanged(group.representativeWindowId, pointer)
+                }
             },
             onEnded: { actions.tabGroupDragEnded(group.representativeWindowId, $0) },
         ))

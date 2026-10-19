@@ -85,7 +85,7 @@ Search retains the base's workspace/project matches, empty-workspace results,
 bundle ID/path and tab-group title fields, and all whitespace-separated terms.
 
 Mouse drops use registered frames and the existing sidebar preview/commit path.
-Tree frames are clipped to the scroll viewport, so a partly visible row keeps its visible part as a target. Exact monitor and
+A tree frame wholly outside the scroll viewport registers no target; a partly visible row keeps its whole frame, so its halves stay where they are drawn. Exact monitor and
 new-workspace controls take priority; otherwise the smallest containing frame wins.
 Row halves resolve once, and row hit slop is zero. Commit resolves live identities
 and parents again, including after a floating source's AX size read. The sibling
@@ -113,7 +113,7 @@ Columns, floating conversion, stale targets, refusals, search/disclosure, select
 reload, nested frames, adjacent rows and preservation of native feedback/monitor
 preview behavior. Host and pinned-version guest `make check` pass: 1,690 Swift,
 92 helper/Rust and 171 Python tests. The guest's existing committed-hash check
-skips for a VM sync commit. GitHub **Build and test** passed on the landing commit.
+skips for a VM sync commit. The merge gate requires GitHub **Build and test** to pass on the head that lands.
 
 Native rich-desk captures cover all four rail/hover states, activation and pinning,
 both levels independently/together, exact marks and hover, 26 synthetic pointer

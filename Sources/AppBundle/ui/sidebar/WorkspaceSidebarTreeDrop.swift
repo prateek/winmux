@@ -84,7 +84,7 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
                 index = ownIndex + (after ? 1 : 0)
                 index -= windows.filter { $0.parent === destination.workspace && ($0.ownIndex ?? Int.max) < index }.count
             }
-            let wereTiled = windows.filter { !$0.isFloating }
+            let wereTiled = windows.filter { $0.parent is TilingContainer }
             destination.workspace.bindLeavesAsFloating(source, at: index)
             for window in wereTiled {
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }

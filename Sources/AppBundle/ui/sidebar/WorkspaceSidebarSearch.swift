@@ -14,12 +14,24 @@ func workspaceSidebarFilteredWorkspacesByProject(
             // Every window's text includes its workspace's names, so a workspace match keeps it whole.
             let workspaceMatches = workspaceSidebarSearchTextMatches(
                 [workspace.displayName, workspace.sidebarLabel, workspace.name, workspace.monitorName, projectName], terms: terms)
-            if workspaceMatches { return workspace }
+            if workspaceMatches {
+                var result = workspace
+                result.items = workspace.items.map(workspaceSidebarSearchRevealed)
+                return result
+            }
             var result = workspace
             result.items = workspace.items.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
             return result.items.isEmpty ? nil : result
         }
     }
+}
+
+/// Every window under a matching workspace matches, so collapsed nodes open as they would for a window match.
+private func workspaceSidebarSearchRevealed(_ item: WorkspaceSidebarItemViewModel) -> WorkspaceSidebarItemViewModel {
+    var result = item
+    result.children = item.children.map(workspaceSidebarSearchRevealed)
+    if !item.children.isEmpty { result.isSearchRevealed = true }
+    return result
 }
 
 private func workspaceSidebarSearchTextMatches(_ values: [String?], terms: [String]) -> Bool {

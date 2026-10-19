@@ -42,9 +42,7 @@ func beginActiveWorkspaceSidebarDrag(windowId: UInt32, subject: WindowDragSubjec
     if let activeWorkspaceSidebarDrag, activeWorkspaceSidebarDrag.windowId == windowId,
        activeWorkspaceSidebarDrag.subject == subject { return }
     guard let window = Window.get(byId: windowId) else { return }
-    // A tab group's active tab can sit inside a nested split, where `moveNode` is the window.
-    let tabGroup = subject == .group ? window.parents.first { ($0 as? TilingContainer)?.layout == .tabGroup } as? TilingContainer : nil
-    let node = container ?? tabGroup ?? (dragSubjectNode(for: window, subject: subject) as? TilingContainer)
+    let node = container ?? (dragSubjectNode(for: window, subject: subject) as? TilingContainer)
     let source: WorkspaceSidebarDragSource
     if let node, let workspace = node.nodeWorkspace {
         source = .container(node.stableId, workspace: workspace.name)

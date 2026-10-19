@@ -218,22 +218,44 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let hidden = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(1, after: false)), frame: CGRect(x: 10, y: 20, width: 100, height: 24))
         let partial = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(2, after: false)), frame: CGRect(x: 10, y: 40, width: 100, height: 24))
         let visible = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(3, after: false)), frame: CGRect(x: 10, y: 60, width: 100, height: 24))
-        let clipped = WorkspaceSidebarDropTargetFrame(kind: partial.kind, frame: CGRect(x: 10, y: 50, width: 100, height: 14))
-        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [clipped, visible])
+        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [partial, visible])
+        // The row spans 40-64 and its centre is 52, so 54 is its lower half even with 40-50 under the header.
+        let resolved = resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 54), targets: [
+            WorkspaceSidebarDropTarget(kind: partial.kind, rect: Rect(topLeftX: 10, topLeftY: 40, width: 100, height: 24)),
+        ])
+        XCTAssertEqual(resolved?.kind, .tree(.window(2, after: true)))
     }
 
     @MainActor
-    func testTabGroupHeaderDragCarriesTheGroupWhenItsActiveTabIsANestedSplit() {
+    func testTabGroupHeaderDragCarriesItsOwnGroupThroughNestedSplitsAndGroups() {
         setUpWorkspacesForTests()
         let root = Workspace.get(byName: "1").rootTilingContainer
-        let group = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
-        let nested = TilingContainer(parent: group, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
-        let representative = TestWindow.new(id: 720, parent: nested)
-        _ = TestWindow.new(id: 721, parent: nested)
-        _ = TestWindow.new(id: 722, parent: group)
-        beginActiveWorkspaceSidebarDrag(windowId: representative.windowId, subject: .group)
+        let outer = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
+        let split = TilingContainer(parent: outer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+        let inner = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
+        let representative = TestWindow.new(id: 720, parent: inner)
+        _ = TestWindow.new(id: 721, parent: inner)
+        _ = TestWindow.new(id: 722, parent: split)
+        _ = TestWindow.new(id: 723, parent: outer)
+        // Neither `moveNode` nor the nearest tab-group ancestor of the representative is the outer group.
+        XCTAssertFalse(dragSubjectNode(for: representative, subject: .group) === outer)
+        let header = try! XCTUnwrap(workspaceSidebarLiveContainer(outer.stableId, workspaceName: "1"))
+        beginActiveWorkspaceSidebarDrag(windowId: representative.windowId, subject: .group, container: header)
         defer { clearActiveWorkspaceSidebarDrag() }
-        XCTAssertTrue(workspaceSidebarDragSource(representative, subject: .group) === group)
+        XCTAssertTrue(workspaceSidebarDragSource(representative, subject: .group) === outer)
+    }
+
+    @MainActor
+    func testFloatingTargetDoesNotResizeAFullscreenLeaf() async throws {
+        setUpWorkspacesForTests()
+        let workspace = Workspace.get(byName: "1")
+        let target = Workspace.get(byName: "2")
+        let window = TestWindow.new(id: 725, parent: workspace.macOsNativeFullscreenWindowsContainer, rect: Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+        window.lastFloatingSize = CGSize(width: 320, height: 240)
+        try await checkDrop(window, .floatingGroup("2"))
+        XCTAssertTrue(window.parent === target)
+        let rect = try await window.getAxRect()
+        XCTAssertEqual(rect?.size, CGSize(width: 1920, height: 1080))
     }
 
     @MainActor
@@ -257,6 +279,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let results = workspaceSidebarFilteredWorkspacesByProject([workspaceProjectDefaultId: [model]], projects: [], query: "coding")[workspaceProjectDefaultId]!
         XCTAssertEqual(results.first?.items.map(\.identity), [.column("coding", 1), .column("coding", 2)])
         XCTAssertEqual(results.first?.items.map(\.isSearchAncestor), [false, false])
+        XCTAssertEqual(results.first?.items.map(\.isSearchRevealed), [true, false], "A workspace match opens collapsed nodes, as a window match does")
     }
 
     func testRenderReadsReuseProjectionStorageAndModelChangesRebuildIt() {
