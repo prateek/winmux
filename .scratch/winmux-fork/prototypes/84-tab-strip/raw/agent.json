@@ -1,0 +1,191 @@
+{
+  "edit" : {
+    "operations" : [
+
+    ]
+  },
+  "inventory" : {
+    "tabGroups" : [
+      {
+        "activeWindowId" : 201,
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 62,
+          "y" : 42
+        },
+        "paneId" : "pane-tabgroup-201",
+        "tabGroupId" : "tabgroup-201",
+        "tabTitles" : [
+          "WinMux · Field notes - Google Chrome",
+          "~",
+          "~",
+          "~",
+          "WindowTabStripView.swift — WinMux"
+        ],
+        "tabs" : [
+          201,
+          252,
+          210,
+          248,
+          227
+        ],
+        "workspace" : "1"
+      }
+    ],
+    "windows" : [
+      {
+        "appBundleId" : "com.google.Chrome",
+        "appName" : "Google Chrome",
+        "focused" : true,
+        "frame" : {
+          "height" : 986,
+          "width" : 1840,
+          "x" : 65,
+          "y" : 78
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 9509,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "WinMux · Field notes - Google Chrome",
+        "winMuxFullscreen" : false,
+        "windowId" : 201,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 197,
+          "width" : 1846,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 210,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.microsoft.VSCode",
+        "appName" : "Code",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 1840,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 9580,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "WindowTabStripView.swift — WinMux",
+        "winMuxFullscreen" : false,
+        "windowId" : 227,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 1840,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 248,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 197,
+          "width" : 1846,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 252,
+        "workspace" : "1"
+      }
+    ],
+    "workspaces" : [
+      {
+        "displayName" : "Workspace 1",
+        "focused" : true,
+        "monitorId" : 1,
+        "name" : "1",
+        "panes" : [
+          "pane-tabgroup-201"
+        ],
+        "visible" : true
+      }
+    ]
+  },
+  "reasoning" : {
+    "panes" : [
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 62,
+          "y" : 42
+        },
+        "kind" : "tabGroup",
+        "label" : "Tab Group [201, 252, 210, 248, 227]",
+        "paneId" : "pane-tabgroup-201",
+        "tabGroupId" : "tabgroup-201",
+        "workspace" : "1"
+      }
+    ],
+    "rawTrees" : [
+      {
+        "tree" : {
+          "activeWindowId" : 201,
+          "kind" : "tabGroup",
+          "tabGroupId" : "tabgroup-201",
+          "tabs" : [
+            201,
+            252,
+            210,
+            248,
+            227
+          ]
+        },
+        "workspace" : "1"
+      }
+    ],
+    "relations" : [
+
+    ]
+  },
+  "schemaVersion" : 1,
+  "snapshotId" : "2026-10-19T19:19:19Z",
+  "worldId" : "675008f3fe5b6b57"
+}

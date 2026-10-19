@@ -1,0 +1,11 @@
+{
+  "telemetry.telemetryLevel": "off",
+  "workbench.startupEditor": "none",
+  "security.workspace.trust.enabled": false,
+  "workbench.editor.enablePreview": false,
+  "update.mode": "none",
+  "window.title": "${activeEditorShort}${separator}WinMux",
+  "breadcrumbs.enabled": false,
+  "extensions.ignoreRecommendations": true,
+  "workbench.secondarySideBar.defaultVisibility": "hidden"
+}

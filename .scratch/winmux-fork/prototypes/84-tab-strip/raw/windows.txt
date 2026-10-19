@@ -1,0 +1,5 @@
+227 | Code | WindowTabStripView.swift — WinMux | h_tab_group
+252 | Ghostty | ~ | h_tab_group
+210 | Ghostty | ~ | h_tab_group
+248 | Ghostty | ~ | h_tab_group
+201 | Google Chrome | WinMux · Field notes - Google Chrome | h_tab_group
