@@ -32,12 +32,6 @@ In the 1280 × 720 guest, fifteen owned stage windows span five workspaces. Scro
 
 No issue Decision or Default changed. No by-hand upgrade step is needed. The builder publishes no release.
 
-## Checks for an installed build or real hardware
-
-- [ ] Installed-build pointer use on the daily desktop.
-- [ ] A physical second display and monitor-chip drops.
-- [ ] Real sleep, wake and unlock.
-
 ## Sources
 
 - Pull request #251, review round five.
