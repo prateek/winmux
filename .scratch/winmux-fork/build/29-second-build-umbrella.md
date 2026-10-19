@@ -57,7 +57,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Two issues from Prateek's pick of the sidebar tree** follow its prototype: the sidebar as a tree, built to his pick, and arranging windows from the sidebar into splits and tab groups with the mouse.
 - **Two defects found while building the sidebar tree** are with the follow-ups: a dragged tab group moves one window when its active tab is a nested container, and a workspace section scrolled under the sidebar's chrome takes drops there.
 - **A defect found while arranging windows from the sidebar** is with the follow-ups: a group dropped into a tab group shows its last window.
-- **A defect found while carrying a dragged group's identity** is with the follow-ups: a tab group dropped on a Columns workspace with a `place` hook comes apart.
+- **Two defects found while carrying a dragged group's identity** are with the follow-ups: a tab group dropped on a Columns workspace with a `place` hook comes apart, and a window in a tab group's active split stays on screen when its workspace hides.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
