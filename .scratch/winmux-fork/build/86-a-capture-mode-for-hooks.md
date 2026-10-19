@@ -43,12 +43,6 @@ Nothing.
 - A separate guest run checks Filters and `config check` smoke calls leave the capture empty. Replacing the capture file with a directory makes the next call stop capture and report/log its file error, with no fallback event. A failed `on --json` still reports JSON status and exits 1. Repairing the location and starting again recovers one matching file/event record.
 - The same capture-off script runs against the archived base and new build in separate guest directories. Inventory, native frames, agent tree, Column placement, dry-run answer and boundary result agree after substituting window/pane/process identities and snapshot metadata. Screenshots agree with the readbacks. Proof tools are in `.scratch/winmux-fork/proofs/hook-capture/`; transcripts and screenshots accompany the builder handoff. No Search or permission grant was used. Ghostty's command-line execution confirmation was dismissed with Cancel during an initial probe; the accepted runs use a configured command instead. No release was published.
 
-## Checks left for an installed build and real hardware
-
-- [ ] Capture on an installed build with the person's own config.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
-
 ## Sources
 
 - Prateek, 2026-10-07: "debug hooks and event capture mode", with the two diagnostic hooks from his config.
