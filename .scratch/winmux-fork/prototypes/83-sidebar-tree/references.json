@@ -1,0 +1,96 @@
+{
+  "retrieved": "2026-10-18",
+  "captureKind": "published-project-screenshots",
+  "liveExtensionInstall": "cancelled at required permission prompts; no grants",
+  "tst": {
+    "name": {
+      "en-US": "Tree Style Tab",
+      "es-ES": "Tree Style Tab (Pestañas estilo árbol)",
+      "fr": "Tree Style Tab",
+      "it": "Tree Style Tab",
+      "ja": "Tree Style Tab - ツリー型タブ",
+      "pl": "Tree Style Tab",
+      "ru": "Tree Style Tab (Древовидный стиль вкладок)",
+      "sk": "Tree Style Tab",
+      "zh-CN": "Tree Style Tab"
+    },
+    "version": "4.4.9",
+    "homepage": "https://addons.mozilla.org/en-US/firefox/addon/tree-style-tab/",
+    "license": {
+      "id": 98,
+      "is_custom": true,
+      "name": {
+        "en-US": "Custom License",
+        "ja": "MPL 1.1/MPL 2.0/MIT/PSFL"
+      },
+      "slug": null,
+      "url": "https://addons.mozilla.org/en-US/firefox/addon/tree-style-tab/license/"
+    },
+    "images": [
+      {
+        "file": "tst-published-0.png",
+        "caption": {
+          "en-US": "Overview",
+          "ja": "全体"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/275/275014.png?modified=1668096516"
+      },
+      {
+        "file": "tst-published-2.png",
+        "caption": {
+          "en-US": "Drag and drop to manage tree",
+          "ja": "ドラッグ＆ドロップによるツリーの編集"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/275/275013.png?modified=1668096516"
+      },
+      {
+        "file": "tst-published-5.png",
+        "caption": {
+          "en-US": "Various built-in theme",
+          "ja": "組み込みのテーマ"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/275/275017.png?modified=1668096516"
+      }
+    ]
+  },
+  "sidebery": {
+    "name": {
+      "en-US": "Sidebery",
+      "ru": "Sidebery"
+    },
+    "version": "5.6.1",
+    "homepage": "https://addons.mozilla.org/en-US/firefox/addon/sidebery/",
+    "license": {
+      "id": 22,
+      "is_custom": false,
+      "name": {
+        "en-US": "MIT License"
+      },
+      "slug": "MIT",
+      "url": "https://spdx.org/licenses/MIT.html"
+    },
+    "images": [
+      {
+        "file": "sidebery-published-0.png",
+        "caption": {
+          "en-US": "Sidebar and group-page"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/287/287945.png?modified=1695803068"
+      },
+      {
+        "file": "sidebery-published-1.png",
+        "caption": {
+          "en-US": "Bookmarks and History"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/287/287946.png?modified=1695803068"
+      },
+      {
+        "file": "sidebery-published-2.png",
+        "caption": {
+          "en-US": "Firefox theme support (Pictured themes: \"Modern Light\", \"Arc Theme\", \"Fresh Light Theme\", \"Almost Dark Proton\", \"Arc Dark Theme\", \"Druvbox Dark\", \"Fresh Dark Theme\")"
+        },
+        "url": "https://addons.mozilla.org/user-media/previews/full/287/287947.png?modified=1695803068"
+      }
+    ]
+  }
+}
