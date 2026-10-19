@@ -46,15 +46,19 @@ final class WorkspaceSidebarViewportDropTest: XCTestCase {
         XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 110), targets: visible, hitSlop: slop)?.kind, .workspace("visible"))
     }
 
-    func testSlopStillCrossesTheGapBetweenSplitPanes() {
-        // Two panes side by side, each its own scroll view, 8 points apart.
+    func testSlopStaysInsideEachSplitPane() {
+        // Two panes side by side, each its own scroll view, 8 points apart. The gap is neither pane's.
         let left = CGRect(x: 0, y: 50, width: 156, height: 300)
         let right = CGRect(x: 164, y: 50, width: 156, height: 300)
-        let frames = workspaceSidebarVisibleTargets([.init(kind: .workspace("left"), frame: CGRect(x: 0, y: 60, width: 156, height: 40))], viewport: left) +
-            workspaceSidebarVisibleTargets([.init(kind: .workspace("right"), frame: CGRect(x: 164, y: 60, width: 156, height: 60))], viewport: right)
+        let frames = workspaceSidebarVisibleTargets([.init(kind: .workspace("left"), frame: CGRect(x: 0, y: 100, width: 156, height: 40))], viewport: left) +
+            workspaceSidebarVisibleTargets([
+                .init(kind: .workspace("upper"), frame: CGRect(x: 164, y: 60, width: 156, height: 60)),
+                .init(kind: .workspace("lower"), frame: CGRect(x: 164, y: 126, width: 156, height: 60)),
+            ], viewport: right)
         let targets = workspaceSidebarScreenDropTargets(frames, convert: rect)
-        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 80), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("left"))
-        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 115), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("right"))
+        XCTAssertNil(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 120), targets: targets, hitSlop: slop, includesTreeTargets: false))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 166, y: 123), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("upper"))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 154, y: 123), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("left"))
     }
 
     func testScrollingDoesNotChangeWhichSectionTakesASlopDrop() {

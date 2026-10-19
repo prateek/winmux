@@ -85,19 +85,13 @@ struct WorkspaceSidebarDropTarget {
     var rowRect: Rect? = nil
     var viewport: Rect? = nil
 
-    /// A row ranks by the part on screen, other targets by their whole frame, so scrolling does not change which one wins.
-    var rankingArea: CGFloat {
-        if case .tree = kind { return rect.area }
-        return (rowRect ?? rect).area
-    }
+    /// Targets rank by their whole frame, so scrolling does not change which one wins.
+    var rankingArea: CGFloat { (rowRect ?? rect).area }
 
-    /// Slop stops at the viewport's top and bottom, where the fixed chrome starts. Across, it reaches as far as before.
+    /// Slop stops at the viewport: only what is on screen takes a drop.
     func interactionRect(hitSlop: NSEdgeInsets) -> Rect {
         let expanded = rect.expanded(left: hitSlop.left, right: hitSlop.right, top: hitSlop.top, bottom: hitSlop.bottom)
-        guard let viewport else { return expanded }
-        let minY = max(expanded.minY, viewport.minY)
-        let maxY = min(expanded.maxY, viewport.maxY)
-        return Rect(topLeftX: expanded.minX, topLeftY: minY, width: expanded.width, height: max(maxY - minY, 0))
+        return viewport.map { expanded.intersection($0) } ?? expanded
     }
 }
 
