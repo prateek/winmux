@@ -157,6 +157,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 - [ ] Set `workspace-sidebar.tree.splits = true` in your config and reload. Pass: every workspace shows its splits until you click a workspace's Splits button, which hides them there only.
 - [ ] With two displays, expand the sidebar on each and drag a window from one display's sidebar onto a window row of a workspace on the other. Pass: it lands beside that window. Then sleep and wake, and lock and unlock. Pass: the tree matches the windows on screen.
 
+**A dragged tab group moves one window when its active tab is a nested container**
+- [ ] On the installed build, make a tab group whose active tab is a split (Columns on, then move a window into an occupied Column slot, or join two windows and make their parent a tab group with a third). With your own mouse or trackpad, drag the group's tab-strip header onto another window, then its sidebar header onto another workspace. Pass: every window of the group moves each time, the inner split included, and none stays behind.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

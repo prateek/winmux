@@ -44,9 +44,7 @@ No Default was changed. The builder publishes no release, and no by-hand upgrade
 
 ### Checks left with Prateek
 
-- [ ] Pointer and keyboard use on the installed build.
-- [ ] A second physical display.
-- [ ] Real sleep, wake and unlock.
+Dragging a nested group's headers with a real pointer on the installed build is a check in **Prateek's checks on an installed build and real hardware**.
 
 ## Sources
 
