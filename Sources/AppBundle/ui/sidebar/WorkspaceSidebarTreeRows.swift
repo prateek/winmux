@@ -20,18 +20,28 @@ extension WorkspaceSidebarWorkspaceSection {
             GeometryReader { geometry in
                 HStack(spacing: 2) {
                     ForEach(Array(workspace.columnWidths.enumerated()), id: \.offset) { index, width in
-                        let slot = index + 1
-                        RoundedRectangle(cornerRadius: 1.5)
-                            .fill(workspace.focusedColumn == slot ? Color.white.opacity(0.8) : Color.white.opacity(0.15))
-                            .overlay(RoundedRectangle(cornerRadius: 1.5).stroke(workspace.columnSlot(for: hoveredWindowId) == slot ? Color.accentColor : Color.white.opacity(0.4), lineWidth: 1))
-                            .frame(width: max(1, (geometry.size.width - CGFloat(workspace.columnWidths.count - 1) * 2) * width), height: 7)
-                            .modifier(WorkspaceSidebarTreeTargetModifier(target: .columnMark(workspace.name, slot: slot), preview: dragPreview, enabled: emitsDropTarget))
-                            .help("Column \(slot) · \(Int((width * 100).rounded()))%")
+                        columnMark(slot: index + 1, fraction: width, totalWidth: geometry.size.width)
                     }
                 }
             }
             .frame(width: 45, height: 7)
         }
+    }
+
+    // CI's compiler cannot type-check this body inline within its time limit.
+    func columnMark(slot: Int, fraction: Double, totalWidth: CGFloat) -> some View {
+        let gaps: CGFloat = CGFloat(workspace.columnWidths.count - 1) * 2
+        let markWidth: CGFloat = max(1, (totalWidth - gaps) * CGFloat(fraction))
+        let fill: Color = workspace.focusedColumn == slot ? Color.white.opacity(0.8) : Color.white.opacity(0.15)
+        let isHovered: Bool = workspace.columnSlot(for: hoveredWindowId) == slot
+        let stroke: Color = isHovered ? Color.accentColor : Color.white.opacity(0.4)
+        let percent: Int = Int((fraction * 100).rounded())
+        return RoundedRectangle(cornerRadius: 1.5)
+            .fill(fill)
+            .overlay(RoundedRectangle(cornerRadius: 1.5).stroke(stroke, lineWidth: 1))
+            .frame(width: markWidth, height: 7)
+            .modifier(WorkspaceSidebarTreeTargetModifier(target: .columnMark(workspace.name, slot: slot), preview: dragPreview, enabled: emitsDropTarget))
+            .help("Column \(slot) · \(percent)%")
     }
 
     func disclosureButton(_ identity: WorkspaceSidebarNodeIdentity, isOpen: Bool) -> some View {
