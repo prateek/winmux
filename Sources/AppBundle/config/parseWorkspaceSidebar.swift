@@ -2,6 +2,12 @@ import Foundation
 import TOMLKit
 
 private let workspaceSidebarParser: [String: any ParserProtocol<WorkspaceSidebarConfig>] = [
+    "tree": Parser(\.tree) { raw, backtrace, errors in
+        parseTable(raw, WorkspaceSidebarTreeConfig(), [
+            "splits": Parser(\.splits, parseBool),
+            "columns": Parser(\.columns, parseBool),
+        ], backtrace, &errors)
+    },
     "enabled": Parser(\.enabled, parseBool),
     "enable-focus": Parser(\.enableFocus, parseBool),
     "auto-hide": Parser(\.autoHide, parseBool),

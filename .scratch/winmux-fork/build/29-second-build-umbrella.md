@@ -55,6 +55,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **Two defects found while building the ninth tab digit** are with the follow-ups: an overflowing tab strip does not keep the active tab in view, and a floating window over a tab group becomes a tab for focus directions.
 - **Two defects found while making the drag overlay Column-aware** are with the follow-ups: a drag event queued behind mouse-up can lose the drop, and the mouse-up reset can run again while a drop is still being applied.
 - **Two issues from Prateek's pick of the sidebar tree** follow its prototype: the sidebar as a tree, built to his pick, and arranging windows from the sidebar into splits and tab groups with the mouse.
+- **Two defects found while building the sidebar tree** are with the follow-ups: a dragged tab group moves one window when its active tab is a nested container, and a workspace section scrolled under the sidebar's chrome takes drops there.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek

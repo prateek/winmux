@@ -125,6 +125,7 @@ extension LoadedConfig: ConfigReloadCandidate {
     clearPendingWindowDragIntent()
     resetHotKeys()
     config = newConfig
+    workspaceSidebarTreeState.reload(defaults: newConfig.workspaceSidebar.tree)
     for workspace in Workspace.all { workspace.applyColumns(config.columns) }
     config.workspaceSidebar.apply(readSidebarState())
     configUrl = url

@@ -41,6 +41,28 @@ func handleWorkspaceSidebarAction(
     targetMonitorScopeId: String? = nil,
 ) {
     switch action {
+        case .refuseStructuralDrag(let workspace, let target):
+            var preview = WorkspaceSidebarDropPreviewViewModel(sourceWindowId: 0, label: "", appName: "", targetWorkspaceName: workspace, targetsNewWorkspace: false, isTabGroup: false, windowCount: 0)
+            preview.refusalReason = "Workspaces and Columns are not windows"
+            preview.treeTarget = target
+            setWorkspaceSidebarDropPreviewIfChanged(preview)
+        case .togglePin:
+            if let scope = targetMonitorScopeId, let panel = WorkspaceSidebarPanel.panel(for: scope) {
+                toggleWorkspaceSidebarPin(panel)
+            }
+        case .toggleSplits(let name):
+            let current = workspaceSidebarTreeState.splitOverrides[name] ?? config.workspaceSidebar.tree.splits
+            workspaceSidebarTreeState.splitOverrides[name] = !current
+            runWorkspaceSidebarSession { await updateWorkspaceSidebarModel() }
+        case .toggleColumns(let name):
+            let current = workspaceSidebarTreeState.columnOverrides[name] ?? config.workspaceSidebar.tree.columns
+            workspaceSidebarTreeState.columnOverrides[name] = !current
+            runWorkspaceSidebarSession { await updateWorkspaceSidebarModel() }
+        case .toggleDisclosure(let identity):
+            if !workspaceSidebarTreeState.collapsedNodes.insert(identity).inserted {
+                workspaceSidebarTreeState.collapsedNodes.remove(identity)
+            }
+            runWorkspaceSidebarSession { await updateWorkspaceSidebarModel() }
         case .selectWorkspace(let name):
             focusWorkspaceFromSidebar(name, targetMonitorScopeId: targetMonitorScopeId)
         case .overrideWorkspaceInUse(let name):

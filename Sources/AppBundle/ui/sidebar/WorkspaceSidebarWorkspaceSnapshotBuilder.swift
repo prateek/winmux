@@ -13,6 +13,7 @@ func buildWorkspaceSidebarWorkspaceViewModels(
             availableMonitors: availableMonitors,
         ))
     }
+    workspaceSidebarTreeState.prune(workspaces: workspaces)
     return workspaces
 }
 
@@ -34,7 +35,12 @@ private func makeWorkspaceSidebarWorkspaceViewModel(
         monitorName: availableMonitors.count > 1 ? workspaceMonitor.name : nil,
         isFocused: currentFocus.workspace == workspace,
         isVisible: workspace.isVisible,
-        items: await buildWorkspaceSidebarItems(for: workspace, currentFocus: currentFocus),
+        items: await buildWorkspaceSidebarLayoutTree(for: workspace, currentFocus: currentFocus),
+        columnWidths: workspace.columns?.widths.map(Double.init) ?? [],
+        focusedColumn: workspace.columns?.focusedSlot,
+        showsSplits: workspaceSidebarTreeState.splitOverrides[workspace.name] ?? config.workspaceSidebar.tree.splits,
+        showsColumns: workspaceSidebarTreeState.columnOverrides[workspace.name] ?? config.workspaceSidebar.tree.columns,
+        collapsedNodes: workspaceSidebarTreeState.collapsedNodes,
     )
 }
 

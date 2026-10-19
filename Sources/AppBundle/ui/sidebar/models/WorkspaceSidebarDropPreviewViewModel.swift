@@ -11,13 +11,16 @@ struct WorkspaceSidebarDropPreviewViewModel: Hashable {
     let appName: String
     let appBundleIdentifier: String?
     let appBundlePath: String?
-    let targetWorkspaceName: String?
+    var targetWorkspaceName: String?
     let targetsNewWorkspace: Bool
     let targetProjectId: WorkspaceProjectId?
     let targetMonitorScopeId: String?
     let isTabGroup: Bool
     let windowCount: Int
     let tabItems: [WorkspaceSidebarDropPreviewTabItem]
+    var treeTarget: WorkspaceSidebarTreeDropTarget? = nil
+    var destinationDescription: String? = nil
+    var refusalReason: String? = nil
 
     init(
         sourceWindowId: UInt32,

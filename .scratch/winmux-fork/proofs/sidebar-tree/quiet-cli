@@ -1,0 +1,7 @@
+#!/bin/zsh
+# Leave discovery alone before reading; read-only commands on the base cancel refreshes.
+export PATH=/opt/homebrew/bin:$PATH
+case "$1" in
+    list-*|agent|config|doctor) sleep 3 ;;
+esac
+exec "$HOME/winmux/.build/debug/winmux" "$@"

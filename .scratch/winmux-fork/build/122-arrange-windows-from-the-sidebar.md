@@ -25,6 +25,29 @@ Make the sidebar tree a place to arrange the layout with the mouse: make splits 
 
 - **The sidebar as a tree**.
 
+## Native seams from the tree build
+
+`WorkspaceSidebarItemViewModel.children` holds the actual layout tree with real-parent
+identity and index metadata. Container identities are monotonic `UInt64` values
+from `TilingContainer.stableId`. `WorkspaceSidebarWorkspaceViewModel.projectedItems`
+stores the display projection, with a cached window-to-Column lookup. Extend that
+projection and `WorkspaceSidebarTreeRows`,
+not the retained prototype JavaScript or the dormant SwiftUI drop delegate.
+
+`WorkspaceSidebarDropTargetKind.tree` carries `WorkspaceSidebarTreeDropTarget`.
+Tree targets wholly outside the scroll viewport register nothing; partly visible rows keep their whole frame. `resolveWorkspaceSidebarDropTarget`
+prioritizes exact monitor/new-workspace controls, then picks the smallest containing
+row and resolves its half once. `workspaceSidebarDragTarget` serves preview and commit;
+`applyWorkspaceSidebarTreeDrop` resolves live container/window identities and performs
+the binding. Split/tab targets that have become Columns roots cancel, including
+after suspended AX reads. `siblingBindingData` is the indexed sibling
+seam also used by agent-pane placement. `Columns.swift` owns the shared vertical
+Column wrapper and floating-leaf binder; floating drops restore remembered sizes.
+`ActiveWorkspaceSidebarDrag` owns the source identity. Split sources cancel outside
+tree/workspace targets; window rows and tab headers keep on-screen behavior.
+New arrangement zones belong in
+this tree path and must preserve the ordinary sibling path, including hidden parents.
+
 ## Done when
 
 - [ ] On the rich desk in a guest, two windows dragged together in the sidebar become a side-by-side split, a stacked split and a tab group, one each, and `list-windows` and the screen show it.

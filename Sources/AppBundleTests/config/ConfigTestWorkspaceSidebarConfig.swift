@@ -4,6 +4,28 @@ import Common
 import XCTest
 
 extension ConfigTest {
+    func testSidebarTreeDefaultsAndExplicitConfig() {
+        let (defaults, defaultErrors) = parseConfig("")
+        XCTAssertTrue(defaultErrors.isEmpty)
+        XCTAssertEqual(defaults.workspaceSidebar.width, 320)
+        XCTAssertEqual(defaults.workspaceSidebar.tree, WorkspaceSidebarTreeConfig(splits: false, columns: false))
+        for splits in [false, true] {
+            for columns in [false, true] {
+                let (parsed, errors) = parseConfig("""
+                [workspace-sidebar]
+                    width = 280
+                [workspace-sidebar.tree]
+                    splits = \(splits)
+                    columns = \(columns)
+                """)
+                XCTAssertTrue(errors.isEmpty)
+                XCTAssertEqual(parsed.workspaceSidebar.width, 280)
+                XCTAssertEqual(parsed.workspaceSidebar.tree, WorkspaceSidebarTreeConfig(splits: splits, columns: columns))
+            }
+        }
+        let (_, errors) = parseConfig("workspace-sidebar.tree.splits = 1")
+        XCTAssertFalse(errors.isEmpty)
+    }
     func testParseWorkspaceSidebar() {
         let (parsed, errors) = parseConfig(
             """

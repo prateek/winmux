@@ -2,12 +2,17 @@ import AppKit
 import Common
 
 final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider renaming to GenericContainer
+    @MainActor private static var nextIdentity: UInt64 = 0
+    let stableId: UInt64
     fileprivate var _orientation: Orientation
     var orientation: Orientation { _orientation }
     var layout: Layout
 
     @MainActor
     init(parent: NonLeafTreeNodeObject, adaptiveWeight: CGFloat, _ orientation: Orientation, _ layout: Layout, index: Int) {
+        precondition(Self.nextIdentity < UInt64.max)
+        Self.nextIdentity += 1
+        stableId = Self.nextIdentity
         self._orientation = orientation
         self.layout = layout
         super.init(parent: parent, adaptiveWeight: adaptiveWeight, index: index)

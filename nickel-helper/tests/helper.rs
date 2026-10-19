@@ -943,6 +943,7 @@ fn default_triggers_import_overrides_and_upstream_conversion() {
     let converted = loaded_source("converted-defaults", &String::from_utf8(converted.stdout).unwrap());
     let upstream = evaluate_to_json(&format!("import {} as 'Toml", winmux_nickel::engine::nickel_string(&fixture("upstream-default-config.toml"))), &library()).unwrap();
     let mut expected_conversion = config.clone();
+    expected_conversion["workspace-sidebar"]["width"] = upstream["workspace-sidebar"]["width"].clone();
     expected_conversion["mode"]["main"]["binding"] = upstream["mode"]["main"]["binding"].clone();
     for key in ["alt-slash", "alt-semicolon", "alt-shift-o"] {
         expected_conversion["mode"]["main"]["binding"][key] = config["mode"]["main"]["binding"][key].clone();

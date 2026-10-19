@@ -29,7 +29,11 @@ final class WorkspaceSidebarPanel: NSPanelHud {
     var inlineTextEditingKeyEventTapRunLoopSource: CFRunLoopSource?
     var inlineTextEditingStartedAt: Date = .distantPast
     var inlineTextEditingPointerEnteredVisibleRegion = false
-    var commandExpansionLocksCollapse = false
+    var commandExpansionLocksCollapse = false {
+        didSet {
+            if oldValue != commandExpansionLocksCollapse { viewModel.objectWillChange.send() }
+        }
+    }
     var shouldLockNextSidebarSearchExpansion = false
     var bufferedCommandSidebarSearchKeys: [WorkspaceSidebarInlineTextKey] = []
     var commandMouseUnlockPoint: CGPoint?

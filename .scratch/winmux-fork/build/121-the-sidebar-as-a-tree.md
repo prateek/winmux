@@ -39,18 +39,125 @@ Nothing. The prototype and Prateek's choice are available. Two seams are built w
 
 ## Done when
 
-- [ ] On the fourteen-window rich desk in a 1920 × 1080 guest, the collapsed rail shows numbers only and focused numbers use today's treatment. Capture collapsed and hover-expanded states on all workspaces; pin/unpin and existing activation work.
-- [ ] The default tree has no split/Column levels or window Column tags. Tabs remain grouped; Updater and Calculator sit flat under workspaces 1 and 4 with a floating glyph, and turning Splits on for a workspace shows its floating group. Workspace 2's marks are 28/44/28, workspace 3's are 2/3–1/3, and hovering windows highlights their marks. Workspaces 1 and 4 have none.
-- [ ] Each toggle reveals its level on workspace 2 only. Both on shows Column → tab group → tab and any split produced by a sibling drop, with the actual orientation glyph. Columns is absent on workspaces 1 and 4.
-- [ ] Each config default sets starting state and survives config/app reload. A local click affects one workspace; changing a default clears only that toggle's overrides. Check each default separately and both together.
-- [ ] Drop on the upper/lower halves of a window with levels off and on. `list-windows`/the agent layout show the source before/after the target in its actual split; the preview agrees. Repeat on a tab and a direct Column child, the latter forming a vertical split without adding a Column.
-- [ ] Floating Calculator dropped on a tiled row becomes tiled at the pointed destination, confirmed by `list-windows` and the layout. Dropped on workspace 1's row it stays floating there. A floating target keeps it floating; a dragged group floats as leaf windows. Notes dropped on workspace 2's own row changes nothing, and the Safari tab group dropped on the TextEdit tab group joins it as three tabs after Grievances and Soft language. Workspace/Column rows, marks, tab groups, splits and rail numbers accept drops, including same-workspace destinations.
-- [ ] Self/descendant drops and dragging workspace/Column headings are refused with visible reasons and no layout mutation. No other existing target is refused. Stale targets are re-resolved or safely cancelled before binding.
-- [ ] Collapse Safari/TextEdit groups, search and clear. `Safari` finds 3 windows in workspace 2 / Column 2 / Safari tabs; `Grievances` finds 1 in workspace 3 / Column 1 / TextEdit tabs; `qzxnomatch` finds 0. Counts and ancestor paths agree and clearing restores disclosures.
-- [ ] Behavior tests and a native guest run cover invariant workspace placement, explicit Columns, occupied-Column group merging and native hooks. Focus, marks, rail and rows update together after moves, tab changes, closes and workspace switches.
-- [ ] Measure native clipping in flat and both-level views at 240, 280 and 320 points, light/dark, and a shorter usable height. Explain any departure from the prototype's 307-point threshold.
-- [ ] Host and pinned-version guest `make check` pass; latest GitHub `Build and test` passes before landing. Retain visible evidence and the final native layout readback.
+- [x] On the fourteen-window rich desk in a 1920 × 1080 guest, the collapsed rail shows numbers only and focused numbers use today's treatment. Capture collapsed and hover-expanded states on all workspaces; pin/unpin and existing activation work.
+- [x] The default tree has no split/Column levels or window Column tags. Tabs remain grouped; Updater and Calculator sit flat under workspaces 1 and 4 with a floating glyph, and turning Splits on for a workspace shows its floating group. Workspace 2's marks are 28/44/28, workspace 3's are 2/3–1/3, and hovering windows highlights their marks. Workspaces 1 and 4 have none.
+- [x] Each toggle reveals its level on workspace 2 only. Both on shows Column → tab group → tab and any split produced by a sibling drop, with the actual orientation glyph. Columns is absent on workspaces 1 and 4.
+- [x] Each config default sets starting state and survives config/app reload. A local click affects one workspace; changing a default clears only that toggle's overrides. Check each default separately and both together.
+- [x] Drop on the upper/lower halves of a window with levels off and on. `list-windows`/the agent layout show the source before/after the target in its actual split; the preview agrees. Repeat on a tab and a direct Column child, the latter forming a vertical split without adding a Column.
+- [x] Floating Calculator dropped on a tiled row becomes tiled at the pointed destination, confirmed by `list-windows` and the layout. Dropped on workspace 1's row it stays floating there. A floating target keeps it floating; a dragged group floats as leaf windows. Notes dropped on workspace 2's own row changes nothing, and the Safari tab group dropped on the TextEdit tab group joins it as three tabs after Grievances and Soft language. Workspace/Column rows, marks, tab groups, splits and rail numbers accept drops, including same-workspace destinations.
+- [x] Self/descendant drops and dragging workspace/Column headings are refused with visible reasons and no layout mutation. No other existing target is refused. Stale targets are re-resolved or safely cancelled before binding.
+- [x] Collapse Safari/TextEdit groups, search and clear. `Safari` finds 3 windows in workspace 2 / Column 2 / Safari tabs; `Grievances` finds 1 in workspace 3 / Column 1 / TextEdit tabs; `qzxnomatch` finds 0. Counts and ancestor paths agree and clearing restores disclosures.
+- [x] Behavior tests and a native guest run cover invariant workspace placement, explicit Columns, occupied-Column group merging and native hooks. Focus, marks, rail and rows update together after moves, tab changes, closes and workspace switches.
+- [x] Measure native clipping in flat and both-level views at 240, 280 and 320 points, light/dark, and a shorter usable height. Explain any departure from the prototype's 307-point threshold.
+- [x] Host and pinned-version guest `make check` pass; latest GitHub `Build and test` passes before landing. Retain visible evidence and the final native layout readback.
 - [ ] Prateek checks the installed build with his sidebar config and pointer timing, a second display and real sleep/wake/unlock. Record any by-hand upgrade or permission step in [Prateek's checks on an installed build and real hardware](https://github.com/prateek/winmux/issues/85).
+
+## Built and checked
+
+Built from the native tree, not the prototype JavaScript. The existing snapshot
+model now carries the complete layout, real-parent/index metadata, empty Column
+slots, exact width fractions and remembered focused Column. Its projection hides
+levels without changing binding destinations. The compact header already drew
+numbers only and needed no change to its contents or focused-number treatment.
+Root children with no valid Column slot remain listed after the Column rows until
+normalization assigns them. Each snapshot stores its display projection and window
+to Column lookup; tab headers reuse the window models already built for children.
+
+Decided: the actual keys are `workspace-sidebar.tree.splits` and
+`workspace-sidebar.tree.columns`, under the existing sidebar table. This replaces
+the proposed `sidebar.tree.*` spelling above. Both defaults are false. Both native
+expanded-width defaults are 320; explicit widths, including the upstream
+conversion fixture's 280, remain unchanged. The conversion test adjusts that width
+expectation alone, and the shipped JSON was regenerated by the helper.
+
+Decided: Column labels round fractions to whole percentages; the marks use the
+original fractions. Structural split/Column heading clicks toggle disclosure, as
+does their chevron. Workspace clicks activate the workspace. No named **Default
+chosen for you** changed.
+
+Session overrides live with the sidebar model, not in `sidebar.json`. Each default
+clears only its own override map on reload. Disclosure uses workspace names,
+workspace/slot pairs and monotonic `UInt64` container identities; obsolete identities
+are pruned. Normalization or replacement of a container resets that container to open.
+Search opens matching paths only in the projection and restores every disclosure
+when cleared. The pin button uses the existing expansion lock.
+Search retains the base's workspace/project matches, empty-workspace results,
+bundle ID/path and tab-group title fields, and all whitespace-separated terms.
+
+Mouse drops use registered frames and the existing sidebar preview/commit path.
+A tree frame wholly outside the scroll viewport registers no target; a partly visible row keeps its whole frame, so its halves stay where they are drawn. Exact monitor and
+new-workspace controls take priority; otherwise the smallest containing frame wins.
+Row halves resolve once, and row hit slop is zero. Commit resolves live identities
+and parents again, including after a floating source's AX size read. The sibling
+seam accounts for same-parent removal. A direct
+Column child gets a vertical wrapper without changing Column count or widths.
+Joining a group inserts its leaves in order and leaves native MRU/focus alone.
+Same-workspace workspace-row drops short-circuit before the unchanged on-screen
+guard. Structural/cyclic refusals show a dashed outline and reason before mutation.
+The active sidebar drag owns its source identity. Split rows are sidebar-only
+sources: they accept tree/workspace targets and cancel elsewhere. Window rows and
+tab headers retain on-screen behavior, with feedback running outside the sidebar.
+A split/tab target that has become a Columns root cancels before mutation, also
+after a suspended AX read. Floating targets restore remembered floating sizes.
+`Columns.swift` owns the shared vertical wrapper and floating-leaf binding;
+agent-pane placement also uses the sidebar's sibling-index correction. The dormant
+SwiftUI drop delegate, on-screen subjects and `move-node-to-column` remain unchanged.
+
+Tests first passed on the base for
+`testFlatProjectionPreservesNativeItemsAndFloatingWindows` and
+`testExistingWorkspaceRowMovePreservesFloatingAndAppendsTiledNode`; their original
+assertions pass afterward. The flat-list test now calls the projection directly.
+Behavior tests cover projection, sibling indices in both
+directions/halves, cross-parent/workspace placement, nested group insertion,
+Columns, floating conversion, stale targets, refusals, search/disclosure, selective
+reload, nested frames, adjacent rows and preservation of native feedback/monitor
+preview behavior. Host and pinned-version guest `make check` pass: 1,690 Swift,
+92 helper/Rust and 171 Python tests. The guest's existing committed-hash check
+skips for a VM sync commit. The merge gate requires GitHub **Build and test** to pass on the head that lands.
+
+A tab group whose active tab is a nested split or a nested tab group still drags
+as its representative window's `moveNode` on every path, as before this feature,
+so the preview and every drop agree. **A dragged tab group moves one window when
+its active tab is a nested container** carries the container itself through the
+drag.
+
+Native rich-desk captures cover all four rail/hover states, activation and pinning,
+both levels independently/together, exact marks and hover, 26 synthetic pointer
+drop/refusal cases, all default/reload/restart combinations, and search/clear.
+Native readbacks confirm ordered siblings/tabs, unchanged Column widths, floating
+membership and no mutation on refusals. Safari joins as three tabs after the two
+TextEdit tabs. Closing Subscription events removes it and leaves two Safari tabs.
+Search finds Safari 3, Grievances 1 and qzxnomatch 0, on the specified paths;
+clearing restores the collapsed groups and Column choice. The same script on the
+base and feature builds produces identical inventory, native frames/layout,
+focused window and Column state. The same sidebar workspace move and native Place
+hook agree on both, including the hook's Column-3 split destination. Separate native
+Column-command, tab-strip reorder and on-screen split takes also match the base's
+trees and window frames. Inactive tabs are focused once during restaging so their
+last off-screen AX sizes do not carry unrelated history into that comparison.
+The final run repeats both sibling halves with levels hidden/revealed, both direct
+Column-child halves, Safari joining TextEdit and a split moving as one source.
+Split releases over an on-screen tile and New Workspace leave layout/inventory
+unchanged. A window-row drag shows the native on-screen overlay. Scrolled pinning
+and a New Workspace drop work. Independent native frame reads confirm a terminal
+going from 500 × 320 floating to 607 × 1025 tiled and back to 500 × 320.
+
+At 240 points, flat clips workspace 2/3 headings and the long Safari group title;
+both levels also clip the editor and floating-dialog titles. At 280 and 320 these
+rich-desk labels fit in both views. Font/frame measurements estimate 272 points
+for this native fixture; arbitrary longer titles still clip. The prototype's 307
+includes its retained 44-point rail and different chrome; native expansion replaces
+that rail and uses native controls/text. System light/dark takes agree; the sidebar
+retains its existing dark appearance. Decided: a 360-point menu-bar reserve gives
+the shorter usable-height take without resizing the guest. Scrolling reaches the
+lower workspaces while the header stays fixed. The chosen 320-point default stays.
+
+Reproduction tools and artifact validators live in
+`../proofs/sidebar-tree/`. Driver-owned captures/readbacks and their index remain
+outside the public repository. No permission was granted and no builder release
+was published. Installed-build config/pointer timing, a second display and real
+sleep/wake/unlock remain Prateek's, unticked above. This build requires no new
+by-hand upgrade or permission step.
 
 ## Sources
 

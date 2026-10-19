@@ -13,7 +13,16 @@ struct WorkspaceSidebarDropPreviewView: View {
     }
 
     var body: some View {
-        if preview.targetsNewWorkspace {
+        if let text = preview.refusalReason ?? preview.destinationDescription {
+            Text(text)
+                .font(.system(size: 11))
+                .foregroundStyle(preview.refusalReason == nil ? Color.primary : .orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(5)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(RoundedRectangle(cornerRadius: 4).stroke(style: StrokeStyle(lineWidth: 1, dash: preview.refusalReason == nil ? [] : [4, 3])))
+                .allowsHitTesting(false)
+        } else if preview.targetsNewWorkspace {
             newWorkspacePreview
         } else {
             previewRows

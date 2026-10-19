@@ -26,6 +26,7 @@ let Mode = {
 } in
 
 let WorkspaceSidebar = {
+  tree | { splits | Bool | optional, columns | Bool | optional } | optional,
   enabled | Bool | optional,
   enable-focus | Bool | optional,
   auto-hide | Bool | optional,

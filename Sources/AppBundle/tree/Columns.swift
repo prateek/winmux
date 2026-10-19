@@ -231,23 +231,10 @@ extension Workspace {
         let slot = placement.slot
         switch placement.effect {
             case .float:
-                // A container is never a floating child: a group floats as its windows.
-                guard let group = node as? TilingContainer else {
-                    node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
-                    return
-                }
-                for window in group.allLeafWindowsRecursive {
-                    window.unbindFromParent()
-                    window.bindAsFloatingWindow(to: self)
-                }
-                if group.isBound { group.unbindFromParent() }
+                bindLeavesAsFloating(node)
                 return
             case .split(let existing):
-                let binding = existing.unbindFromParent()
-                let wrapper = TilingContainer(parent: binding.parent, adaptiveWeight: binding.adaptiveWeight, .v, .tiles, index: binding.index)
-                wrapper.columnSlot = slot
-                existing.columnSlot = nil
-                existing.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
+                let wrapper = wrapColumnChildInVerticalSplit(existing)
                 node.columnSlot = nil
                 node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
                 return
@@ -269,6 +256,23 @@ extension Workspace {
         if let column = binding.parent as? TilingContainer, column.children.count == 1 {
             column.unbindSingleColumnChild()
         }
+    }
+    @MainActor
+    func bindLeavesAsFloating(_ node: TreeNode, at index: Int = INDEX_BIND_LAST) {
+        for (offset, window) in node.allLeafWindowsRecursive.enumerated() {
+            if window.isBound { window.unbindFromParent() }
+            window.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: index == INDEX_BIND_LAST ? INDEX_BIND_LAST : min(index + offset, children.count))
+        }
+        if node is TilingContainer, node.isBound { node.unbindFromParent() }
+    }
+
+    @MainActor
+    func wrapColumnChildInVerticalSplit(_ node: TreeNode) -> TilingContainer {
+        let binding = node.unbindFromParent()
+        let wrapper = TilingContainer(replacing: binding, .v, .tiles)
+        node.columnSlot = nil
+        node.bind(to: wrapper, adaptiveWeight: WEIGHT_AUTO, index: 0)
+        return wrapper
     }
 }
 

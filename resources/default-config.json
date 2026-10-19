@@ -492,6 +492,10 @@
     "show-weekday": true,
     "solid-chrome-color": "midnight",
     "solid-chrome-custom-color": "#191B20",
-    "width": 280
+    "tree": {
+      "columns": false,
+      "splits": false
+    },
+    "width": 320
   }
 }

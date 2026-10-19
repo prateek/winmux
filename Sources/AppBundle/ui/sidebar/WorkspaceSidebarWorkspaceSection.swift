@@ -41,7 +41,7 @@ struct WorkspaceSidebarWorkspaceSection: View {
     var isCompact: Bool { expansionProgress < workspaceSidebarRowsRevealProgress }
     var showsWindowRows: Bool { expansionProgress >= workspaceSidebarRowsRevealProgress }
     var sectionMinHeight: CGFloat? {
-        if !isCompact, allowsWorkspaceActivation, isInUseOnOtherDisplay, workspace.items.isEmpty {
+        if !isCompact, allowsWorkspaceActivation, isInUseOnOtherDisplay, workspace.projectedItems.isEmpty {
             return workspaceSidebarInUseOverrideEmptySectionMinHeight
         }
         return nil
@@ -97,6 +97,13 @@ struct WorkspaceSidebarWorkspaceSection: View {
                 isSettling: $isDropSettling,
             ))
             .help(isInUseOnOtherDisplay ? inUseOverrideText : workspace.displayName)
+            .overlay(alignment: .bottomLeading) {
+                if dragPreview?.targetWorkspaceName == workspace.name, dragPreview?.treeTarget != nil {
+                    WorkspaceSidebarDropPreviewView(preview: dragPreview.orDie(), rowHeight: rowHeight)
+                        .offset(y: rowHeight + 4)
+                        .zIndex(5)
+                }
+            }
             .zIndex(isDropTarget ? 1 : 0)
             .animation(.spring(response: 0.2, dampingFraction: 0.82), value: dragPreview)
             .animation(.spring(response: 0.2, dampingFraction: 0.82), value: expansionProgress)
@@ -359,11 +366,15 @@ extension WorkspaceSidebarWorkspaceSection {
                     onCancel: onCancelRenameWorkspace,
                 )
             } else {
-                Text(workspace.displayName)
-                    .font(.system(size: 15, weight: isActiveOnTargetMonitor ? .bold : .semibold))
-                    .foregroundStyle(isActiveOnTargetMonitor ? Color.white : Color.white.opacity(0.85))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                Button(action: handleSectionClick) {
+                    Text(workspace.displayName)
+                        .font(.system(size: 15, weight: isActiveOnTargetMonitor ? .bold : .semibold))
+                        .foregroundStyle(Color.white.opacity(isSearchFiltering ? 0.45 : (isActiveOnTargetMonitor ? 1 : 0.85)))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .buttonStyle(.plain)
+                .modifier(workspaceHeadingRefusal)
             }
             if let projectContextLabel, let projectContextColor {
                 Text(projectContextLabel)
@@ -382,6 +393,15 @@ extension WorkspaceSidebarWorkspaceSection {
                     }
             }
             Spacer(minLength: 0)
+            columnMarks
+            treeToggle("Show splits", systemImage: "arrow.triangle.branch", selected: workspace.showsSplits) {
+                actions.send(.toggleSplits(workspace.name))
+            }
+            if !workspace.columnWidths.isEmpty {
+                treeToggle("Show Columns", systemImage: "rectangle.split.3x1", selected: workspace.showsColumns) {
+                    actions.send(.toggleColumns(workspace.name))
+                }
+            }
         }
         .padding(.leading, workspaceSidebarHeaderRowLeadingPadding)
         .padding(.trailing, workspaceSidebarRowHorizontalPadding)
@@ -391,10 +411,12 @@ extension WorkspaceSidebarWorkspaceSection {
 extension WorkspaceSidebarWorkspaceSection {
     @ViewBuilder
     var windowRows: some View {
-        if showsWindowRows, !workspace.items.isEmpty {
+        if showsWindowRows, !workspace.projectedItems.isEmpty {
             VStack(alignment: .leading, spacing: 1) {
-                ForEach(workspace.items) { item in
-                    workspaceItemView(item)
+                if !workspace.collapsedNodes.contains(.workspace(workspace.name)) || isSearchFiltering {
+                    ForEach(workspace.projectedItems) { item in
+                        treeItemView(item)
+                    }
                 }
             }
             .padding(.leading, workspaceSidebarWindowRowsLeadingIndent)
@@ -402,18 +424,8 @@ extension WorkspaceSidebarWorkspaceSection {
     }
 
     @ViewBuilder
-    func workspaceItemView(_ item: WorkspaceSidebarItemViewModel) -> some View {
-        switch item.kind {
-            case .window(let window):
-                workspaceWindowButton(window, allowsDrag: true)
-            case .tabGroup(let group):
-                workspaceTabGroupView(group)
-        }
-    }
-
-    @ViewBuilder
     var dropPreviewRow: some View {
-        if dragPreview?.targetWorkspaceName == workspace.name {
+        if dragPreview?.targetWorkspaceName == workspace.name, dragPreview?.treeTarget == nil {
             WorkspaceSidebarDropPreviewView(preview: dragPreview.orDie(), rowHeight: rowHeight)
             .transition(.asymmetric(
                 insertion: .move(edge: .top).combined(with: .scale(scale: 0.96, anchor: .top)).combined(with: .opacity),
@@ -434,6 +446,7 @@ extension WorkspaceSidebarWorkspaceSection {
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .center)
             .contentShape(sectionShape)
+            .modifier(workspaceHeadingRefusal)
         } else {
             sectionContent.contentShape(sectionShape)
         }
@@ -445,6 +458,7 @@ extension WorkspaceSidebarWorkspaceSection {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(workspace.displayName)
+        .modifier(workspaceHeadingRefusal)
     }
 
     var sectionContent: some View {
@@ -459,8 +473,24 @@ extension WorkspaceSidebarWorkspaceSection {
 
     @ViewBuilder
     var headerSlot: some View {
-        header
+        HStack(spacing: 2) {
+            if !isCompact {
+                disclosureButton(.workspace(workspace.name), isOpen: !workspace.collapsedNodes.contains(.workspace(workspace.name)))
+            }
+            header
+        }
             .frame(maxWidth: .infinity, alignment: isCompact ? .center : .leading)
+            .overlay {
+                if dragPreview?.sourceWindowId == 0, dragPreview?.targetWorkspaceName == workspace.name, dragPreview?.treeTarget == nil {
+                    RoundedRectangle(cornerRadius: 4).stroke(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                }
+            }
+    }
+
+    var workspaceHeadingRefusal: WorkspaceSidebarOptionalDragModifier {
+        WorkspaceSidebarOptionalDragModifier(isEnabled: true,
+            onChanged: { _ in actions.send(.refuseStructuralDrag(workspace.name, target: nil)) },
+            onEnded: { _ in actions.send(.clearDropPreview) })
     }
 }
 extension WorkspaceSidebarWorkspaceSection {
@@ -519,7 +549,9 @@ extension WorkspaceSidebarWorkspaceSection {
         .contentShape(Rectangle())
         .modifier(WorkspaceSidebarOptionalDragModifier(
             isEnabled: true,
-            onChanged: { actions.tabGroupDragChanged(group.representativeWindowId, $0) },
+            onChanged: {
+                actions.tabGroupDragChanged(group.representativeWindowId, $0)
+            },
             onEnded: { actions.tabGroupDragEnded(group.representativeWindowId, $0) },
         ))
         .workspaceSidebarDrag(enabled: true) {
@@ -529,6 +561,7 @@ extension WorkspaceSidebarWorkspaceSection {
             hoveredTabGroupId = hover ? group.representativeWindowId :
                 (hoveredTabGroupId == group.representativeWindowId ? nil : hoveredTabGroupId)
         }
+        .help(group.title)
         .opacity(1)
     }
 }
@@ -538,6 +571,7 @@ extension WorkspaceSidebarWorkspaceSection {
         allowsDrag: Bool,
         subject: WindowDragSubject = .window,
         leadingHitInset: CGFloat = 0,
+        isTabChild: Bool = false,
     ) -> some View {
         Button {
             guard allowsWorkspaceActivation else { return }
@@ -556,7 +590,7 @@ extension WorkspaceSidebarWorkspaceSection {
                 suppressFocusedStyle: isSearchFiltering,
                 rowHeight: rowHeight,
                 isHovered: hoveredWindowId == window.windowId || selectedSearchTarget == .window(window.windowId),
-                style: leadingHitInset > 0 ? .tabGroupChild : .window,
+                style: isTabChild || leadingHitInset > 0 ? .tabGroupChild : .window,
                 appBundleIds: [window.appBundleId],
                 appBundlePaths: [window.appBundlePath],
             )

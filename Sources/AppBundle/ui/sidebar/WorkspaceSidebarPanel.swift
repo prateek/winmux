@@ -111,10 +111,16 @@ extension WorkspaceSidebarPanel {
 
     func convertDropTargets(_ targets: [WorkspaceSidebarDropTargetFrame]) -> [WorkspaceSidebarDropTarget] {
         targets.compactMap { target in
-            let windowRect = hostingView.convert(target.frame, to: nil)
-            let screenRect = convertToScreen(windowRect)
-            return WorkspaceSidebarDropTarget(kind: target.kind, rect: screenRect.monitorFrameNormalized())
+            WorkspaceSidebarDropTarget(
+                kind: target.kind,
+                rect: screenRectNormalized(target.frame),
+                rowRect: target.rowFrame.map(screenRectNormalized),
+            )
         }
+    }
+
+    private func screenRectNormalized(_ frame: CGRect) -> Rect {
+        convertToScreen(hostingView.convert(frame, to: nil)).monitorFrameNormalized()
     }
 
     func visibleScreenRectNormalized() -> Rect? {

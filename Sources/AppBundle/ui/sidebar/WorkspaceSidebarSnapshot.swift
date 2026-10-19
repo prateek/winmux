@@ -12,6 +12,7 @@ struct WorkspaceSidebarSnapshot: Equatable {
     var hoveredWorkspaceName: String?
     var dropPreview: WorkspaceSidebarDropPreviewViewModel?
     var configuration: WorkspaceSidebarConfiguration
+    var isPinned: Bool = false
 
     static let empty = WorkspaceSidebarSnapshot(
         workspaces: [],
@@ -59,6 +60,11 @@ struct WorkspaceSidebarConfiguration: Equatable {
 }
 
 enum WorkspaceSidebarAction: Equatable {
+    case togglePin
+    case refuseStructuralDrag(String, target: WorkspaceSidebarTreeDropTarget?)
+    case toggleSplits(String)
+    case toggleColumns(String)
+    case toggleDisclosure(WorkspaceSidebarNodeIdentity)
     case selectWorkspace(String)
     case overrideWorkspaceInUse(String)
     case selectWindow(UInt32)

@@ -1,6 +1,9 @@
 import AppKit
 
 @MainActor
+var workspaceSidebarTreeState = WorkspaceSidebarTreeState()
+
+@MainActor
 func updateWorkspaceSidebarModel() async {
     guard TrayMenuModel.shared.isEnabled, config.workspaceSidebar.enabled else {
         clearWorkspaceSidebarModelState()
