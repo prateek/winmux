@@ -1,0 +1,19 @@
+[
+  {
+    "empty" : false,
+    "index" : 1,
+    "width" : 0.6666666666666666,
+    "window-ids" : [
+      250,
+      251
+    ]
+  },
+  {
+    "empty" : false,
+    "index" : 2,
+    "width" : 0.3333333333333333,
+    "window-ids" : [
+      256
+    ]
+  }
+]

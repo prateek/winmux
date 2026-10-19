@@ -1,0 +1,14 @@
+266 | Calculator | Calculator
+256 | Finder     | desk
+214 | Ghostty    | desk
+222 | Ghostty    | desk
+239 | Notes      | Notes – No notes
+265 | Preview    | wallpaper.jpg
+237 | Safari     | Fixed Columns
+231 | Safari     | Lenses and Search
+238 | Safari     | Subscription events
+250 | TextEdit   | Grievances.rtf
+251 | TextEdit   | Soft language.rtf
+249 | TextEdit   | Things I will get to.rtf
+287 | Updater    | A dialog that is not yours
+204 | Zed        | winmux.ncl — winmux.ncl

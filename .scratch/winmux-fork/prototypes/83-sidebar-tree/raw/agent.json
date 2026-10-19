@@ -1,0 +1,721 @@
+{
+  "edit" : {
+    "operations" : [
+
+    ]
+  },
+  "inventory" : {
+    "tabGroups" : [
+      {
+        "activeWindowId" : 238,
+        "frame" : {
+          "height" : 1025,
+          "width" : 804.24,
+          "x" : 582.88,
+          "y" : 42
+        },
+        "paneId" : "pane-tabgroup-231",
+        "size" : 0.44,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-231",
+        "tabTitles" : [
+          "Lenses and Search",
+          "Fixed Columns",
+          "Subscription events"
+        ],
+        "tabs" : [
+          231,
+          237,
+          238
+        ],
+        "workspace" : "2"
+      },
+      {
+        "activeWindowId" : 250,
+        "frame" : {
+          "height" : 1025,
+          "width" : 1226.6666666666665,
+          "x" : 62,
+          "y" : 42
+        },
+        "paneId" : "pane-tabgroup-250",
+        "size" : 0.6666666666666666,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-250",
+        "tabTitles" : [
+          "Grievances.rtf",
+          "Soft language.rtf"
+        ],
+        "tabs" : [
+          250,
+          251
+        ],
+        "workspace" : "3"
+      }
+    ],
+    "windows" : [
+      {
+        "appBundleId" : "dev.zed.Zed",
+        "appName" : "Zed",
+        "focused" : true,
+        "frame" : {
+          "height" : 1025,
+          "width" : 919,
+          "x" : 62,
+          "y" : 42
+        },
+        "layout" : "h_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-204",
+        "pid" : 8498,
+        "size" : 0.5,
+        "sizeAxis" : "horizontal",
+        "title" : "winmux.ncl — winmux.ncl",
+        "winMuxFullscreen" : false,
+        "windowId" : 204,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 509,
+          "width" : 919,
+          "x" : 989,
+          "y" : 42
+        },
+        "layout" : "v_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-214",
+        "pid" : 8554,
+        "size" : 0.5,
+        "sizeAxis" : "vertical",
+        "title" : "desk",
+        "winMuxFullscreen" : false,
+        "windowId" : 214,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 509,
+          "width" : 919,
+          "x" : 989,
+          "y" : 559
+        },
+        "layout" : "v_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-222",
+        "pid" : 8568,
+        "size" : 0.5,
+        "sizeAxis" : "vertical",
+        "title" : "desk",
+        "winMuxFullscreen" : false,
+        "windowId" : 222,
+        "workspace" : "1"
+      },
+      {
+        "appBundleId" : "com.apple.Safari",
+        "appName" : "Safari",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 804,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "v_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-231",
+        "pid" : 8582,
+        "size" : 0.44,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-231",
+        "title" : "Lenses and Search",
+        "winMuxFullscreen" : false,
+        "windowId" : 231,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.apple.Safari",
+        "appName" : "Safari",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 798,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "v_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-231",
+        "pid" : 8582,
+        "size" : 0.44,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-231",
+        "title" : "Fixed Columns",
+        "winMuxFullscreen" : false,
+        "windowId" : 237,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.apple.Safari",
+        "appName" : "Safari",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 798,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "v_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-231",
+        "pid" : 8582,
+        "size" : 0.44,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-231",
+        "title" : "Subscription events",
+        "winMuxFullscreen" : false,
+        "windowId" : 238,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.apple.Notes",
+        "appName" : "Notes",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 709,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-239",
+        "pid" : 8644,
+        "size" : 0.27999999999999997,
+        "sizeAxis" : "horizontal",
+        "title" : "Notes – No notes",
+        "winMuxFullscreen" : false,
+        "windowId" : 239,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.apple.TextEdit",
+        "appName" : "TextEdit",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 513,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-249",
+        "pid" : 8659,
+        "size" : 0.27999999999999997,
+        "sizeAxis" : "horizontal",
+        "title" : "Things I will get to.rtf",
+        "winMuxFullscreen" : false,
+        "windowId" : 249,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.apple.TextEdit",
+        "appName" : "TextEdit",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 1221,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "v_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-250",
+        "pid" : 8659,
+        "size" : 0.6666666666666666,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-250",
+        "title" : "Grievances.rtf",
+        "winMuxFullscreen" : false,
+        "windowId" : 250,
+        "workspace" : "3"
+      },
+      {
+        "appBundleId" : "com.apple.TextEdit",
+        "appName" : "TextEdit",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 1221,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "v_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-250",
+        "pid" : 8659,
+        "size" : 0.6666666666666666,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-250",
+        "title" : "Soft language.rtf",
+        "winMuxFullscreen" : false,
+        "windowId" : 251,
+        "workspace" : "3"
+      },
+      {
+        "appBundleId" : "com.apple.finder",
+        "appName" : "Finder",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 611,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "h_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-256",
+        "pid" : 380,
+        "size" : 0.3333333333333333,
+        "sizeAxis" : "horizontal",
+        "title" : "desk",
+        "winMuxFullscreen" : false,
+        "windowId" : 256,
+        "workspace" : "3"
+      },
+      {
+        "appBundleId" : "com.apple.Preview",
+        "appName" : "Preview",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "h_tiles",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-265",
+        "pid" : 8693,
+        "size" : 1,
+        "sizeAxis" : "horizontal",
+        "title" : "wallpaper.jpg",
+        "winMuxFullscreen" : false,
+        "windowId" : 265,
+        "workspace" : "4"
+      },
+      {
+        "appBundleId" : "com.apple.calculator",
+        "appName" : "Calculator",
+        "focused" : false,
+        "frame" : {
+          "height" : 408,
+          "width" : 230,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "layout" : "floating",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-266",
+        "pid" : 8714,
+        "title" : "Calculator",
+        "winMuxFullscreen" : false,
+        "windowId" : 266,
+        "workspace" : "4"
+      },
+      {
+        "appName" : "Updater",
+        "focused" : false,
+        "frame" : {
+          "height" : 202,
+          "width" : 440,
+          "x" : 420,
+          "y" : 150
+        },
+        "layout" : "floating",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-287",
+        "pid" : 8923,
+        "title" : "A dialog that is not yours",
+        "winMuxFullscreen" : false,
+        "windowId" : 287,
+        "workspace" : "1"
+      }
+    ],
+    "workspaces" : [
+      {
+        "displayName" : "Workspace 1",
+        "focused" : true,
+        "monitorId" : 1,
+        "name" : "1",
+        "panes" : [
+          "pane-287",
+          "pane-204",
+          "pane-214",
+          "pane-222"
+        ],
+        "visible" : true
+      },
+      {
+        "displayName" : "Workspace 2",
+        "focused" : false,
+        "monitorId" : 1,
+        "name" : "2",
+        "panes" : [
+          "pane-239",
+          "pane-tabgroup-231",
+          "pane-249"
+        ],
+        "visible" : false
+      },
+      {
+        "displayName" : "Workspace 3",
+        "focused" : false,
+        "monitorId" : 1,
+        "name" : "3",
+        "panes" : [
+          "pane-tabgroup-250",
+          "pane-256"
+        ],
+        "visible" : false
+      },
+      {
+        "displayName" : "Workspace 4",
+        "focused" : false,
+        "monitorId" : 1,
+        "name" : "4",
+        "panes" : [
+          "pane-266",
+          "pane-265"
+        ],
+        "visible" : false
+      }
+    ]
+  },
+  "reasoning" : {
+    "panes" : [
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 919,
+          "x" : 62,
+          "y" : 42
+        },
+        "kind" : "window",
+        "label" : "Zed",
+        "paneId" : "pane-204",
+        "size" : 0.5,
+        "sizeAxis" : "horizontal",
+        "windowId" : 204,
+        "workspace" : "1"
+      },
+      {
+        "frame" : {
+          "height" : 508.5,
+          "width" : 919,
+          "x" : 989,
+          "y" : 42
+        },
+        "kind" : "window",
+        "label" : "Ghostty",
+        "paneId" : "pane-214",
+        "size" : 0.5,
+        "sizeAxis" : "vertical",
+        "windowId" : 214,
+        "workspace" : "1"
+      },
+      {
+        "frame" : {
+          "height" : 508.5,
+          "width" : 919,
+          "x" : 989,
+          "y" : 558.5
+        },
+        "kind" : "window",
+        "label" : "Ghostty",
+        "paneId" : "pane-222",
+        "size" : 0.5,
+        "sizeAxis" : "vertical",
+        "windowId" : 222,
+        "workspace" : "1"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 709,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "kind" : "window",
+        "label" : "Notes",
+        "paneId" : "pane-239",
+        "size" : 0.27999999999999997,
+        "sizeAxis" : "horizontal",
+        "windowId" : 239,
+        "workspace" : "2"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 513,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "kind" : "window",
+        "label" : "TextEdit",
+        "paneId" : "pane-249",
+        "size" : 0.27999999999999997,
+        "sizeAxis" : "horizontal",
+        "windowId" : 249,
+        "workspace" : "2"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 611,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "kind" : "window",
+        "label" : "Finder",
+        "paneId" : "pane-256",
+        "size" : 0.3333333333333333,
+        "sizeAxis" : "horizontal",
+        "windowId" : 256,
+        "workspace" : "3"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "kind" : "window",
+        "label" : "Preview",
+        "paneId" : "pane-265",
+        "size" : 1,
+        "sizeAxis" : "horizontal",
+        "windowId" : 265,
+        "workspace" : "4"
+      },
+      {
+        "frame" : {
+          "height" : 408,
+          "width" : 230,
+          "x" : 1919,
+          "y" : 1028
+        },
+        "kind" : "window",
+        "label" : "Calculator",
+        "paneId" : "pane-266",
+        "windowId" : 266,
+        "workspace" : "4"
+      },
+      {
+        "frame" : {
+          "height" : 202,
+          "width" : 440,
+          "x" : 420,
+          "y" : 150
+        },
+        "kind" : "window",
+        "label" : "Updater",
+        "paneId" : "pane-287",
+        "windowId" : 287,
+        "workspace" : "1"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 804.24,
+          "x" : 582.88,
+          "y" : 42
+        },
+        "kind" : "tabGroup",
+        "label" : "Tab Group [231, 237, 238]",
+        "paneId" : "pane-tabgroup-231",
+        "size" : 0.44,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-231",
+        "workspace" : "2"
+      },
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 1226.6666666666665,
+          "x" : 62,
+          "y" : 42
+        },
+        "kind" : "tabGroup",
+        "label" : "Tab Group [250, 251]",
+        "paneId" : "pane-tabgroup-250",
+        "size" : 0.6666666666666666,
+        "sizeAxis" : "horizontal",
+        "tabGroupId" : "tabgroup-250",
+        "workspace" : "3"
+      }
+    ],
+    "rawTrees" : [
+      {
+        "tree" : {
+          "children" : [
+            {
+              "kind" : "window",
+              "size" : 0.5,
+              "windowId" : 204
+            },
+            {
+              "children" : [
+                {
+                  "kind" : "window",
+                  "size" : 0.5,
+                  "windowId" : 214
+                },
+                {
+                  "kind" : "window",
+                  "size" : 0.5,
+                  "windowId" : 222
+                }
+              ],
+              "direction" : "vertical",
+              "kind" : "split",
+              "layout" : "tiles",
+              "size" : 0.5
+            }
+          ],
+          "direction" : "horizontal",
+          "kind" : "split",
+          "layout" : "tiles"
+        },
+        "workspace" : "1"
+      },
+      {
+        "tree" : {
+          "children" : [
+            {
+              "kind" : "window",
+              "size" : 0.27999999999999997,
+              "windowId" : 239
+            },
+            {
+              "activeWindowId" : 238,
+              "kind" : "tabGroup",
+              "size" : 0.44,
+              "tabGroupId" : "tabgroup-231",
+              "tabs" : [
+                231,
+                237,
+                238
+              ]
+            },
+            {
+              "kind" : "window",
+              "size" : 0.27999999999999997,
+              "windowId" : 249
+            }
+          ],
+          "direction" : "horizontal",
+          "kind" : "split",
+          "layout" : "tiles"
+        },
+        "workspace" : "2"
+      },
+      {
+        "tree" : {
+          "children" : [
+            {
+              "activeWindowId" : 250,
+              "kind" : "tabGroup",
+              "size" : 0.6666666666666666,
+              "tabGroupId" : "tabgroup-250",
+              "tabs" : [
+                250,
+                251
+              ]
+            },
+            {
+              "kind" : "window",
+              "size" : 0.3333333333333333,
+              "windowId" : 256
+            }
+          ],
+          "direction" : "horizontal",
+          "kind" : "split",
+          "layout" : "tiles"
+        },
+        "workspace" : "3"
+      },
+      {
+        "tree" : {
+          "children" : [
+            {
+              "kind" : "window",
+              "size" : 1,
+              "windowId" : 265
+            }
+          ],
+          "direction" : "horizontal",
+          "kind" : "split",
+          "layout" : "tiles"
+        },
+        "workspace" : "4"
+      }
+    ],
+    "relations" : [
+      {
+        "paneId" : "pane-204",
+        "right" : "pane-222",
+        "workspace" : "1"
+      },
+      {
+        "below" : "pane-222",
+        "left" : "pane-204",
+        "paneId" : "pane-214",
+        "workspace" : "1"
+      },
+      {
+        "above" : "pane-214",
+        "left" : "pane-204",
+        "paneId" : "pane-222",
+        "workspace" : "1"
+      },
+      {
+        "paneId" : "pane-239",
+        "right" : "pane-tabgroup-231",
+        "workspace" : "2"
+      },
+      {
+        "left" : "pane-tabgroup-231",
+        "paneId" : "pane-249",
+        "workspace" : "2"
+      },
+      {
+        "left" : "pane-239",
+        "paneId" : "pane-tabgroup-231",
+        "right" : "pane-249",
+        "workspace" : "2"
+      },
+      {
+        "left" : "pane-tabgroup-250",
+        "paneId" : "pane-256",
+        "workspace" : "3"
+      },
+      {
+        "paneId" : "pane-tabgroup-250",
+        "right" : "pane-256",
+        "workspace" : "3"
+      }
+    ]
+  },
+  "schemaVersion" : 1,
+  "snapshotId" : "2026-10-19T02:38:23Z",
+  "worldId" : "8c1dfb7a2fca0027"
+}
