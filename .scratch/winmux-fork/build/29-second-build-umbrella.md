@@ -59,6 +59,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **A defect found while arranging windows from the sidebar** is with the follow-ups: a group dropped into a tab group shows its last window.
 - **Two defects found while carrying a dragged group's identity** are with the follow-ups: a tab group dropped on a Columns workspace with a `place` hook comes apart, and a window in a tab group's active split stays on screen when its workspace hides.
 - **A defect found while clipping sidebar drops to the viewport** is with the follow-ups: an always-expanded sidebar drops the browsed project's pane when the pointer leaves.
+- **One issue from the tab strip prototype** follows it and waits on Prateek's pick of look: thin, quiet tabs above grouped windows, drafted for the relay's recommendation.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek
