@@ -25,8 +25,8 @@ The bundled agent skill, which `winmux agent skill` prints, tells an agent to wr
 
 - [ ] The skill text names no path under `/tmp`.
 - [ ] The file the workflow writes is mode 600, or in a mode-700 directory, checked in a test.
-- [ ] `AgentCommandTest` covers the new path in the skill text.
+- [ ] `AgentSkillTest` covers the new path in the skill text.
 
 ## Sources
 
-- Found while building **The CLI socket moves out of `/tmp`, and the docs say who can use it**, 2026-10-18, in `Sources/AppBundle/command/impl/agent/AgentCommand.swift`.
+- Found while building **The CLI socket moves out of `/tmp`, and the docs say who can use it**, 2026-10-18; the skill text now lives in `Sources/Common/agentSkill.swift`.

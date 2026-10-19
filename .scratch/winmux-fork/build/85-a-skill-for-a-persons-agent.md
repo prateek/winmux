@@ -30,9 +30,27 @@ Nothing.
 
 ## Done when
 
-- [ ] An installed CLI can produce the skill with no network.
-- [ ] A fresh agent given the skill adds a binding and a Filter to `winmux.ncl`, and `config check` passes.
-- [ ] The same agent answers "which window is focused" from the CLI.
+- [x] An installed CLI can produce the skill with no network.
+- [x] A fresh agent given the skill adds a binding and a Filter to `winmux.ncl`, and `config check` passes.
+- [x] The same agent answers "which window is focused" from the CLI.
+
+## Built and checked
+
+`winmux agent skill` prints one self-contained `SKILL.md`, named `winmux`, for configuring and driving WinMux. This changes the **How it is delivered** Default from a command such as `winmux skill` to the existing `winmux agent skill`; installation is a documented redirect, with no install flags. The CLI answers immediately after parsing, before socket resolution. `Sources/Common/agentSkill.swift` holds the one compiled constant shared with the app command. No resource bundle, adjacent file, helper, server or internet is needed to print it. The cask CLI's location and Sparkle updates are independent of this change.
+
+The skill teaches focus/window/workspace/Column readback, Nickel-only config, defaults, binding removal with `[]`, Filters, Lenses and a workspace-local Place hook. All four Nickel blocks are complete files checked through the built CLI and helper in `AgentSkillTest`. The existing JSON arrangement workflow, operation names, layout examples and `/tmp/winmux-agent.json` path remain together under Arranging windows. **The agent skill's query file is readable by other users** owns changing that path; its draft now names the shared text and its test. **A capture mode for hooks** remains unbuilt and is omitted.
+
+Host and pinned-version guest `make check` pass: 1,743 Swift, 92 Rust/helper and 171 Python tests; the guest skips its existing committed-hash check for a sync checkout. The CLI regression was red on the old socket path and green after local interception. The recipe regression was red with no recipes and green with all four checked files. The app command retains its JSON operation assertions; no other existing test changed. A copied standalone guest CLI printed the skill with all networking denied, no server and an invalid helper path, exiting 0.
+
+A fresh host agent with only the installed skill and a shim to the guest created a new Nickel config with Option-Shift-F for `find-focus`, an `editors` Filter for Zed/Ghostty, its Lens and Option-Shift-E. Its check and an independent check passed. It identified focused Zed on workspace 1 with Columns off; the same session identified Column 1 after Columns were enabled. Immediate guest readbacks agree. The first launch failed in the harness before doing work; a second run reached into the guest instead of preparing the local file. That exposed an instruction gap: when the running config path is inaccessible locally, the skill now says to prepare/check the local default file and report that it needs loading, using only the CLI interface. A new fresh run passed with that correction and the same prompt.
+
+Loading that agent's config in the guest and pressing both chords showed the focus mark and an editors Lens with exactly Zed and Ghostty. Screenshots, key events and readbacks are retained for the relay. The same query/check/apply probe on the base and changed builds preserved all four windows and produced identical inventory, focus, workspace and Column readbacks. No permission was granted; the debug app and staged apps were closed, with the assigned guest left running. No by-hand upgrade step or release is part of this build.
+
+Remaining acceptance checks for Prateek:
+
+- [ ] Installed cask/Sparkle build and a person's real agent setup.
+- [ ] A second display.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
