@@ -28,17 +28,24 @@ Make the sidebar tree a place to arrange the layout with the mouse: make splits 
 ## Native seams from the tree build
 
 `WorkspaceSidebarItemViewModel.children` holds the actual layout tree with real-parent
-identity and index metadata. `WorkspaceSidebarWorkspaceViewModel.projectedItems`
-hides optional levels for display. Extend that projection and `WorkspaceSidebarTreeRows`,
+identity and index metadata. Container identities are monotonic `UInt64` values
+from `TilingContainer.sidebarIdentity`. `WorkspaceSidebarWorkspaceViewModel.projectedItems`
+stores the display projection, with a cached window-to-Column lookup. Extend that
+projection and `WorkspaceSidebarTreeRows`,
 not the retained prototype JavaScript or the dormant SwiftUI drop delegate.
 
 `WorkspaceSidebarDropTargetKind.tree` carries `WorkspaceSidebarTreeDropTarget`.
-`resolveWorkspaceSidebarDropTarget` picks the smallest containing row and resolves
-its half once. `workspaceSidebarDragTarget` serves preview and commit;
+Tree targets register only inside the scroll viewport. `resolveWorkspaceSidebarDropTarget`
+prioritizes exact monitor/new-workspace controls, then picks the smallest containing
+row and resolves its half once. `workspaceSidebarDragTarget` serves preview and commit;
 `applyWorkspaceSidebarTreeDrop` resolves live container/window identities and performs
-the binding. `workspaceSidebarSiblingBindingData` is the indexed sibling seam.
-Split and tab-group drag sources retain container identity in the sidebar's own drag
-state; on-screen window subjects remain unchanged. New arrangement zones belong in
+the binding. Split/tab targets that have become Columns roots cancel, including
+after suspended AX reads. `workspaceSidebarSiblingBindingData` is the indexed sibling
+seam also used by agent-pane placement. `Columns.swift` owns the shared vertical
+Column wrapper and floating-leaf binder; floating drops restore remembered sizes.
+`ActiveWorkspaceSidebarDrag` owns the source identity. Split sources cancel outside
+tree/workspace targets; window rows and tab headers keep on-screen behavior.
+New arrangement zones belong in
 this tree path and must preserve the ordinary sibling path, including hidden parents.
 
 ## Done when

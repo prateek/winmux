@@ -59,3 +59,20 @@ take uses the existing menu-bar reserve setting, preserving guest resolution.
 
 Quit debug WinMux and close the staged apps after the final readback. The driver
 owns final-commit demos, CI, publication and guest deletion.
+
+## Final builder regression takes
+
+With a fresh `original` snapshot of the rich desk, run `search.zsh`,
+`pass2-core.zsh`, `pass2-extra.zsh`, then `pass2-size.zsh`. The extra takes need
+`../peek/window-frame.swift` pushed to `~/peek-proof`; that existing AX helper
+prepares a floating terminal at 500 by 320. `pass2-size.zsh` records independent
+CoreGraphics frames before tiling, after tiling and after the floating drop.
+The agent inventory can retain a previous frame during post-drag observer
+suppression, so use those native reads with the screenshots to verify size.
+Each drop still saves `list-windows` and the agent tree.
+
+Run `verify-pass2.py <captures>` after pulling the takes. It checks sibling and
+Column-child order, whole-container moves/cancellation, group joining, search
+counts/paths and disclosure restoration, scrolled controls, remembered floating
+size and the final fourteen-window reset. Inspect the window-row on-screen
+overlay and scrolled-header screenshots as well.

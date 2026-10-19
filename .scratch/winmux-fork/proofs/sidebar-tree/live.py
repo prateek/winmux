@@ -75,6 +75,10 @@ elif mode == 'draglabel':
     tx, ty, height = find(target, target_index)
     ty += round(height * (-.3 if half == 'before' else .3 if half == 'after' else 0))
     drag(name, sx, sy, tx, ty)
+elif mode == 'draglabelpoint':
+    source, tx, ty, *occurrences = args
+    sx, sy, _ = find(source, int(occurrences[0]) if occurrences else 0)
+    drag(name, sx, sy, int(tx), int(ty))
 elif mode == 'dragmark':
     source, workspace, slot, occurrence = args
     sx, sy, _ = find(source, int(occurrence))

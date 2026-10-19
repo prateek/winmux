@@ -59,6 +59,9 @@ model now carries the complete layout, real-parent/index metadata, empty Column
 slots, exact width fractions and remembered focused Column. Its projection hides
 levels without changing binding destinations. The compact header already drew
 numbers only and needed no change to its contents or focused-number treatment.
+Root children with no valid Column slot remain listed after the Column rows until
+normalization assigns them. Each snapshot stores its display projection and window
+to Column lookup; tab headers reuse the window models already built for children.
 
 Decided: the actual keys are `workspace-sidebar.tree.splits` and
 `workspace-sidebar.tree.columns`, under the existing sidebar table. This replaces
@@ -74,30 +77,41 @@ chosen for you** changed.
 
 Session overrides live with the sidebar model, not in `sidebar.json`. Each default
 clears only its own override map on reload. Disclosure uses workspace names,
-workspace/slot pairs and native container identities; obsolete identities are
-pruned. Normalization or replacement of a container resets that container to open.
+workspace/slot pairs and monotonic `UInt64` container identities; obsolete identities
+are pruned. Normalization or replacement of a container resets that container to open.
 Search opens matching paths only in the projection and restores every disclosure
 when cleared. The pin button uses the existing expansion lock.
+Search retains the base's workspace/project matches, empty-workspace results,
+bundle ID/path and tab-group title fields, and all whitespace-separated terms.
 
 Mouse drops use registered frames and the existing sidebar preview/commit path.
-The smallest containing frame wins, row halves resolve once, and row hit slop is
-zero. Commit resolves live identities and parents again, including after a floating
-source's AX size read. The sibling seam accounts for same-parent removal. A direct
+Tree frames register only inside the scroll viewport. Exact monitor and
+new-workspace controls take priority; otherwise the smallest containing frame wins.
+Row halves resolve once, and row hit slop is zero. Commit resolves live identities
+and parents again, including after a floating source's AX size read. The sibling
+seam accounts for same-parent removal. A direct
 Column child gets a vertical wrapper without changing Column count or widths.
 Joining a group inserts its leaves in order and leaves native MRU/focus alone.
 Same-workspace workspace-row drops short-circuit before the unchanged on-screen
 guard. Structural/cyclic refusals show a dashed outline and reason before mutation.
-Split rows are drag sources in sidebar-owned state. The dormant SwiftUI drop
-delegate, on-screen subjects and `move-node-to-column` remain unchanged.
+The active sidebar drag owns its source identity. Split rows are sidebar-only
+sources: they accept tree/workspace targets and cancel elsewhere. Window rows and
+tab headers retain on-screen behavior, with feedback running outside the sidebar.
+A split/tab target that has become a Columns root cancels before mutation, also
+after a suspended AX read. Floating targets restore remembered floating sizes.
+`Columns.swift` owns the shared vertical wrapper and floating-leaf binding;
+agent-pane placement also uses the sidebar's sibling-index correction. The dormant
+SwiftUI drop delegate, on-screen subjects and `move-node-to-column` remain unchanged.
 
 Tests first passed on the base for
 `testFlatProjectionPreservesNativeItemsAndFloatingWindows` and
-`testExistingWorkspaceRowMovePreservesFloatingAndAppendsTiledNode`; both pass
-unchanged afterward. Behavior tests cover projection, sibling indices in both
+`testExistingWorkspaceRowMovePreservesFloatingAndAppendsTiledNode`; their original
+assertions pass afterward. The flat-list test now calls the projection directly.
+Behavior tests cover projection, sibling indices in both
 directions/halves, cross-parent/workspace placement, nested group insertion,
 Columns, floating conversion, stale targets, refusals, search/disclosure, selective
 reload, nested frames, adjacent rows and preservation of native feedback/monitor
-preview behavior. Host and pinned-version guest `make check` pass: 1,680 Swift,
+preview behavior. Host and pinned-version guest `make check` pass: 1,690 Swift,
 92 helper/Rust and 171 Python tests. The guest's existing committed-hash check
 skips for a VM sync commit. GitHub **Build and test** remains the landing gate;
 the combined checklist item above stays open until that check passes.
@@ -116,6 +130,12 @@ hook agree on both, including the hook's Column-3 split destination. Separate na
 Column-command, tab-strip reorder and on-screen split takes also match the base's
 trees and window frames. Inactive tabs are focused once during restaging so their
 last off-screen AX sizes do not carry unrelated history into that comparison.
+The final run repeats both sibling halves with levels hidden/revealed, both direct
+Column-child halves, Safari joining TextEdit and a split moving as one source.
+Split releases over an on-screen tile and New Workspace leave layout/inventory
+unchanged. A window-row drag shows the native on-screen overlay. Scrolled pinning
+and a New Workspace drop work. Independent native frame reads confirm a terminal
+going from 500 × 320 floating to 607 × 1025 tiled and back to 500 × 320.
 
 At 240 points, flat clips workspace 2/3 headings and the long Safari group title;
 both levels also clip the editor and floating-dialog titles. At 280 and 320 these
