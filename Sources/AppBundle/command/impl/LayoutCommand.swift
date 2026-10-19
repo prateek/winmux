@@ -57,10 +57,7 @@ struct LayoutCommand: Command {
     guard let parent = window.parent else { return false }
     switch parent.cases {
         case .tilingContainer(let parent):
-            let targetOrientation = targetOrientation ?? parent.orientation
-            let targetLayout = targetLayout ?? parent.layout
-            parent.layout = targetLayout
-            parent.changeOrientation(targetOrientation)
+            parent.changeLayout(targetLayout, orientation: targetOrientation)
             return true
         case .workspace, .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
              .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:

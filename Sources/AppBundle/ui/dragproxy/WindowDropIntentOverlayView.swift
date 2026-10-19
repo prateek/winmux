@@ -87,20 +87,7 @@ struct WindowDropIntentOverlayView: View {
     }
 
     private func symbolName(for zone: WindowDropZone) -> String? {
-        switch zone {
-            case .left:
-                "arrow.left"
-            case .right:
-                "arrow.right"
-            case .top:
-                "arrow.up"
-            case .bottom:
-                "arrow.down"
-            case .middle:
-                "arrow.left.arrow.right"
-            case .tab:
-                "rectangle.3.group"
-        }
+        zone.symbolName
     }
 
     private func iconSize(for frame: Rect) -> CGFloat {
