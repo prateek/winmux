@@ -28,7 +28,7 @@ Nothing.
 
 - [x] With three Columns, dragging a window over each Column shows an overlay, and the drop lands where the overlay showed.
 - [x] With Columns off, the overlays are as before.
-- [ ] The pull request has a clip of a drag across three Columns.
+- [x] The pull request has a clip of a drag across three Columns.
 
 ## Sources
 
