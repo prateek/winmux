@@ -53,6 +53,7 @@ Anything the Tile gains appears in every Presentation at once. The look was chos
 - **One defect found while landing Ctrl-Up over the sidebar** is with the follow-ups: with `always-expanded`, the sidebar's search takes every key typed anywhere.
 - **Two issues found while moving the CLI socket out of `/tmp`** are with the follow-ups: the legacy `/tmp` socket stops answering, which ends the compatibility listener the move kept, and the agent skill's query file is readable by other users.
 - **Two defects found while building the ninth tab digit** are with the follow-ups: an overflowing tab strip does not keep the active tab in view, and a floating window over a tab group becomes a tab for focus directions.
+- **Two defects found while making the drag overlay Column-aware** are with the follow-ups: a drag event queued behind mouse-up can lose the drop, and the mouse-up reset can run again while a drop is still being applied.
 - **The hero demos are last**, so they are filmed once, of the Lenses as they will look.
 
 ## Blocked on Prateek

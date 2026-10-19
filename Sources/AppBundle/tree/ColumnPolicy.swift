@@ -74,15 +74,16 @@ enum ColumnPolicy {
     }
 
     static func decision(window: Window, workspace: Workspace, answer: JSONValue? = nil,
-                         supervisor: any PolicyHookHelper = PolicyHooks.current, columnsSnapshot: JSONValue? = nil) async -> PlacementDecision {
-        var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
+                         supervisor: any PolicyHookHelper = PolicyHooks.current, columnsSnapshot: JSONValue? = nil,
+                         focusedSlot: Int? = nil, excluding incoming: TreeNode? = nil) async -> PlacementDecision {
+        var builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: incoming ?? window, focusedSlot: focusedSlot), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let columns = workspace.columns else { return builtIn }
         let path = hook("place", on: workspace)
         // An Arrive answer is Arrive's result: name Arrive in its failures and as its source.
         let source = answer == nil ? path : config.arrive
         let result: JSONValue?
         if let answer { result = answer } else { result = await PolicyHookCompletion.call(path, window: window, workspace: workspace, supervisor: supervisor, initialClass: .tiled, columnsSnapshot: columnsSnapshot) }
-        builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: window), target: "nearest-empty", overflow: .tabGroup, hook: nil)
+        builtIn = PlacementDecision(slot: workspace.columnPlacementSlot(excluding: incoming ?? window, focusedSlot: focusedSlot), target: "nearest-empty", overflow: .tabGroup, hook: nil)
         guard let result else {
             if path != nil { builtIn.failure = supervisor.lastHookError ?? "Hook unavailable" }
             return builtIn
@@ -92,8 +93,8 @@ enum ColumnPolicy {
         if let value = result["column"]?.stringOrNil {
             target = value
             switch value {
-                case "focused": slot = columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: window)
-                case "mru": slot = workspace.mruColumnSlot(excluding: window)
+                case "focused": slot = focusedSlot ?? columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: window)
+                case "mru": slot = workspace.mruColumnSlot(excluding: incoming ?? window)
                 case "nearest-empty": slot = builtIn.slot
                 case "last": slot = columns.count
                 default:
@@ -121,6 +122,24 @@ enum ColumnPolicy {
         }
         return PlacementDecision(slot: slot, target: target, overflow: result["overflow"]?.stringOrNil.flatMap(OverflowPolicy.init(rawValue:)) ?? .tabGroup,
                                  hook: source, run: PolicyHookCompletion.commands(result))
+    }
+
+    /// A drop's decision: the pointed Column, or what the hook answers with that Column focused.
+    /// A hook that fails leaves the pointed Column as with no hook; so do Column records that cannot be read,
+    /// which is a window's failure, not the hook's.
+    static func dropDecision(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode? = nil,
+                             supervisor: any PolicyHookHelper = PolicyHooks.current) async -> PlacementDecision {
+        var pointed = PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
+        guard hook("place", on: workspace) != nil else { return pointed }
+        guard let records = try? await workspace.columnRecords(excluding: incoming ?? window) else {
+            pointed.failure = "Column records unavailable"
+            return pointed
+        }
+        let answer = await decision(window: window, workspace: workspace, supervisor: supervisor, columnsSnapshot: records,
+                                    focusedSlot: slot, excluding: incoming)
+        guard let failure = answer.failure else { return answer }
+        pointed.failure = failure
+        return pointed
     }
 
     @discardableResult
@@ -195,18 +214,19 @@ enum ColumnPolicy {
 }
 
 extension Workspace {
-    @MainActor func mruColumnSlot(excluding window: Window?) -> Int {
+    @MainActor func mruColumnSlot(excluding window: TreeNode?) -> Int {
         rootTilingContainer.childrenByMostRecentUse.first { child in
             ColumnPlacement.isOccupied(child, excluding: window)
         }?.columnSlot ?? 1
     }
 
-    @MainActor func columnRecords(excluding window: Window? = nil) async throws -> JSONValue {
+    @MainActor func columnRecords(excluding window: TreeNode? = nil) async throws -> JSONValue {
         guard let columns else { return .array([]) }
+        let excluded = Set((window?.allLeafWindowsRecursive ?? []).map(ObjectIdentifier.init))
         let nodes = (1...columns.slotCount).map { slot in
             rootTilingContainer.children.first { $0.columnSlot == slot }
         }
-        let slots = nodes.map { $0?.allLeafWindowsRecursive.filter { $0 !== window } ?? [] }
+        let slots = nodes.map { $0?.allLeafWindowsRecursive.filter { !excluded.contains(ObjectIdentifier($0)) } ?? [] }
         let widths = columns.widths
         let windows = slots.flatMap { $0 }
         var values: [UInt32: JSONValue] = [:]
@@ -218,7 +238,7 @@ extension Workspace {
         }
         let records = slots.enumerated().map { index, windows in
             JSONValue.object(["index": .int(index + 1), "width": .double(Double(widths[index])),
-                              "empty": .bool(!ColumnPlacement.isOccupied(nodes[index], excluding: window)),
+                              "empty": .bool(windows.isEmpty),
                               "windows": .array(windows.compactMap { values[$0.windowId] })])
         }
         return .array(records)

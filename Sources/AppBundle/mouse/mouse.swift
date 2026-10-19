@@ -242,6 +242,7 @@ func beginWindowMoveWithMouseSessionIfNeeded(
 
 @MainActor
 func cancelManipulatedWithMouseState() {
+    ColumnDropDecisionCache.shared.clear()
     WindowMouseInteractionDriver.shared.stop()
     cancelWindowDragActualRectRefresh()
     clearDraggedWindowAnchorRect(for: currentlyManipulatedWithMouseWindowId)

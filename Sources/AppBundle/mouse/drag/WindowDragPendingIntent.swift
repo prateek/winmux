@@ -49,6 +49,9 @@ func updatePendingWindowDragIntent(
 @MainActor
 func refreshPendingWindowDragIntentFromGlobalMouseDrag() {
     WorkspaceSidebarPanel.refreshAll()
+    // A queued drag sample can arrive after mouse-up, before the final apply.
+    if !isLeftMouseButtonDown, getCurrentMouseManipulationKind() == .move,
+       case .column? = pendingWindowDragIntent?.kind { return }
     guard isLeftMouseButtonDown, getCurrentMouseManipulationKind() == .move else {
         clearPendingWindowDragIntent()
         return
@@ -187,6 +190,25 @@ private func updateWindowTabReentryPreview(sourceWindowId: UInt32, destination: 
 func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
     let intent = pendingWindowDragIntent
     let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
+    if let intent, case .column(let workspaceName, _, let decision) = intent.kind {
+        clearPendingWindowDragIntent()
+        // A Column-count change since the overlay can leave its slot out of range.
+        guard let source, let workspace = Workspace.existing(byName: workspaceName), let columns = workspace.columns,
+              (1...columns.slotCount).contains(decision.slot),
+              intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
+        let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
+        syncClosedWindowsCacheToCurrentWorld()
+        suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))
+        // The whole subject binds once with that answer, as one node.
+        return try await PolicyHookCompletion.perform(window: source, workspace: workspace, normalizes: true,
+            evaluate: { decision }, runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
+                let arrives = incoming.nodeWorkspace !== workspace
+                if incoming.isBound { incoming.unbindFromParent() }
+                workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
+                if arrives { _ = source.focusWindow() }
+                return .completed(true)
+            }
+    }
     let windows = source.map { dragSubjectNode(for: $0, subject: intent!.sourceSubject).allLeafWindowsRecursive } ?? []
     let previous = windows.map { ($0, $0.nodeWorkspace, $0.isFloating, $0.nodeWorkspace?.columnSlot(containing: $0)) }
     let applied = applyPendingWindowDragIntentIfPossible()
@@ -213,6 +235,8 @@ func applyPendingWindowDragIntentIfPossible() -> Bool {
     else { return false }
     let sourceNode = dragSubjectNode(for: sourceWindow, subject: pendingWindowDragIntent.sourceSubject)
     switch pendingWindowDragIntent.kind {
+        case .column:
+            return false
         case .reorderTab(let windowId, let targetIndex):
             guard pendingWindowDragIntent.sourceSubject == .window,
                   sourceWindow.windowId == windowId

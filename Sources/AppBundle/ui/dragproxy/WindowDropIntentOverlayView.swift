@@ -8,8 +8,13 @@ struct WindowDropIntentOverlayView: View {
         ZStack {
             overlaySurface(shape: shape)
 
-            ForEach(localZones) { zone in
-                dropZoneView(zone)
+            if model.plainTarget {
+                shape.stroke(WindowIntentPreviewPalette.activeZoneStroke(style: config.workspaceSidebar.chromeStyle,
+                    solidColor: config.workspaceSidebar.resolvedSolidChromeColor), lineWidth: StrokeToken.emphasis)
+            } else {
+                ForEach(localZones) { zone in
+                    dropZoneView(zone)
+                }
             }
         }
         .clipShape(shape)

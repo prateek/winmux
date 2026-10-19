@@ -187,15 +187,3 @@ func miniatureDrawOrder(_ items: [SwitcherPaletteItem]) -> [SwitcherPaletteItem]
         return lhs.offset > rhs.offset
     }.map(\.element)
 }
-
-@MainActor
-func miniatureColumnLanding(_ placement: ResolvedColumnPlacement, in rect: CGRect, horizontalGap: CGFloat,
-                            verticalGap: CGFloat) -> CGRect {
-    let range = placement.verticalRange.orDie("Floating placements use floating window geometry")
-    var frame = ColumnState.frame(slot: placement.slot, widths: placement.widths, in: rect, gap: horizontalGap)
-    let topGap = range.lowerBound > 0 ? verticalGap / 2 : 0
-    let bottomGap = range.upperBound < 1 ? verticalGap / 2 : 0
-    frame.origin.y += rect.height * range.lowerBound + topGap
-    frame.size.height = rect.height * (range.upperBound - range.lowerBound) - topGap - bottomGap
-    return frame
-}

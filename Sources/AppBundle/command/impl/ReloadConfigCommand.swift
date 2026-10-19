@@ -115,14 +115,21 @@ extension LoadedConfig: ConfigReloadCandidate {
     return try completion.result.get()
 }
 
-@MainActor func applyConfig(_ newConfig: Config, url: URL) async throws {
+@MainActor func applyConfig(
+    _ newConfig: Config,
+    url: URL,
+    readSidebarState: () -> WorkspaceSidebarState = { readWorkspaceSidebarState() },
+    synchronizeLogin: () -> Void = { syncStartAtLogin() },
+) async throws {
+    ColumnDropDecisionCache.shared.clear()
+    clearPendingWindowDragIntent()
     resetHotKeys()
     config = newConfig
     for workspace in Workspace.all { workspace.applyColumns(config.columns) }
-    config.workspaceSidebar.apply(readWorkspaceSidebarState())
+    config.workspaceSidebar.apply(readSidebarState())
     configUrl = url
     try await activateMode(config.modeToKeep(activeMode))
-    syncStartAtLogin()
+    synchronizeLogin()
     applyReloadedConfigurationToRunningApp()
 }
 

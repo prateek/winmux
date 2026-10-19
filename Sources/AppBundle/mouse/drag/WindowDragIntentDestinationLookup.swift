@@ -7,6 +7,7 @@ func currentWindowDragIntentDestination(
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
 ) -> WindowDragIntentDestination? {
+    ColumnDropDecisionCache.shared.track(window: sourceWindow, workspace: mouseLocation.monitorApproximation.activeWorkspace)
     if let sidebarDestination = currentSidebarWorkspaceDropDestination(sourceWindow: sourceWindow, mouseLocation: mouseLocation, subject: subject) {
         return sidebarDestination
     }
@@ -17,6 +18,10 @@ func currentWindowDragIntentDestination(
     let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
     let sourceWorkspace = sourceNode.nodeWorkspace
+    if let columnDestination = currentColumnDragDestination(sourceWindow: sourceWindow, workspace: targetWorkspace,
+        mouseLocation: mouseLocation, subject: subject, detachOrigin: detachOrigin) {
+        return columnDestination
+    }
     if let surfaceDestination = currentWindowSurfaceDestinationIfAllowed(
         sourceWindow: sourceWindow,
         mouseLocation: mouseLocation,

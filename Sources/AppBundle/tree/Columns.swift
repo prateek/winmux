@@ -173,11 +173,21 @@ extension Workspace {
         return node.parentsWithSelf.first { $0.parent === rootTilingContainer }?.columnSlot
     }
 
+    /// The leaf window ids in each slot, from slot 1.
     @MainActor
-    func columnPlacementSlot(excluding window: Window? = nil) -> Int {
+    var columnOccupancy: [[UInt32]] {
+        guard let columns else { return [] }
+        let children = rootTilingContainer.children
+        return (1...columns.slotCount).map { slot in
+            children.first { $0.columnSlot == slot }?.allLeafWindowsRecursive.map(\.windowId) ?? []
+        }
+    }
+
+    @MainActor
+    func columnPlacementSlot(excluding window: TreeNode? = nil, focusedSlot: Int? = nil) -> Int {
         guard let columns else { return 1 }
         let root = rootTilingContainer
-        let anchor = max(1, min(columns.slotCount, columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
+        let anchor = max(1, min(columns.slotCount, focusedSlot ?? columns.focusedSlot ?? columnSlot(containing: focus.windowOrNil) ??
             root.childrenByMostRecentUse.first?.columnSlot ?? 1))
         let occupied = Set(root.children.filter { ColumnPlacement.isOccupied($0, excluding: window) }.compactMap(\.columnSlot))
         return (1...columns.slotCount).filter { !occupied.contains($0) }.min {
@@ -221,7 +231,16 @@ extension Workspace {
         let slot = placement.slot
         switch placement.effect {
             case .float:
-                node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                // A container is never a floating child: a group floats as its windows.
+                guard let group = node as? TilingContainer else {
+                    node.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST)
+                    return
+                }
+                for window in group.allLeafWindowsRecursive {
+                    window.unbindFromParent()
+                    window.bindAsFloatingWindow(to: self)
+                }
+                if group.isBound { group.unbindFromParent() }
                 return
             case .split(let existing):
                 let binding = existing.unbindFromParent()

@@ -555,7 +555,7 @@ final class LensLifecycle {
                         let gaps = ResolvedGaps(gaps: config.gaps, monitor: destination.workspaceMonitor)
                         let frame = placement.verticalRange == nil
                             ? self.floatingLanding(entry)
-                            : miniatureColumnLanding(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
+                            : ColumnPlacement.frame(placement, in: rect, horizontalGap: gaps.inner.get(.h).toDouble(),
                                                      verticalGap: gaps.inner.get(.v).toDouble())
                         model.setMiniatureLanding(frame)
                         return
