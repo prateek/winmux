@@ -1,0 +1,212 @@
+{
+  "edit" : {
+    "operations" : [
+
+    ]
+  },
+  "inventory" : {
+    "tabGroups" : [
+      {
+        "activeWindowId" : 227,
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 62,
+          "y" : 42
+        },
+        "paneId" : "pane-tabgroup-201",
+        "tabGroupId" : "tabgroup-201",
+        "tabTitles" : [
+          "WinMux · Field notes - Google Chrome",
+          "~",
+          "~",
+          "~",
+          "WindowTabStripView.swift — WinMux"
+        ],
+        "tabs" : [
+          201,
+          252,
+          210,
+          248,
+          227
+        ],
+        "workspace" : "2"
+      }
+    ],
+    "windows" : [
+      {
+        "appBundleId" : "com.google.Chrome",
+        "appName" : "Google Chrome",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 500,
+          "x" : 1919,
+          "y" : 1039
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 9509,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "WinMux · Field notes - Google Chrome",
+        "winMuxFullscreen" : false,
+        "windowId" : 201,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 361,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 210,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.microsoft.VSCode",
+        "appName" : "Code",
+        "focused" : false,
+        "frame" : {
+          "height" : 986,
+          "width" : 1840,
+          "x" : 65,
+          "y" : 78
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 9580,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "WindowTabStripView.swift — WinMux",
+        "winMuxFullscreen" : false,
+        "windowId" : 227,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 361,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 248,
+        "workspace" : "2"
+      },
+      {
+        "appBundleId" : "com.mitchellh.ghostty",
+        "appName" : "Ghostty",
+        "focused" : false,
+        "frame" : {
+          "height" : 1025,
+          "width" : 361,
+          "x" : 1919,
+          "y" : 1048
+        },
+        "layout" : "h_tab-group",
+        "noOuterGapsInFullscreen" : false,
+        "paneId" : "pane-tabgroup-201",
+        "pid" : 346,
+        "tabGroupId" : "tabgroup-201",
+        "title" : "~",
+        "winMuxFullscreen" : false,
+        "windowId" : 252,
+        "workspace" : "2"
+      }
+    ],
+    "workspaces" : [
+      {
+        "displayName" : "Workspace 1",
+        "focused" : true,
+        "monitorId" : 1,
+        "name" : "1",
+        "panes" : [
+
+        ],
+        "visible" : true
+      },
+      {
+        "displayName" : "Workspace 2",
+        "focused" : false,
+        "monitorId" : 1,
+        "name" : "2",
+        "panes" : [
+          "pane-tabgroup-201"
+        ],
+        "visible" : false
+      }
+    ]
+  },
+  "reasoning" : {
+    "panes" : [
+      {
+        "frame" : {
+          "height" : 1025,
+          "width" : 1846,
+          "x" : 62,
+          "y" : 42
+        },
+        "kind" : "tabGroup",
+        "label" : "Tab Group [201, 252, 210, 248, 227]",
+        "paneId" : "pane-tabgroup-201",
+        "tabGroupId" : "tabgroup-201",
+        "workspace" : "2"
+      }
+    ],
+    "rawTrees" : [
+      {
+        "tree" : {
+          "children" : [
+
+          ],
+          "direction" : "horizontal",
+          "kind" : "split",
+          "layout" : "tiles"
+        },
+        "workspace" : "1"
+      },
+      {
+        "tree" : {
+          "activeWindowId" : 227,
+          "kind" : "tabGroup",
+          "tabGroupId" : "tabgroup-201",
+          "tabs" : [
+            201,
+            252,
+            210,
+            248,
+            227
+          ]
+        },
+        "workspace" : "2"
+      }
+    ],
+    "relations" : [
+
+    ]
+  },
+  "schemaVersion" : 1,
+  "snapshotId" : "2026-10-19T19:23:18Z",
+  "worldId" : "adea34f0cf56e2d7"
+}

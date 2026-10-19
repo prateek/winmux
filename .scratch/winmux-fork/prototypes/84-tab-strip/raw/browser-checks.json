@@ -1,0 +1,480 @@
+[
+  {
+    "rows": [
+      {
+        "actual": 36,
+        "expected": 36,
+        "name": "today strip at rest",
+        "pass": true
+      },
+      {
+        "actual": 26,
+        "expected": 26,
+        "name": "today item height",
+        "pass": true
+      },
+      {
+        "actual": 240,
+        "expected": 240,
+        "name": "today tab width",
+        "pass": true
+      },
+      {
+        "actual": 4,
+        "expected": 4,
+        "name": "today spacing",
+        "pass": true
+      },
+      {
+        "actual": 28,
+        "expected": 28,
+        "name": "today gutter",
+        "pass": true
+      },
+      {
+        "actual": 36,
+        "expected": 36,
+        "name": "today top gap",
+        "pass": true
+      },
+      {
+        "actual": 12,
+        "expected": 12,
+        "name": "today radius",
+        "pass": true
+      },
+      {
+        "actual": 14,
+        "expected": 14,
+        "name": "today icon width",
+        "pass": true
+      },
+      {
+        "actual": 20,
+        "expected": 20,
+        "name": "today close width",
+        "pass": true
+      },
+      {
+        "actual": 7,
+        "expected": 7,
+        "name": "today pill radius",
+        "pass": true
+      },
+      {
+        "actual": 24,
+        "expected": 24,
+        "name": "thin strip at rest",
+        "pass": true
+      },
+      {
+        "actual": 18,
+        "expected": 18,
+        "name": "thin item height",
+        "pass": true
+      },
+      {
+        "actual": 240,
+        "expected": 240,
+        "name": "thin tab width",
+        "pass": true
+      },
+      {
+        "actual": 4,
+        "expected": 4,
+        "name": "thin spacing",
+        "pass": true
+      },
+      {
+        "actual": 28,
+        "expected": 28,
+        "name": "thin gutter",
+        "pass": true
+      },
+      {
+        "actual": 24,
+        "expected": 24,
+        "name": "thin top gap",
+        "pass": true
+      },
+      {
+        "actual": 12,
+        "expected": 12,
+        "name": "thin radius",
+        "pass": true
+      },
+      {
+        "actual": 14,
+        "expected": 14,
+        "name": "thin icon width",
+        "pass": true
+      },
+      {
+        "actual": 20,
+        "expected": 20,
+        "name": "thin close width",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "thin pill radius",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "held strip at rest",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "sidebar strip at rest",
+        "pass": true
+      },
+      {
+        "actual": 24,
+        "expected": 24,
+        "name": "native handle geometry",
+        "pass": true
+      },
+      {
+        "actual": 9,
+        "expected": 9,
+        "name": "native capsule width",
+        "pass": true
+      },
+      {
+        "actual": 1.5,
+        "expected": 1.5,
+        "name": "native capsule height",
+        "pass": true
+      },
+      {
+        "actual": 2.5,
+        "expected": 2.5,
+        "name": "native capsule gap",
+        "pass": true
+      },
+      {
+        "actual": 142,
+        "expected": 142,
+        "name": "clear handle geometry",
+        "pass": true
+      },
+      {
+        "actual": 24,
+        "expected": 24,
+        "name": "reserved handle",
+        "pass": true
+      },
+      {
+        "actual": 9,
+        "expected": 9,
+        "name": "capsule width",
+        "pass": true
+      },
+      {
+        "actual": 1.5,
+        "expected": 1.5,
+        "name": "capsule height",
+        "pass": true
+      },
+      {
+        "actual": 0.22,
+        "expected": 0.22,
+        "name": "capsule white opacity",
+        "pass": true
+      },
+      {
+        "actual": 0.5,
+        "expected": 0.5,
+        "name": "outer stroke",
+        "pass": true
+      },
+      {
+        "actual": 0.5,
+        "expected": 0.5,
+        "name": "inner stroke",
+        "pass": true
+      },
+      {
+        "actual": 240,
+        "expected": 240,
+        "name": "preferred width",
+        "pass": true
+      },
+      {
+        "actual": 132,
+        "expected": 132,
+        "name": "minimum width",
+        "pass": true
+      },
+      {
+        "actual": 5,
+        "expected": 5,
+        "name": "captured group entries",
+        "pass": true
+      },
+      {
+        "actual": 3,
+        "expected": 3,
+        "name": "shell inset",
+        "pass": true
+      },
+      {
+        "actual": 500,
+        "expected": 500,
+        "name": "deadline is 500 ms",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "hidden at 499 ms",
+        "pass": true
+      },
+      {
+        "actual": 1,
+        "expected": 1,
+        "name": "shown at 500 ms",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "release hides",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "key spoils pending hold",
+        "pass": true
+      },
+      {
+        "actual": 1,
+        "expected": 1,
+        "name": "key spoiled until all up",
+        "pass": true
+      },
+      {
+        "actual": 0,
+        "expected": 0,
+        "name": "click spoils pending hold",
+        "pass": true
+      },
+      {
+        "actual": 1,
+        "expected": 1,
+        "name": "click spoiled until all up",
+        "pass": true
+      },
+      {
+        "actual": 1,
+        "expected": 1,
+        "name": "after-show activity keeps hints (native seam)",
+        "pass": true
+      }
+    ]
+  },
+  {
+    "name": "geometry and hint reducer self-checks",
+    "pass": true
+  },
+  {
+    "name": "chrome/today/gone",
+    "pass": true
+  },
+  {
+    "name": "chrome/today/clear",
+    "pass": true
+  },
+  {
+    "name": "chrome/thin/gone",
+    "pass": true
+  },
+  {
+    "name": "chrome/thin/clear",
+    "pass": true
+  },
+  {
+    "name": "chrome/held/gone",
+    "pass": true
+  },
+  {
+    "name": "chrome/held/clear",
+    "pass": true
+  },
+  {
+    "name": "chrome/sidebar/gone",
+    "pass": true
+  },
+  {
+    "name": "chrome/sidebar/clear",
+    "pass": true
+  },
+  {
+    "name": "code/today/gone",
+    "pass": true
+  },
+  {
+    "name": "code/today/clear",
+    "pass": true
+  },
+  {
+    "name": "code/thin/gone",
+    "pass": true
+  },
+  {
+    "name": "code/thin/clear",
+    "pass": true
+  },
+  {
+    "name": "code/held/gone",
+    "pass": true
+  },
+  {
+    "name": "code/held/clear",
+    "pass": true
+  },
+  {
+    "name": "code/sidebar/gone",
+    "pass": true
+  },
+  {
+    "name": "code/sidebar/clear",
+    "pass": true
+  },
+  {
+    "name": "ghostty/today/gone",
+    "pass": true
+  },
+  {
+    "name": "ghostty/today/clear",
+    "pass": true
+  },
+  {
+    "name": "ghostty/thin/gone",
+    "pass": true
+  },
+  {
+    "name": "ghostty/thin/clear",
+    "pass": true
+  },
+  {
+    "name": "ghostty/held/gone",
+    "pass": true
+  },
+  {
+    "name": "ghostty/held/clear",
+    "pass": true
+  },
+  {
+    "name": "ghostty/sidebar/gone",
+    "pass": true
+  },
+  {
+    "name": "ghostty/sidebar/clear",
+    "pass": true
+  },
+  {
+    "name": "held strip absent before 500ms",
+    "pass": true
+  },
+  {
+    "name": "held strip revealed after deadline",
+    "pass": true
+  },
+  {
+    "name": "release hides",
+    "pass": true
+  },
+  {
+    "name": "key spoils pending hold",
+    "pass": true
+  },
+  {
+    "name": "click spoils pending hold",
+    "pass": true
+  },
+  {
+    "name": "hover exposes background close affordance",
+    "pass": true
+  },
+  {
+    "name": "strip tab switches app",
+    "pass": true
+  },
+  {
+    "name": "real sidebar capture expands on hover",
+    "pass": true
+  },
+  {
+    "name": "rail collapses on exit",
+    "pass": true
+  },
+  {
+    "name": "light and dark switches",
+    "pass": true
+  },
+  {
+    "name": "native baseline selector rest",
+    "pass": true
+  },
+  {
+    "name": "native baseline selector tab-hover",
+    "pass": true
+  },
+  {
+    "name": "native baseline selector grip-hover",
+    "pass": true
+  },
+  {
+    "name": "native baseline selector hints",
+    "pass": true
+  },
+  {
+    "name": "small stage selects its look",
+    "pass": true
+  },
+  {
+    "name": "clear handle explains its drag target",
+    "pass": true
+  },
+  {
+    "name": "empty chrome names its group drag",
+    "pass": true
+  },
+  {
+    "name": "wrong thin height is detected",
+    "pass": true
+  },
+  {
+    "negativeControl": [
+      {
+        "actual": 36,
+        "expected": 24,
+        "name": "thin strip at rest",
+        "pass": false
+      },
+      {
+        "actual": 26,
+        "expected": 18,
+        "name": "thin item height",
+        "pass": false
+      },
+      {
+        "actual": 36,
+        "expected": 24,
+        "name": "thin top gap",
+        "pass": false
+      }
+    ]
+  },
+  {
+    "name": "restored geometry passes",
+    "pass": true
+  }
+]

@@ -1,0 +1,152 @@
+AXStaticText | WINMUX · TAB STRIP · A DECISION IN PICTURES
+AXHeading | A little less chrome.
+AXStaticText | A little less chrome.
+AXStaticText | Three apps, each with tabs of its own. How much space should their WinMux group take?
+AXStaticText | These are CSS strips over real guest captures. Nothing here changes WinMux. Start with the native baseline, then switch the same window between four looks.
+AXStaticText | Fidelity limit: animation curves, blur and vibrancy, exact font rendering, scroll fades and close-button hover timing are approximations. The comparisons concern space, discoverability and drag targets.
+AXStaticText | CAPTURED LIVE · 1920 × 1080
+AXHeading | Today: two rows of tabs
+AXStaticText | Today: two rows of tabs
+AXStaticText | The 36-point WinMux strip sits directly above the app. Each picture opens its full-resolution crop. Ghostty exposes its three native tabs as three WinMux windows: this group has five entries across three apps. Switch the state to inspect the grip, tab hover or Option hints.
+AXStaticText | Native state
+AXStaticText | Native state
+AXStaticText | Chrome · native capture
+AXStaticText | VS Code · native capture
+AXStaticText | Ghostty · native capture
+AXStaticText | The frame around the whole group
+AXStaticText | Measured metrics and source values
+AXHeading | Four looks, one window
+AXStaticText | Four looks, one window
+AXStaticText | The same app and grip switches update every stage. Click a stage to work with that look below. The held look is shown at rest here; hold Option to reveal it.
+AXButton | WinMux · Field notes
+AXButton | ~
+AXButton | ~
+AXButton | ~
+AXButton | WindowTabStripView.swift
+AXButton | Focus Chrome from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus VS Code from sidebar
+AXStaticText | Today · 36 pt at rest
+AXButton | WinMux · Field notes
+AXButton | ~
+AXButton | ~
+AXButton | ~
+AXButton | WindowTabStripView.swift
+AXButton | Focus Chrome from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus VS Code from sidebar
+AXStaticText | Thin and quiet · 24 pt at rest
+AXButton | Focus Chrome from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus VS Code from sidebar
+AXStaticText | Only while held · 0 pt at rest
+AXButton | Focus Chrome from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus VS Code from sidebar
+AXStaticText | Sidebar only · 0 pt at rest
+AXHeading | Thin and quiet
+AXStaticText | Thin and quiet
+AXStaticText | 24 points. Unfilled labels, a hairline under the active app, no surrounding frame. Always available to the pointer.
+AXStaticText | APP UNDER THE STRIP
+AXCheckBox | Chrome | 1
+AXCheckBox | VS Code | 0
+AXCheckBox | Ghostty | 0
+AXStaticText | LOOK
+AXCheckBox | Today | 0
+AXCheckBox | Thin and quiet | 1
+AXCheckBox | Only while held | 0
+AXCheckBox | Sidebar only | 0
+AXStaticText | WHOLE-GROUP GRIP
+AXCheckBox | Gone | 1
+AXCheckBox | Clear handle | 0
+AXStaticText | PAGE THEME
+AXButton | Light
+AXButton | Dark
+AXButton | WinMux · Field notes
+AXButton | ~
+AXButton | ~
+AXButton | ~
+AXButton | WindowTabStripView.swift
+AXButton | Focus Chrome from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus Ghostty from sidebar
+AXButton | Focus VS Code from sidebar
+AXStaticText | Chrome: 24 pt WinMux + 0 gap; 24 pt to app tab row
+AXStaticText | Click a strip tab to switch apps. Hold ⌥ for 500 ms. Move into the left rail to expand the real sidebar capture.
+AXStaticText | Ready.
+AXStaticText | Recommendation: thin and quiet, grip gone.
+AXStaticText | Keep pointer access and the visible group relationship. Save 12 points, remove the pills and surrounding frame, and use the gutter or sidebar header to drag the group.
+AXStaticText | BASELINE OSX · SAME POINT SCALE
+AXHeading | What macOS already does
+AXStaticText | What macOS already does
+AXStaticText | Finder and ungrouped Ghostty each have three native window tabs. These are live captures, with no WinMux strip. The app’s own title chrome remains part of each app.
+AXStaticText | Finder · stock macOS window tabs
+AXStaticText | Ghostty · native macOS window tabbing
+AXHeading | What each choice asks of you
+AXStaticText | What each choice asks of you
+AXStaticText | Without a grip:
+AXStaticText |  Today and Thin retain empty strip space and the 28-point trailing gutter as whole-group drag targets. Held can use those while revealed; at rest it uses the sidebar header. Sidebar uses that header only. The native sidebar header already drags a whole group.
+AXStaticText | Without a strip at rest:
+AXStaticText |  Held needs Option or sidebar hover to expose membership and pointer tab selection. Sidebar always needs rail hover. The collapsed native rail shows only the workspace number, so neither communicates the group while collapsed.
+AXStaticText | Beside a browser:
+AXStaticText |  Thin leaves two rows, but separates the app tabs from the quieter group labels. Held and Sidebar remove the duplicate row at rest, trading away immediate group visibility. Neither puts WinMux tabs into an app’s title bar.
+AXStaticText | Height is a feature change:
+AXStaticText |  the config parser rejects 20 or less, and the runtime floors every accepted height at 36. The 24-point look needs the runtime floor changed. A future feature reuses the existing hint reducer/controller seam for the 500 ms reveal.
+AXStaticText | The sidebar prototype has since shipped as “The sidebar as a tree”. This page uses captures of that native sidebar. Orca is skipped because it is Prateek’s own tool and is not installable in this guest.
+AXStaticText | Brief, answers, measurements and source seams → README
+AXStaticText | Self-check results
+AXStaticText | PASS today strip at rest: 36 / 36
+AXStaticText | PASS today item height: 26 / 26
+AXStaticText | PASS today tab width: 240 / 240
+AXStaticText | PASS today spacing: 4 / 4
+AXStaticText | PASS today gutter: 28 / 28
+AXStaticText | PASS today top gap: 36 / 36
+AXStaticText | PASS today radius: 12 / 12
+AXStaticText | PASS today icon width: 14 / 14
+AXStaticText | PASS today close width: 20 / 20
+AXStaticText | PASS today pill radius: 7 / 7
+AXStaticText | PASS thin strip at rest: 24 / 24
+AXStaticText | PASS thin item height: 18 / 18
+AXStaticText | PASS thin tab width: 240 / 240
+AXStaticText | PASS thin spacing: 4 / 4
+AXStaticText | PASS thin gutter: 28 / 28
+AXStaticText | PASS thin top gap: 24 / 24
+AXStaticText | PASS thin radius: 12 / 12
+AXStaticText | PASS thin icon width: 14 / 14
+AXStaticText | PASS thin close width: 20 / 20
+AXStaticText | PASS thin pill radius: 0 / 0
+AXStaticText | PASS held strip at rest: 0 / 0
+AXStaticText | PASS sidebar strip at rest: 0 / 0
+AXStaticText | PASS native handle geometry: 24 / 24
+AXStaticText | PASS native capsule width: 9 / 9
+AXStaticText | PASS native capsule height: 1.5 / 1.5
+AXStaticText | PASS native capsule gap: 2.5 / 2.5
+AXStaticText | PASS clear handle geometry: 142 / 142
+AXStaticText | PASS reserved handle: 24 / 24
+AXStaticText | PASS capsule width: 9 / 9
+AXStaticText | PASS capsule height: 1.5 / 1.5
+AXStaticText | PASS capsule white opacity: 0.22 / 0.22
+AXStaticText | PASS outer stroke: 0.5 / 0.5
+AXStaticText | PASS inner stroke: 0.5 / 0.5
+AXStaticText | PASS preferred width: 240 / 240
+AXStaticText | PASS minimum width: 132 / 132
+AXStaticText | PASS captured group entries: 5 / 5
+AXStaticText | PASS shell inset: 3 / 3
+AXStaticText | PASS deadline is 500 ms: 500 / 500
+AXStaticText | PASS hidden at 499 ms: 0 / 0
+AXStaticText | PASS shown at 500 ms: 1 / 1
+AXStaticText | PASS release hides: 0 / 0
+AXStaticText | PASS key spoils pending hold: 0 / 0
+AXStaticText | PASS key spoiled until all up: 1 / 1
+AXStaticText | PASS click spoils pending hold: 0 / 0
+AXStaticText | PASS click spoiled until all up: 1 / 1
+AXStaticText | PASS after-show activity keeps hints (native seam): 1 / 1

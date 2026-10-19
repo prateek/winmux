@@ -1,0 +1,132 @@
+{
+  "screens" : [
+    {
+      "height" : 1080,
+      "scale" : 1,
+      "width" : 1920
+    }
+  ],
+  "windows" : [
+    {
+      "bounds" : {
+        "Height" : 36,
+        "Width" : 1846,
+        "X" : 62,
+        "Y" : 42
+      },
+      "layer" : 0,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 1025,
+        "Width" : 1846,
+        "X" : 62,
+        "Y" : 42
+      },
+      "layer" : 0,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 25,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 1050,
+        "Width" : 1920,
+        "X" : 0,
+        "Y" : 30
+      },
+      "layer" : 25,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 0,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 1052,
+        "Width" : 640,
+        "X" : 0,
+        "Y" : 28
+      },
+      "layer" : 27,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 3,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 25,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 28,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 0,
+        "Width" : 0,
+        "X" : 0,
+        "Y" : 1080
+      },
+      "layer" : 25,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    },
+    {
+      "bounds" : {
+        "Height" : 920,
+        "Width" : 1598,
+        "X" : 161,
+        "Y" : 95
+      },
+      "layer" : 25,
+      "name" : "",
+      "owner" : "WinMuxApp"
+    }
+  ]
+}
