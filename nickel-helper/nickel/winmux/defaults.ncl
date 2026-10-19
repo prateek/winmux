@@ -152,6 +152,7 @@
     height | default = 36,
   },
   workspace-sidebar = {
+    tree = { splits | default = false, columns | default = false },
     always-expanded | default = false,
     auto-hide | default = false,
     chrome-style | default = "liquid-glass",
@@ -172,6 +173,6 @@
     show-weekday | default = true,
     solid-chrome-color | default = "midnight",
     solid-chrome-custom-color | default = "#191B20",
-    width | default = 280,
+    width | default = 320,
   },
 }

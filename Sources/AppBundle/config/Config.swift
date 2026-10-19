@@ -93,13 +93,19 @@ enum ShortcutsPreset: String, Equatable, Sendable {
     case rectangle
 }
 
+struct WorkspaceSidebarTreeConfig: ConvenienceCopyable, Equatable, Sendable {
+    var splits: Bool = false
+    var columns: Bool = false
+}
+
 struct WorkspaceSidebarConfig: ConvenienceCopyable, Equatable, Sendable {
+    var tree = WorkspaceSidebarTreeConfig()
     var enabled: Bool = false
     var enableFocus: Bool = false
     var autoHide: Bool = false
     var alwaysExpanded: Bool = false
     var collapsedWidth: Int = 44
-    var width: Int = 240
+    var width: Int = 320
     var monitor: [MonitorDescription] = []
     var showStatusPills: Bool = true
     var showClock: Bool = true
