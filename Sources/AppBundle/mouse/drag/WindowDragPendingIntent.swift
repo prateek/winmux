@@ -192,8 +192,14 @@ func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
     let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
     if let intent, case .column(let workspaceName, _, let decision) = intent.kind {
         clearPendingWindowDragIntent()
-        guard let source, let workspace = Workspace.existing(byName: workspaceName), workspace.columns != nil,
+        // A Column-count change since the overlay can leave its slot out of range.
+        guard let source, let workspace = Workspace.existing(byName: workspaceName), let columns = workspace.columns,
+              (1...columns.slotCount).contains(decision.slot),
               intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
+        // A second mouse-up reset during the run list must not drop this window again.
+        let cache = ColumnDropDecisionCache.shared
+        cache.applyingWindowId = source.windowId
+        defer { if cache.applyingWindowId == source.windowId { cache.applyingWindowId = nil } }
         let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
         syncClosedWindowsCacheToCurrentWorld()
         suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))

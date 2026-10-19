@@ -19,7 +19,7 @@ final class ColumnDropDecisionCache {
 
     private struct Request {
         let columns: ColumnState
-        let task: Task<PlacementDecision, Never>
+        let task: Task<Void, Never>
     }
 
     private var draggedWindowId: UInt32?
@@ -29,6 +29,8 @@ final class ColumnDropDecisionCache {
     private var tasks: [Key: Request] = [:]
     private var answers: [Key: PlacementDecision] = [:]
     private var redraw: (() -> Void)?
+    /// The window whose Column drop is binding or running its list; its drag finds no destination meanwhile.
+    var applyingWindowId: UInt32?
     private let evaluate: @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision
 
     init(evaluate: @escaping @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision = {
@@ -75,19 +77,17 @@ final class ColumnDropDecisionCache {
                  onReady: @escaping () -> Void) -> PlacementDecision {
         let context = Self.context(window: window, workspace: workspace)
         track(window: window, context: context)
-        _ = request(window: window, workspace: workspace, context: context, slot: slot, incoming: incoming)
+        request(window: window, workspace: workspace, context: context, slot: slot, incoming: incoming)
         pointedSlot = slot
         redraw = onReady
         return context.flatMap { answers[Key(context: $0, slot: slot)] }
             ?? PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
     }
 
-    private func request(window: Window, workspace: Workspace, context: Context?, slot: Int, incoming: TreeNode) -> Task<PlacementDecision, Never> {
-        guard let columns = workspace.columns, let context else {
-            return Task { PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil) }
-        }
+    private func request(window: Window, workspace: Workspace, context: Context?, slot: Int, incoming: TreeNode) {
+        guard let columns = workspace.columns, let context else { return }
         let key = Key(context: context, slot: slot)
-        if let request = tasks[key], request.columns === columns { return request.task }
+        if tasks[key] != nil { return }
         let requestGeneration = generation
         let evaluate = evaluate
         let task = Task { @MainActor [weak self] in
@@ -99,9 +99,7 @@ final class ColumnDropDecisionCache {
                 }
                 if self.context == key.context, self.pointedSlot == slot { self.redraw?() }
             }
-            return answer
         }
         tasks[key] = Request(columns: columns, task: task)
-        return task
     }
 }

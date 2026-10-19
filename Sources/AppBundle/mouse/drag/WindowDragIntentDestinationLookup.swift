@@ -7,6 +7,7 @@ func currentWindowDragIntentDestination(
     subject: WindowDragSubject,
     detachOrigin: TabDetachOrigin,
 ) -> WindowDragIntentDestination? {
+    if ColumnDropDecisionCache.shared.applyingWindowId == sourceWindow.windowId { return nil }
     ColumnDropDecisionCache.shared.track(window: sourceWindow, workspace: mouseLocation.monitorApproximation.activeWorkspace)
     if let sidebarDestination = currentSidebarWorkspaceDropDestination(sourceWindow: sourceWindow, mouseLocation: mouseLocation, subject: subject) {
         return sidebarDestination

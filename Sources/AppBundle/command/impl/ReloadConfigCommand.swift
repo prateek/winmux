@@ -122,7 +122,7 @@ extension LoadedConfig: ConfigReloadCandidate {
     synchronizeLogin: () -> Void = { syncStartAtLogin() },
 ) async throws {
     ColumnDropDecisionCache.shared.clear()
-    clearPendingWindowDragIntent()
+    if pendingWindowDragIntent != nil { clearPendingWindowDragIntent() }
     resetHotKeys()
     config = newConfig
     for workspace in Workspace.all { workspace.applyColumns(config.columns) }
