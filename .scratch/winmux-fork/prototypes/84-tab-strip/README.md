@@ -2,16 +2,16 @@
 
 Choose how much WinMux chrome belongs above an app that already has tabs. Open
 [the working page](index.html) from disk; it needs no server, build or network.
-These pictures use the same Chrome capture, crop and point scale.
+The redrawn pictures use the same Chrome capture, crop and point scale; the first, captured from WinMux, has no sidebar rail and its strip at the top edge.
 
 ![Today, as WinMux draws it](img/today-chrome-rest.jpg)
-Today, captured from WinMux itself: the strip's glass takes its tint from what is behind it, which the redrawn pictures below do not.
+Today, captured from WinMux itself: the strip's glass takes its tint from what is behind it. The redrawn Today below is a fixed dark, and the redrawn Thin band takes Chrome's own colour.
 
 ![Today, grip gone](img/pick-today-gone.png)
 Today, redrawn: 36 points, filled pills and a frame; removing the grip leaves the familiar strip.
 
 ![Thin and quiet, grip gone](img/pick-thin-gone.png)
-Thin and quiet: 24 points, unfilled labels and an active hairline; keep direct pointer access.
+Thin and quiet: 24 points, unfilled labels and an active hairline; keep direct pointer access. The band is drawn in the app's colour here; draft 129 keeps today's glass colours and takes only this geometry.
 
 ![Held modifier, revealed](img/pick-held-gone.png)
 Only while held: zero points at rest; Option reveals a 36-point overlay after 500 ms.
@@ -158,7 +158,7 @@ background's drag is defined at
 [`WindowTabStripView.swift:54–85`](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripView.swift#L54)
 and attached at line 275, and the gutter's at 171–179. `tabChromeGroupDragGesture`
 (87–120) is attached nowhere. In an overflowing strip the scroll background has
-no empty area, so without the grip the gutter is the only strip target.
+no empty area, so without the grip the gutter and Option-dragging a tab (`WindowTabStripGroupDragPolicy.swift:2–12`) are what is left.
 The old grip is a third target, and clicking it focuses the group
 ([SupportViews:46–86](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripSupportViews.swift#L46)).
 
