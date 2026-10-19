@@ -4,8 +4,11 @@ Choose how much WinMux chrome belongs above an app that already has tabs. Open
 [the working page](index.html) from disk; it needs no server, build or network.
 These pictures use the same Chrome capture, crop and point scale.
 
+![Today, as WinMux draws it](img/today-chrome-rest.jpg)
+Today, captured from WinMux itself: the strip's glass takes its tint from what is behind it, which the redrawn pictures below do not.
+
 ![Today, grip gone](img/pick-today-gone.png)
-Today: 36 points, filled pills and a frame; removing the grip leaves the familiar strip.
+Today, redrawn: 36 points, filled pills and a frame; removing the grip leaves the familiar strip.
 
 ![Thin and quiet, grip gone](img/pick-thin-gone.png)
 Thin and quiet: 24 points, unfilled labels and an active hairline; keep direct pointer access.
@@ -30,7 +33,7 @@ hover timing approximate the native strip. The app bodies are still pictures;
 the close glyph illustrates hover and does not close an app. The sidebar crop
 retains its captured backdrop instead of reblurring over each variant. Drag targets name
 their action without moving native windows. None of the answers below depends
-on those approximations. Both page themes work; captured app and native sidebar
+on those approximations. The Thin band's colour follows each app in the page; that is illustration, and draft 129 keeps today's `chrome-style` fill. Both page themes work; captured app and native sidebar
 themes stay as captured.
 
 The grip comparison has a [clear handle for Today](img/pick-today-clear.png),
@@ -75,7 +78,7 @@ The last two commands put all five leaves in one root group on workspace 1.
 Here `winmux` means the guest's `.build/debug/winmux`, not an installed CLI.
 The authoritative command definitions are
 `Sources/Common/cmdArgs/cmdArgsManifest.swift:27–28` and
-`cmdArgs/impl/LayoutCmdArgs.swift:32–41` at `7c7c9648`.
+`cmdArgs/impl/LayoutCmdArgs.swift:21–29` at `7c7c9648`.
 [The raw agent readback](raw/agent.json) and [window list](raw/windows.txt)
 retain the actual group, membership, titles and frames. No desk staging script
 was used.
@@ -106,8 +109,8 @@ and self-checks. Source references in this document are at `7c7c9648`.
 | Pill | 240 × 26 | Capture edges x=67,311,555,799,1043; top y=47; constants and `WindowTabStripView.swift:159` |
 | Spacing | 4 | 244-point pill pitch minus 240; `WindowTabStripConstants.swift:16` |
 | Preferred / minimum width | 240 / 132 | Constants:21–22; 240 measured here, 132 read only because this group does not overflow |
-| Reserved grip | 24 | Constants:12 and SupportViews:65; visually bounded by the trailing grip region; hit-area width read from code |
-| Two capsules | 9 × 1.5, gap 2.5, white 22% | `WindowTabStripSupportViews.swift:54–60`; visual position checked, subpixel height/alpha read from code |
+| Reserved grip | 24 | Constants:12 and SupportViews:62; visually bounded by the trailing grip region; hit-area width read from code |
+| Two capsules | 9 × 1.5, gap 2.5, white 22% | `WindowTabStripSupportViews.swift:51–56`; visual position checked, subpixel height/alpha read from code |
 | Trailing drag gutter | 28 | Constants:13, StripView:171–179; invisible hit target verified by a live drag, width read from code |
 | Top strip / pill corner | 12 / 7 | Constants:14–15 and `DesignTokens.swift:43`; curvature checked visually, exact radius read from code |
 | Outer / inner frame stroke | 0.5 / 0.5 | Constants:26–27, `WindowTabGroupFrameView.swift:27,39`; frame captured, subpixel widths read from code |
@@ -120,7 +123,7 @@ The untouched full-resolution PNGs remain in the driver's evidence; the page
 uses JPEG crops to stay below 5 MB. App icons were obtained from their installed
 guest bundles and reduced to 32 × 32 pixels.
 
-The parser refuses heights of 20 or less (`config/parseWindowTabs.swift:17–20`).
+The parser refuses heights of 20 or less (`config/parseWindowTabs.swift:16–18`).
 An accepted 24 is still floored at 36 by `WindowTabMetrics.swift:21–22` today.
 The proposed Thin height requires a feature change; editing the config alone
 cannot produce this look.
@@ -150,8 +153,12 @@ for an additional row. The page's working-stage footer reports these numbers.
 ### Without the grip, where does a whole-group drag start?
 
 Today and Thin retain empty strip chrome outside the pills and the 28-point
-trailing gutter. Native code already installs those gestures in
-[`WindowTabStripView.swift:54–137,171–179`](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripView.swift#L54).
+trailing gutter. Native code already installs those gestures: the scroll
+background's drag is defined at
+[`WindowTabStripView.swift:54–85`](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripView.swift#L54)
+and attached at line 275, and the gutter's at 171–179. `tabChromeGroupDragGesture`
+(87–120) is attached nowhere. In an overflowing strip the scroll background has
+no empty area, so without the grip the gutter is the only strip target.
 The old grip is a third target, and clicking it focuses the group
 ([SupportViews:46–86](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripSupportViews.swift#L46)).
 
@@ -168,7 +175,7 @@ uses the expanded sidebar's tab-group header. Sidebar uses that header in both
 grip treatments. This target exists today:
 [`WorkspaceSidebarWorkspaceSection.swift:520–563`](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/sidebar/WorkspaceSidebarWorkspaceSection.swift#L520)
 passes the stable container identity to `tabGroupDragChanged/Ended` and the
-native drag payload; [TreeRows:82–86](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/sidebar/WorkspaceSidebarTreeRows.swift#L82)
+native drag payload; [TreeRows:72–76](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/sidebar/WorkspaceSidebarTreeRows.swift#L72)
 uses that header for a tab group. The page's clear treatment labels that row
 “Drag group · 5”. It proposes no persistent floating handle in Held's rest state.
 
