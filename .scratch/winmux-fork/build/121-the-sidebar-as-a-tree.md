@@ -49,7 +49,7 @@ Nothing. The prototype and Prateek's choice are available. Two seams are built w
 - [x] Collapse Safari/TextEdit groups, search and clear. `Safari` finds 3 windows in workspace 2 / Column 2 / Safari tabs; `Grievances` finds 1 in workspace 3 / Column 1 / TextEdit tabs; `qzxnomatch` finds 0. Counts and ancestor paths agree and clearing restores disclosures.
 - [x] Behavior tests and a native guest run cover invariant workspace placement, explicit Columns, occupied-Column group merging and native hooks. Focus, marks, rail and rows update together after moves, tab changes, closes and workspace switches.
 - [x] Measure native clipping in flat and both-level views at 240, 280 and 320 points, light/dark, and a shorter usable height. Explain any departure from the prototype's 307-point threshold.
-- [ ] Host and pinned-version guest `make check` pass; latest GitHub `Build and test` passes before landing. Retain visible evidence and the final native layout readback.
+- [x] Host and pinned-version guest `make check` pass; latest GitHub `Build and test` passes before landing. Retain visible evidence and the final native layout readback.
 - [ ] Prateek checks the installed build with his sidebar config and pointer timing, a second display and real sleep/wake/unlock. Record any by-hand upgrade or permission step in [Prateek's checks on an installed build and real hardware](https://github.com/prateek/winmux/issues/85).
 
 ## Built and checked

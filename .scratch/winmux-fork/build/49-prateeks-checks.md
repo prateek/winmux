@@ -148,6 +148,12 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **Dragging a window shows no overlay when Columns are on**
 - [ ] On the installed build with your own Columns config, drag a window by its title bar over each Column, one empty and one occupied. Pass: each shows an outline where the window will land (the whole Column, its lower half for a `'split` hook, a new Column for `'squeeze`), and the drop lands inside that outline. Then drag with Columns off. Pass: the overlays look as they did before.
 
+**The sidebar as a tree**
+- [ ] On the installed build with your own sidebar config, move the pointer to the left edge, then away, at your usual speed. Pass: the rail shows workspace numbers only, the tree opens on hover and closes when you leave, and the pin keeps it open. Say here if the open or close timing feels wrong.
+- [ ] With your own mouse or trackpad, drag a window row onto the upper half of another window row, then the lower half, with Splits and Columns off. Pass: the insertion line follows the pointer and the window lands before, then after, that window. Drag a tab group onto a Column mark. Pass: it lands in that Column.
+- [ ] Set `workspace-sidebar.tree.splits = true` in your config and reload. Pass: every workspace shows its splits until you click a workspace's Splits button, which hides them there only.
+- [ ] With two displays, expand the sidebar on each and drag a window from one display's sidebar onto a window row of a workspace on the other. Pass: it lands beside that window. Then sleep and wake, and lock and unlock. Pass: the tree matches the windows on screen.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
