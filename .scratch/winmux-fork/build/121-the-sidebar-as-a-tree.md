@@ -15,8 +15,8 @@ Extend the existing native sidebar snapshot, row and drag owners. Keep stable wo
 - A tab group and a split look different. Tab groups remain a row with their tabs on a bracketed child rail. Revealed splits show orientation glyphs and actual layout labels, including accordion.
 - The sidebar runs collapsed, expanding on hover. The rail shows workspace numbers only, with today's focused-workspace highlight; no app icons or Column marks.
 - The prototype is a clickable comparison page, retained with its variants below **The pick**. It answers questions and ships no native behavior. Copy no extension code or assets into WinMux.
-- Default to a flat, shallow tree. Ordinary tiled windows sit directly under the workspace; tab groups retain their tabs; floating windows retain their floating group. Windows have no Column tag. Each workspace with Columns carries proportional marks, its focused Column filled; hovering a window highlights its Column's mark.
-- Tiny **Splits** and **Columns** buttons at the right of each workspace have tooltips and accessible labels. The Columns button is absent on workspaces without native Columns. They affect only that workspace and are independent: both on gives workspace → Column → split/tab group → window.
+- Default to a flat, shallow tree. Ordinary tiled windows sit directly under the workspace; tab groups retain their tabs; floating windows sit flat under the workspace too, each marked with a small floating glyph. Windows have no Column tag. Each workspace with Columns carries proportional marks, its focused Column filled; hovering a window highlights its Column's mark.
+- Tiny **Splits** and **Columns** buttons at the right of each workspace have tooltips and accessible labels. **Splits** reveals both the split (BSP) levels and the floating group, which is a grouping of the same kind. The Columns button is absent on workspaces without native Columns. They affect only that workspace and are independent: both on gives workspace → Column → split/tab group → window.
 - Two config defaults, both false, set starting states. A workspace click overrides its default until that default changes. Proposed names: `sidebar.tree.splits` and `sidebar.tree.columns`.
 - A window-row drop inserts before the target in its upper half and after it in its lower half, in its actual parent. A tab target joins its group at that index. A direct Column child gains a sibling in that Column's container; a lone window becomes a vertical split, matching `bindToColumn`'s `.split` branch.
 - Workspace rows and rail numbers keep invariant placement: nearest empty Column, then focused occupied Column. Column rows/marks use `move-node-to-column`; tab group rows join; split rows insert or append. Occupied Columns merge incoming group leaves into tabs; empty Columns preserve the group. Existing native hooks remain authoritative.
@@ -40,7 +40,7 @@ Nothing. The prototype and Prateek's choice are available. Exact-index window ta
 ## Done when
 
 - [ ] On the fourteen-window rich desk in a 1920 × 1080 guest, the collapsed rail shows numbers only and focused numbers use today's treatment. Capture collapsed and hover-expanded states on all workspaces; pin/unpin and existing activation work.
-- [ ] The default tree has no split/Column levels or window Column tags. Tabs remain grouped; Updater and Calculator remain in floating groups. Workspace 2's marks are 28/44/28, workspace 3's are 2/3–1/3, and hovering windows highlights their marks. Workspaces 1 and 4 have none.
+- [ ] The default tree has no split/Column levels or window Column tags. Tabs remain grouped; Updater and Calculator sit flat under workspaces 1 and 4 with a floating glyph, and turning Splits on for a workspace shows its floating group. Workspace 2's marks are 28/44/28, workspace 3's are 2/3–1/3, and hovering windows highlights their marks. Workspaces 1 and 4 have none.
 - [ ] Each toggle reveals its level on workspace 2 only. Both on shows Column → tab group → tab and any split produced by a sibling drop, with the actual orientation glyph. Columns is absent on workspaces 1 and 4.
 - [ ] Each config default sets starting state and survives config/app reload. A local click affects one workspace; changing a default clears only that toggle's overrides. Check each default separately and both together.
 - [ ] Drop on the upper/lower halves of a window with levels off and on. `list-windows`/the agent layout show the source before/after the target in its actual split; the preview agrees. Repeat on a tab and a direct Column child, the latter forming a vertical split without adding a Column.
@@ -59,6 +59,8 @@ Prateek, 2026-10-18, verbatim:
 > - in the rail - i prefer it to be just the numbers
 > - i like the proportional marks to be displayed with a shallow/flat tree by default. and to have tiny icons on the right of workspace to toggle the tree showing bsp groupings and column groupings if the user clicks/configures it as such
 > - i also want to be able to drag and drop windows in the sidebar on any targets. if someone drops it on a window, not a container - it should just assume we want to make it a sibling for now
+
+Later the same day: "i think the bsp toggle should control bsp+floating container grouping".
 
 - **Prototype: the sidebar as a tree**, its Decisions and [README](../prototypes/83-sidebar-tree/README.md).
 - [Captured desk](../prototypes/83-sidebar-tree/desk.json) and [raw agent tree](../prototypes/83-sidebar-tree/raw/agent.json).

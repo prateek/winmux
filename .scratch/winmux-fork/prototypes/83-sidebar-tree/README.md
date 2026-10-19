@@ -10,13 +10,13 @@ The pick starts collapsed at 44 points; hover opens it at 320. Pin it to read. E
 
 A workspace with Columns carries one width-proportional mark per Column, its remembered focused Column filled. Hovering a window highlights its Column's mark. There are no Column tags on windows. Workspaces without Columns have neither marks nor a Columns button.
 
-The default tree flattens splits and Column levels, while retaining tab groups and their tabs, and a separate floating group. **Splits** reveals BSP levels with orientation glyphs; **Columns** reveals Column rows. Both on gives workspace → Column → split/tab group → window. Each button affects its workspace only and has an accessible label and tooltip. A workspace with no actual split does not invent one when Splits turns on; a sibling drop onto its lone Column window makes the level visible.
+The default tree flattens splits and Column levels, while retaining tab groups and their tabs; floating windows sit flat under their workspace with a small floating glyph. **Splits** reveals BSP levels with orientation glyphs and the floating group, as Prateek asked after the pick ("the bsp toggle should control bsp+floating container grouping"); **Columns** reveals Column rows. Both on gives workspace → Column → split/tab group → window. Each button affects its workspace only and has an accessible label and tooltip. A workspace with no actual split does not invent one when Splits turns on; a sibling drop onto its lone Column window makes the level visible.
 
 The small config panel models proposed Nickel names `sidebar.tree.splits = false` and `sidebar.tree.columns = false`. Defaults apply to all workspaces and persist in browser local storage. Overrides live in memory by workspace identity. Changing one default clears that toggle's overrides; changing the other preserves them. A reload discards session overrides but retains defaults.
 
 ### Drags: any target; window means sibling; two refusals
 
-A window or tab group is accepted on every existing row in the pick, including a workspace number, Column mark, floating group or window. Each accepted drop changes only the in-page desk. Trees, rail focus, marks and the focused workspace's 16:9 sketch update together. Reset restores the fixture; Save changed desk.json exports a copy. No page action sends a WinMux command.
+A window or tab group is accepted on every existing row in the pick, including a workspace number, Column mark, floating window, or the floating group when Splits shows it. Each accepted drop changes only the in-page desk. Trees, rail focus, marks and the focused workspace's 16:9 sketch update together. Reset restores the fixture; Save changed desk.json exports a copy. No page action sends a WinMux command.
 
 Operations below refer to code at [`1fbbdc72`](https://github.com/prateek/winmux/tree/1fbbdc72). “Join” means tab-group binding; it is not a `winmux join` CLI. `join-with` makes a split.
 

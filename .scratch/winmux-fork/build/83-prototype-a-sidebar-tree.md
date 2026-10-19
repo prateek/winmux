@@ -36,7 +36,7 @@ Nothing.
 
 ## Built and checked
 
-Prateek picked on **2026-10-18**: workspace numbers only in the rail; a flat, shallow tree with width-proportional Column marks; independent per-workspace Splits and Columns toggles; any row accepts window/tab-group drops, with a window target meaning sibling at the pointed index. `build/121-the-sidebar-as-a-tree.md` is the feature draft for his pick. Nothing waits on a product choice.
+Prateek picked on **2026-10-18**: workspace numbers only in the rail; a flat, shallow tree with width-proportional Column marks; independent per-workspace Splits and Columns toggles, Splits also showing the floating group; any row accepts window/tab-group drops, with a window target meaning sibling at the pointed index. `build/121-the-sidebar-as-a-tree.md` is the feature draft for his pick. Nothing waits on a product choice.
 
 `prototypes/83-sidebar-tree/index.html#pick` leads the page. Its own rail, hover, pin, disclosures, shared app/title search and drag targets work on the normalized fourteen-window desk. The config-shaped panel models proposed `sidebar.tree.splits` and `sidebar.tree.columns` defaults, both false. Defaults persist through reload; session overrides apply per workspace until that default changes. A/B/C remain side by side below, with the original interactions and drag rules.
 

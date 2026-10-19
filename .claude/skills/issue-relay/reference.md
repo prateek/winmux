@@ -31,6 +31,7 @@ The follow-up and demo passes use the same line with `pass2` and `demo` in place
 - Exit 129 means the pane was closed, not that the builder failed.
 - Exit 0 is not the report: check that the pass's report and, for a building pass, `pr.md` exist, since a builder can end with its code committed and its paperwork missing.
 - A launch can end within a minute with exit 0, `[done] end_turn` and the line "Selected model is at capacity" in its log, having changed nothing. When there are no commits and no report, wait two minutes and launch again.
+- A capacity cutoff can also come mid-pass, after the builder has changed files, with no commit and no report. Relaunch the same prompt with a note before it that names the uncommitted work and the logs or takes it left, tells the builder to continue from `git diff` rather than start over, and to commit as soon as its tests pass. #129 needed this three times.
 
 ## Waiting for CI
 
@@ -56,7 +57,7 @@ diff <(printf '%s\n' "$(sed 's/^- \[x\]/- [ ]/' live.md)") <(printf '%s\n' "$(ca
 
 It drops trailing newlines from both. A ticked box is not a difference: GitHub ticks an umbrella's list, and Prateek ticks his checks. Then update the body from the draft rendered at the merge.
 
-The build umbrella's child list is the exception to rendering `{{CHILDREN}}`. #55's list is in build order, kept by hand: it is not the order the sub-issues API returns, and it leaves out #48, #49 and #51, which the prose names. Rendering it from the API reorders it. Compare only the prose with the draft, and add a new child's line to the live list by hand.
+The build umbrella's child list is the exception to rendering `{{CHILDREN}}`. #55's list is in build order, kept by hand: it is not the order the sub-issues API returns, and it leaves out #48, #49 and #51, which the prose names. Rendering it from the API reorders it. Compare only the prose with the draft, and add a new child's line to the live list by hand. #55 is at GitHub's limit of 100 sub-issues: linking a new build issue to it fails with HTTP 422 ("Parent cannot have more than 100 sub-issues"). The hand-kept list is the one GitHub ticks, so add the new child there, and say in the pull request description that it is not linked.
 
 #84 and #85 are edited in place and never rendered over: add your line to the live body and the same line to the draft, and leave every tick as it is.
 
