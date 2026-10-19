@@ -62,7 +62,7 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
     }) { return control }
     let candidates = exact.isEmpty ? targets.filter {
         guard case .tree = $0.kind else {
-            return $0.rect.expanded(left: hitSlop.left, right: hitSlop.right, top: hitSlop.top, bottom: hitSlop.bottom).contains(point)
+            return $0.interactionRect(hitSlop: hitSlop).contains(point)
         }
         return false
     } : exact
@@ -70,25 +70,32 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
     if case .tree(let tree) = target.kind {
         let row = target.rowRect ?? target.rect
         if let id = tree.windowRowId, let zone = workspaceSidebarDropZone(at: point, row: row, offered: windowZones(id)) {
-            return .init(kind: .tree(.windowZone(id, zone: zone)), rect: target.rect, rowRect: target.rowRect)
+            return .init(kind: .tree(.windowZone(id, zone: zone)), rect: target.rect, rowRect: target.rowRect, viewport: target.viewport)
         }
-        return .init(kind: .tree(tree.resolvedHalf(after: point.y >= row.center.y)), rect: target.rect, rowRect: target.rowRect)
+        return .init(kind: .tree(tree.resolvedHalf(after: point.y >= row.center.y)), rect: target.rect, rowRect: target.rowRect, viewport: target.viewport)
     }
     return target
 }
 
 struct WorkspaceSidebarDropTarget {
     let kind: WorkspaceSidebarDropTargetKind
-    /// Where the target takes drops. A tree row's is the part of it on screen; other targets are not clipped.
+    /// Where the target takes drops, clipped to the scroll viewport for targets inside it.
     let rect: Rect
     /// The whole row, when only part of it is on screen. Its halves decide before or after.
     var rowRect: Rect? = nil
+    var viewport: Rect? = nil
+
+    func interactionRect(hitSlop: NSEdgeInsets) -> Rect {
+        let expanded = rect.expanded(left: hitSlop.left, right: hitSlop.right, top: hitSlop.top, bottom: hitSlop.bottom)
+        return viewport.map { expanded.intersection($0) } ?? expanded
+    }
 }
 
 struct WorkspaceSidebarDropTargetFrame: Equatable {
     let kind: WorkspaceSidebarDropTargetKind
     let frame: CGRect
     var rowFrame: CGRect? = nil
+    var viewport: CGRect? = nil
 }
 
 struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
@@ -99,14 +106,17 @@ struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
     }
 }
 
-func workspaceSidebarVisibleTreeTargets(_ targets: [WorkspaceSidebarDropTargetFrame], viewport: CGRect) -> [WorkspaceSidebarDropTargetFrame] {
-    // A row takes drops only where it is on screen, and its halves stay where it is drawn.
+func workspaceSidebarVisibleTargets(_ targets: [WorkspaceSidebarDropTargetFrame], viewport: CGRect) -> [WorkspaceSidebarDropTargetFrame] {
     targets.compactMap { target in
-        guard case .tree = target.kind else { return target }
         let visible = target.frame.intersection(viewport)
         guard !visible.isNull, visible.height > 0, visible.width > 0 else { return nil }
-        if visible == target.frame { return target }
-        return WorkspaceSidebarDropTargetFrame(kind: target.kind, frame: visible, rowFrame: target.frame)
+        let rowFrame: CGRect?
+        if case .tree = target.kind {
+            rowFrame = target.rowFrame ?? (visible == target.frame ? nil : target.frame)
+        } else {
+            rowFrame = nil
+        }
+        return WorkspaceSidebarDropTargetFrame(kind: target.kind, frame: visible, rowFrame: rowFrame, viewport: viewport)
     }
 }
 
@@ -115,7 +125,7 @@ struct WorkspaceSidebarViewportModifier: ViewModifier {
         GeometryReader { geometry in
             let viewport: CGRect = geometry.frame(in: .named("workspaceSidebarContent"))
             content.transformPreference(WorkspaceSidebarDropTargetPreferenceKey.self) { targets in
-                targets = workspaceSidebarVisibleTreeTargets(targets, viewport: viewport)
+                targets = workspaceSidebarVisibleTargets(targets, viewport: viewport)
             }
         }
     }

@@ -115,6 +115,7 @@ extension WorkspaceSidebarPanel {
                 kind: target.kind,
                 rect: screenRectNormalized(target.frame),
                 rowRect: target.rowFrame.map(screenRectNormalized),
+                viewport: target.viewport.map(screenRectNormalized),
             )
         }
     }

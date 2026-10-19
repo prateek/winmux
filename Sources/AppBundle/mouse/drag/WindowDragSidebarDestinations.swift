@@ -4,12 +4,7 @@ import Common
 private let sidebarWorkspaceDropTargetHitSlop = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
 
 private func sidebarWorkspaceDropInteractionRect(for target: WorkspaceSidebarDropTarget) -> Rect {
-    target.rect.expanded(
-        left: sidebarWorkspaceDropTargetHitSlop.left,
-        right: sidebarWorkspaceDropTargetHitSlop.right,
-        top: sidebarWorkspaceDropTargetHitSlop.top,
-        bottom: sidebarWorkspaceDropTargetHitSlop.bottom,
-    )
+    target.interactionRect(hitSlop: sidebarWorkspaceDropTargetHitSlop)
 }
 
 func isActionableSidebarWorkspaceDropTarget(
