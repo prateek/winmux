@@ -11,8 +11,8 @@ public let agentSkillText = """
     Run `winmux list-windows --focused --json` for the focused window's `window-id`, `app-name` and `window-title`.
     Run `winmux list-workspaces --focused` for its workspace.
     Run `winmux list-columns --json` and find the entry whose `window-ids` contains that window id; its `index` is the Column number.
-    There is no `--focused` flag on `list-columns`. With Columns off it prints an empty list: answer "no Column". When no entry contains the window id, the window is not in a Column (it is floating or fullscreen): say so rather than picking one. Report any error from these commands; an error does not mean Columns are off.
-    When nothing is focused, `list-windows --focused` exits 1 with "No window is focused": answer that no window is focused; do not invent a window or Column.
+    There is no `--focused` flag on `list-columns`. With Columns off it prints an empty list: answer "no Column". When no entry contains the window id, the window is not in a Column (it may be floating, minimized or in macOS fullscreen): say so rather than picking one. Report any error from these commands; an error does not mean Columns are off.
+    When nothing is focused, `list-windows --focused` exits 1 with "No window is focused", or prints an empty list: answer that no window is focused; do not invent a window or Column.
 
     ## Reading state
 
@@ -23,21 +23,21 @@ public let agentSkillText = """
 
     ## Config is Nickel
 
-    The person's config is one Nickel file, `winmux.ncl`. Find it before editing:
-    1. With WinMux running, `winmux config --config-path` prints the file it loaded. When that path ends in `winmux/defaults.ncl` or `default-config.json`, or lies inside `WinMux.app`, it is WinMux's shipped defaults: the person has no config yet. Never edit a file inside `WinMux.app`.
-    2. Otherwise edit the file it printed.
-    3. With no config yet, or with WinMux not running, the file is `~/.config/winmux/winmux.ncl`, or `$XDG_CONFIG_HOME/winmux/winmux.ncl` when WinMux was started with `XDG_CONFIG_HOME` set.
-    Never write a JSON config or edit JSON state WinMux writes, such as `~/.local/state/winmux/sidebar.json`. Never write TOML. To turn an old `winmux.toml` into Nickel when no `winmux.ncl` exists, redirect `winmux config convert`, which prints the Nickel to stdout and writes nothing: `winmux config convert > ~/.config/winmux/winmux.ncl`.
-    When no file exists, create its parent directory and start with this import-only config to keep the defaults:
+    The person's config is one Nickel file: `~/.config/winmux/winmux.ncl`. Edit that file; when it does not exist, create it. The one exception: when `winmux config status` shows a `config-path` to another `.ncl` file of the person's, edit that one. Never edit `winmux/defaults.ncl`, `default-config.json` or anything inside `WinMux.app`: those are WinMux's shipped defaults, which `winmux config --config-path` prints when the person has no config.
+    Never write a JSON config or edit JSON state WinMux writes, such as `~/.local/state/winmux/sidebar.json`. Never write TOML.
+    To turn an old `winmux.toml` into Nickel when no `winmux.ncl` exists, write `winmux config convert`'s output, which goes to stdout, to a new file and move it into place only when the command succeeds:
+    `mkdir -p ~/.config/winmux && winmux config convert > ~/.config/winmux/winmux.ncl.new && mv ~/.config/winmux/winmux.ncl.new ~/.config/winmux/winmux.ncl`
+    To create a new config, create `~/.config/winmux/` and start with this import-only config to keep the defaults:
 
     ```nickel
     let W = import "winmux/winmux.ncl" in
     (import "winmux/defaults.ncl") | W.Config
     ```
 
-    After every edit run `winmux config check <file>` on the file you edited, fix its diagnostics, and repeat until it passes. Always name the file: with no argument it checks the default path, and when that file does not exist it checks the shipped defaults and passes.
-    `config check` checks Nickel types and fields, not commands or key names. With WinMux running, also run `winmux reload-config --dry-run`, which checks the file WinMux loads, commands and keys included, and changes nothing; fix what it reports.
-    With `reload-on-save` on, saving applies the config; otherwise run `winmux reload-config`. Then run `winmux config --config-path`: it must print the file you edited. When it does not, WinMux is reading another file; report that instead of saying the change is live. A failed reload keeps the last good config; inspect `winmux config status`.
+    After every edit:
+    1. Run `winmux config check <file>` on the file you edited, fix its diagnostics, and repeat until it passes. Always name the file: with no argument it checks the default path, and when that file does not exist it checks the shipped defaults and passes. `config check` checks Nickel types and fields, not commands or key names.
+    2. With WinMux running, apply it with `winmux reload-config --no-gui`, whether or not saving already reloaded it. This also checks commands and key names. Exit 0 means it loaded. A failure prints its diagnostic and keeps the last good config: fix the file and repeat. A non-zero exit with no message means a reload WinMux started on save overtook this one: run it again.
+    3. Run `winmux config status`. Its `config-path` must be the file you edited and its `last-error` null. When the path is `null` or another file, WinMux reads a different config (it was started with `--config-path` or another `XDG_CONFIG_HOME`): report that instead of saying the change is live.
     Run `winmux config schema` for record fields. The imports above are shipped library names resolved by the config helper; do not look for repository docs or replace them with local files.
 
     ## Recipes

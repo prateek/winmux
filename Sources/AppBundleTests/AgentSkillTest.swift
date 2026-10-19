@@ -15,11 +15,20 @@ final class AgentSkillTest: XCTestCase {
         let file = directory.appending(path: "winmux.ncl")
         for (index, block) in blocks.enumerated() {
             let snippet = try XCTUnwrap(block.components(separatedBy: "```").first)
-            XCTAssertFalse(snippet.contains("= []"), "Nickel recipe \(index + 1) frees a shipped chord the person did not ask to free")
+            XCTAssertNil(snippet.range(of: #"=\s*\[\s*\]"#, options: .regularExpression),
+                         "Nickel recipe \(index + 1) sets an empty list, which frees a shipped chord the person did not ask to free")
             try snippet.write(to: file, atomically: true, encoding: .utf8)
             let result = try cli(["config", "check", file.path], helper: helper.path)
             XCTAssertEqual(result.status, 0, "Nickel recipe \(index + 1): \(result.output)")
         }
+        // The prose shows how to free a chord without a recipe that does it; check that field too.
+        let freeChord = try XCTUnwrap(agentSkillText.firstMatch(of: #/`(mode\.main\.binding\.[a-z-]+ = \[\])`/#)?.1)
+        try """
+            let W = import "winmux/winmux.ncl" in
+            ((import "winmux/defaults.ncl") & { \(freeChord) }) | W.Config
+            """.write(to: file, atomically: true, encoding: .utf8)
+        let freed = try cli(["config", "check", file.path], helper: helper.path)
+        XCTAssertEqual(freed.status, 0, "\(freeChord): \(freed.output)")
     }
 
     func testCliPrintsSkillWithoutServerOrHelper() throws {
@@ -46,9 +55,9 @@ final class AgentSkillTest: XCTestCase {
         let process = Process()
         process.executableURL = executable ?? builtCli
         process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment
-        process.environment?["XDG_CONFIG_HOME"] = "/tmp/winmux-skill-test-\(UUID().uuidString)"
-        process.environment?["WINMUX_NICKEL_HELPER"] = nil
+        let inherited = ProcessInfo.processInfo.environment
+        process.environment = ["XDG_CONFIG_HOME": "/tmp/winmux-skill-test-\(UUID().uuidString)"]
+        for name in ["HOME", "PATH"] { process.environment?[name] = inherited[name] }
         if let helper { process.environment?["WINMUX_NICKEL_HELPER"] = helper }
         let pipe = Pipe()
         process.standardOutput = pipe
