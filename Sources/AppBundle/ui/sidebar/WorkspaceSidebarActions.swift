@@ -295,6 +295,9 @@ func previewWorkspaceSidebarDrop(_ windowId: UInt32, subject: WindowDragSubject,
         var preview = workspaceSidebarSourcePreview(sourceWindow: sourceWindow, subject: subject)
         let destination = workspaceSidebarTreeDestination(treeTarget)
         preview.treeTarget = treeTarget
+        if workspaceSidebarDragUsesZones, let targetWindow = destination?.node as? Window {
+            preview.offeredZones = workspaceSidebarOfferedZones(source: source, target: targetWindow)
+        }
         preview.destinationDescription = workspaceSidebarTreeDropDescription(treeTarget, destination: destination)
         preview.refusalReason = workspaceSidebarTreeRefusal(source: source, destination: destination)
         preview.targetWorkspaceName = destination?.workspace.name
@@ -697,7 +700,8 @@ func workspaceSidebarTreeAcceptsTarget(sourceWorkspaceName: String?, target: Wor
 private func workspaceSidebarDragTarget(for sourceWindow: Window, subject: WindowDragSubject) -> WorkspaceSidebarDropTargetKind? {
     let point = MousePointerTracker.shared.currentSample.point
     guard WorkspaceSidebarPanel.panel(containing: point) != nil else { return nil }
-    guard let target = workspaceSidebarDropTarget(at: point)?.kind else { return nil }
+    let source = workspaceSidebarDragSource(sourceWindow, subject: subject)
+    guard let target = workspaceSidebarDropTarget(at: point, arrangementSource: source)?.kind else { return nil }
     guard workspaceSidebarTreeAcceptsTarget(sourceWorkspaceName: sourceWindow.nodeWorkspace?.name, target: target) else { return nil }
     return target
 }

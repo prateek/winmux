@@ -1,8 +1,397 @@
 import AppKit
+import Common
 @testable import AppBundle
 import XCTest
 
 final class WorkspaceSidebarTreeTest: XCTestCase {
+    @MainActor
+    func testLayoutCommandWithoutSidebarArrangementPreservesNestedTabsAndCascade() async throws {
+        setUpWorkspacesForTests()
+        config.enableNormalizationOppositeOrientationForNestedContainers = true
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let split = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+        let nested = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0)
+        let window = TestWindow.new(id: 601, parent: nested)
+        _ = TestWindow.new(id: 602, parent: split)
+        let orientation = LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.vertical]))
+        let oriented = try await orientation.run(.defaultEnv.copy(\.windowId, window.windowId), .emptyStdin)
+        XCTAssertEqual(oriented.exitCode, 0)
+        XCTAssertEqual(nested.orientation, .v)
+        XCTAssertEqual(split.orientation, .h)
+        XCTAssertEqual(root.orientation, .v)
+        let tabs = LayoutCommand(args: LayoutCmdArgs(rawArgs: [], toggleBetween: [.tabGroup]))
+        let tabbed = try await tabs.run(.defaultEnv.copy(\.windowId, UInt32(602)), .emptyStdin)
+        XCTAssertEqual(tabbed.exitCode, 0)
+        XCTAssertEqual(split.layout, .tabGroup)
+        XCTAssertTrue(split.children[0] === nested, "The command preserves nested containers")
+    }
+
+    @MainActor
+    func testPlainSiblingDropWithoutOptionPreservesBothHalves() async throws {
+        for after in [false, true] {
+            setUpWorkspacesForTests()
+            clearActiveWorkspaceSidebarDrag()
+            let root = Workspace.get(byName: "1").rootTilingContainer
+            let source = TestWindow.new(id: 601, parent: root)
+            let target = TestWindow.new(id: 602, parent: root)
+            let row = WorkspaceSidebarDropTarget(kind: .tree(.window(602, after: false)), rect: Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 24))
+            let resolved = try XCTUnwrap(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 125, y: after ? 20 : 4), targets: [row]))
+            XCTAssertEqual(resolved.kind, .tree(.window(602, after: after)))
+            try await checkDrop(source, .window(target.windowId, after: after))
+            XCTAssertEqual(root.children.map { ($0 as! Window).windowId }, after ? [602, 601] : [601, 602])
+        }
+    }
+
+    func testZoneResolutionUsesSixFixedSegmentsAndWholeRow() {
+        let row = Rect(topLeftX: 30, topLeftY: 40, width: 300, height: 24)
+        let zones: [WindowDropZone] = [.tab, .left, .right, .top, .bottom, .middle]
+        for (index, zone) in zones.enumerated() {
+            let point = CGPoint(x: 55 + index * 50, y: 54)
+            XCTAssertEqual(workspaceSidebarDropZone(at: point, row: row, offered: zones), zone)
+            XCTAssertNil(workspaceSidebarDropZone(at: point, row: row, offered: zones.filter { $0 != zone }))
+            let target = WorkspaceSidebarDropTarget(kind: .tree(.tab(602, after: false)), rect: Rect(topLeftX: 30, topLeftY: 50, width: 300, height: 14), rowRect: row)
+            XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: point, targets: [target], windowZones: [602: zones])?.kind, .tree(.windowZone(602, zone: zone)))
+        }
+        XCTAssertNil(workspaceSidebarDropZone(at: CGPoint(x: 29, y: 54), row: row, offered: zones))
+    }
+
+    @MainActor
+    func testOfferedZonesForEverySourceAndTargetWithTabsOnAndOff() {
+        for enabled in [false, true] {
+            for layout: Layout in [.tiles, .tabGroup] {
+                setUpWorkspacesForTests()
+                config.windowTabs.enabled = enabled
+                let root = Workspace.get(byName: "1").rootTilingContainer
+                let window = TestWindow.new(id: 601, parent: root)
+                let group = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, layout, index: 1)
+                _ = TestWindow.new(id: 602, parent: group)
+                let other = Workspace.get(byName: "2")
+                let tiled = TestWindow.new(id: 603, parent: other.rootTilingContainer)
+                let tabs = TilingContainer(parent: other.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .v, .tabGroup, index: 1)
+                let tab = TestWindow.new(id: 604, parent: tabs)
+                let sibling = TestWindow.new(id: 605, parent: tabs)
+                let floating = TestWindow.new(id: 606, parent: other)
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: window, target: tiled), enabled ? [.tab, .left, .right, .top, .bottom, .middle] : [.left, .right, .top, .bottom, .middle])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: group, target: tiled), [.left, .right, .top, .bottom, .middle])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: window, target: tab), enabled ? [.tab, .middle] : [.middle])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: group, target: tab), [])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: sibling, target: tab), [])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: window, target: floating), [])
+            }
+        }
+    }
+
+    @MainActor
+    func testOptionEventsChangeResolvedTargetAndClearBetweenDrags() {
+        setUpWorkspacesForTests()
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let source = TestWindow.new(id: 601, parent: root)
+        let target = TestWindow.new(id: 602, parent: root)
+        let row = WorkspaceSidebarDropTarget(kind: .tree(.window(602, after: false)), rect: Rect(topLeftX: 0, topLeftY: 0, width: 300, height: 24))
+        beginActiveWorkspaceSidebarDrag(windowId: 601, subject: .window)
+        defer { clearActiveWorkspaceSidebarDrag() }
+        for flags: NSEvent.ModifierFlags in [[], .option, [], .option] {
+            noteWorkspaceSidebarDragModifiers(flags)
+            let zones = workspaceSidebarDragWindowZones(source: source, targets: [row])
+            XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 75, y: 20), targets: [row], windowZones: zones)?.kind,
+                           flags.contains(.option) ? .tree(.windowZone(602, zone: .left)) : .tree(.window(602, after: true)))
+        }
+        clearActiveWorkspaceSidebarDrag()
+        beginActiveWorkspaceSidebarDrag(windowId: 601, subject: .window)
+        XCTAssertTrue(workspaceSidebarDragWindowZones(source: source, targets: [row]).isEmpty)
+        XCTAssertTrue(target.parent === root)
+    }
+
+    @MainActor
+    func testEveryZoneActsOnPointedWindowInSameOppositeAndColumnParents() async throws {
+        for context in ["horizontal", "vertical", "column"] {
+            for zone: WindowDropZone in [.tab, .left, .right, .top, .bottom, .middle] {
+                for sameParent in [false, true] {
+                    setUpWorkspacesForTests()
+                    let workspace = Workspace.get(byName: "1")
+                    let root = workspace.rootTilingContainer
+                    if context == "column" { workspace.columns = ColumnState(count: 3, widths: [0.28, 0.44, 0.28]) }
+                    let parent = context == "column" ? root : TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, context == "horizontal" ? .h : .v, .tiles, index: 0)
+                    let sourceParent = sameParent ? parent : Workspace.get(byName: "2").rootTilingContainer
+                    let source = TestWindow.new(id: 601, parent: sourceParent)
+                    let target = TestWindow.new(id: 602, parent: parent)
+                    if context == "column" { target.columnSlot = 2; if sameParent { source.columnSlot = 1 } }
+                    target.setWeight(parent.orientation, 400)
+                    try await checkDrop(source, .windowZone(602, zone: zone))
+                    if zone == .middle {
+                        XCTAssertTrue(source.parent === parent)
+                        XCTAssertTrue(target.parent === sourceParent)
+                        if context == "column" { XCTAssertEqual(source.columnSlot, 2); XCTAssertEqual(target.columnSlot, sameParent ? 1 : nil) }
+                    } else {
+                        let result = try XCTUnwrap(target.parent as? TilingContainer)
+                        XCTAssertTrue(source.parent === result)
+                        XCTAssertEqual(result.layout, zone == .tab ? .tabGroup : .tiles)
+                        if let position = zone.stackSplitPosition {
+                            XCTAssertEqual(result.orientation, position.orientation)
+                            XCTAssertEqual(result.children.map { ($0 as! Window).windowId }, position.isPositive ? [602, 601] : [601, 602])
+                            if result === parent { XCTAssertEqual(source.getWeight(result.orientation), 200); XCTAssertEqual(target.getWeight(result.orientation), 200) }
+                        } else { XCTAssertEqual(result.children.map { ($0 as! Window).windowId }, [602, 601]) }
+                        if context == "column" { XCTAssertEqual(result.columnSlot, 2); XCTAssertTrue(result.parent === root) }
+                    }
+                    if context == "column" { XCTAssertEqual(workspace.columns?.widths, [0.28, 0.44, 0.28]) }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testTabZonesAppendAndSwapPointedTabAndNeverSplitItsGroup() async throws {
+        for zone: WindowDropZone in [.tab, .left, .right, .top, .bottom, .middle] {
+            setUpWorkspacesForTests()
+            let root = Workspace.get(byName: "1").rootTilingContainer
+            let tabs = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tabGroup, index: 0)
+            let target = TestWindow.new(id: 602, parent: tabs)
+            let sibling = TestWindow.new(id: 603, parent: tabs)
+            let source = TestWindow.new(id: 601, parent: root)
+            let offered = zone == .tab || zone == .middle
+            try await checkDrop(source, .windowZone(602, zone: zone), accepted: offered)
+            XCTAssertTrue(sibling.parent === tabs)
+            if zone == .tab { XCTAssertEqual(tabs.children.map { ($0 as! Window).windowId }, [602, 601, 603]) }
+            if zone == .middle { XCTAssertTrue(source.parent === tabs); XCTAssertTrue(target.parent === root) }
+            if !offered { XCTAssertTrue(source.parent === root); XCTAssertTrue(target.parent === tabs) }
+        }
+    }
+
+    @MainActor
+    func testFloatingZoneRecordsSizeAndStaleOrContainedTargetsRefuse() async throws {
+        for zone: WindowDropZone in [.tab, .left, .right, .top, .bottom, .middle] {
+            setUpWorkspacesForTests()
+            let workspace = Workspace.get(byName: "1")
+            let source = TestWindow.new(id: 601, parent: workspace, rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 240))
+            let target = TestWindow.new(id: 602, parent: workspace.rootTilingContainer)
+            try await checkDrop(source, .windowZone(602, zone: zone))
+            XCTAssertFalse(source.isFloating)
+            XCTAssertEqual(source.lastFloatingSize, CGSize(width: 320, height: 240))
+            try await checkDrop(source, .windowZone(601, zone: zone), accepted: false)
+            try await checkDrop(source, .windowZone(9999, zone: zone), accepted: false)
+            if let parent = target.parent as? TilingContainer { try await checkDrop(parent, .windowZone(602, zone: zone), accepted: false) }
+        }
+    }
+
+    @MainActor
+    func testContainerMenuItemsAndNestedFlattening() {
+        for original: Layout in [.tiles, .tabGroup] {
+            for nested in [false, true] {
+                for action in WorkspaceSidebarContainerAction.allCases {
+                    setUpWorkspacesForTests()
+                    let workspace = Workspace.get(byName: "1")
+                    let root = workspace.rootTilingContainer
+                    _ = TestWindow.new(id: 600, parent: root)
+                    let container = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, original, index: 1)
+                    let child = nested ? TilingContainer(parent: container, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0) : container
+                    _ = TestWindow.new(id: 601, parent: child)
+                    _ = TestWindow.new(id: 602, parent: child)
+                    _ = TestWindow.new(id: 603, parent: container)
+                    let unchanged = workspaceSidebarContainerActionIsCurrent(action, container: container)
+                    XCTAssertTrue(applyWorkspaceSidebarContainerAction(action, identity: container.stableId, workspaceName: "1"))
+                    if action == .ungroup {
+                        XCTAssertTrue(container.isBound, "Normalization removes the emptied container")
+                        XCTAssertTrue(container.allLeafWindowsRecursive.isEmpty)
+                        workspace.normalizeContainers()
+                        XCTAssertFalse(container.isBound)
+                        XCTAssertEqual(root.allLeafWindowsRecursive.map(\.windowId), [600, 601, 602, 603])
+                        XCTAssertTrue(root.children[1] === child || !nested)
+                        XCTAssertEqual(root.children.count, nested ? 3 : 4)
+                    } else {
+                        XCTAssertEqual(container.layout, action == .tabs ? .tabGroup : .tiles)
+                        if action == .tabs && !unchanged { XCTAssertTrue(container.children.allSatisfy { $0 is Window }) }
+                        if action == .sideBySide { XCTAssertEqual(container.orientation, .h) }
+                        if action == .stacked { XCTAssertEqual(container.orientation, .v) }
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testContainerRootAndColumnChildRefusalsAndTabsDisabled() {
+        for column in [false, true] {
+            setUpWorkspacesForTests()
+            let workspace = Workspace.get(byName: "1")
+            let root = workspace.rootTilingContainer
+            if column { workspace.columns = ColumnState(count: 2) }
+            let container = column ? TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0) : root
+            if column { container.columnSlot = 1 }
+            _ = TestWindow.new(id: 601, parent: container)
+            _ = TestWindow.new(id: 602, parent: container)
+            XCTAssertNotNil(workspaceSidebarUngroupRefusal(container))
+            XCTAssertFalse(applyWorkspaceSidebarContainerAction(.ungroup, identity: container.stableId, workspaceName: "1"))
+            for action: WorkspaceSidebarContainerAction in [.tabs, .sideBySide, .stacked] {
+                XCTAssertTrue(applyWorkspaceSidebarContainerAction(action, identity: container.stableId, workspaceName: "1"))
+            }
+            config.windowTabs.enabled = false
+            XCTAssertFalse(applyWorkspaceSidebarContainerAction(.tabs, identity: container.stableId, workspaceName: "1"))
+            XCTAssertTrue(container.isBound)
+        }
+    }
+
+    @MainActor
+    func testGlyphFlipCascadesAncestorsAndPreservesColumnsAfterNormalization() {
+        for column in [false, true] {
+            setUpWorkspacesForTests()
+            config.enableNormalizationOppositeOrientationForNestedContainers = true
+            let workspace = Workspace.get(byName: "1")
+            let root = workspace.rootTilingContainer
+            if column { workspace.columns = ColumnState(count: 2, widths: [0.4, 0.6]) }
+            let parent = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+            if column { parent.columnSlot = 1 }
+            let split = TilingContainer(parent: parent, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0)
+            _ = TestWindow.new(id: 601, parent: split)
+            _ = TestWindow.new(id: 602, parent: split)
+            _ = TestWindow.new(id: 603, parent: parent)
+            let other = TestWindow.new(id: 604, parent: root)
+            if column { other.columnSlot = 2 }
+            XCTAssertTrue(flipWorkspaceSidebarSplit(identity: split.stableId, workspaceName: "1"))
+            XCTAssertEqual(split.orientation, .v)
+            XCTAssertEqual(parent.orientation, .h)
+            XCTAssertEqual(root.orientation, .v)
+            workspace.normalizeContainers()
+            XCTAssertEqual(root.orientation, column ? .h : .v)
+            XCTAssertEqual(root.layout, .tiles)
+            XCTAssertEqual(root.allLeafWindowsRecursive.map(\.windowId), [601, 602, 603, 604])
+            if column { XCTAssertEqual(parent.columnSlot, 1); XCTAssertEqual(other.columnSlot, 2); XCTAssertEqual(workspace.columns?.widths, [0.4, 0.6]) }
+        }
+    }
+
+    @MainActor
+    func testSwapAcrossColumnsKeepsTheSlotsAndWidthsAtTheirPositions() async throws {
+        setUpWorkspacesForTests()
+        let workspace = Workspace.get(byName: "1")
+        workspace.columns = ColumnState(count: 2, widths: [0.4, 0.6])
+        let root = workspace.rootTilingContainer
+        let first = TestWindow.new(id: 601, parent: root)
+        let second = TestWindow.new(id: 602, parent: root)
+        first.columnSlot = 1
+        second.columnSlot = 2
+        try await checkDrop(first, .windowZone(602, zone: .middle))
+        workspace.normalizeContainers()
+        XCTAssertEqual(root.children.map { ($0 as! Window).windowId }, [602, 601])
+        XCTAssertEqual(second.columnSlot, 1)
+        XCTAssertEqual(first.columnSlot, 2)
+        XCTAssertEqual(workspace.columns?.widths, [0.4, 0.6])
+    }
+
+    @MainActor
+    func testGroupSplitAndSwapMoveTheWholeSourceWithoutClimbingTargetAncestors() async throws {
+        for sourceLayout: Layout in [.tiles, .tabGroup] {
+            for zone: WindowDropZone in [.left, .right, .top, .bottom, .middle] {
+                setUpWorkspacesForTests()
+                let root = Workspace.get(byName: "1").rootTilingContainer
+                let source = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, sourceLayout, index: 0)
+                _ = TestWindow.new(id: 601, parent: source)
+                _ = TestWindow.new(id: 602, parent: source)
+                let parent = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+                let target = TestWindow.new(id: 603, parent: parent)
+                let sibling = TestWindow.new(id: 604, parent: parent)
+                try await checkDrop(source, .windowZone(603, zone: zone))
+                XCTAssertEqual(source.allLeafWindowsRecursive.map(\.windowId), [601, 602])
+                XCTAssertTrue(sibling.parent === parent)
+                if zone == .middle { XCTAssertTrue(source.parent === parent); XCTAssertTrue(target.parent === root) }
+                if zone == .left || zone == .right {
+                    XCTAssertTrue(source.parent === target.parent)
+                    XCTAssertFalse(source.parent === root, "Do not climb to the matching horizontal ancestor")
+                    XCTAssertFalse(source.parent === parent)
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func testZoneRevalidatesPointedWindowAndOfferAfterFloatingAXRead() async throws {
+        for disappears in [false, true] {
+            setUpWorkspacesForTests()
+            let workspace = Workspace.get(byName: "1")
+            let source = TestWindow.new(id: 601, parent: workspace)
+            let target = TestWindow.new(id: 602, parent: workspace.rootTilingContainer)
+            source.beforeAxSize = {
+                if disappears { target.unbindFromParent() } else { config.windowTabs.enabled = false }
+            }
+            try await checkDrop(source, .windowZone(602, zone: .tab), accepted: false)
+            XCTAssertTrue(source.parent === workspace)
+        }
+    }
+
+    @MainActor
+    func testUngroupIntoTabsJoinsOnlyOrderedLeavesAndNormalizesSingleParent() {
+        setUpWorkspacesForTests()
+        config.enableNormalizationFlattenContainers = true
+        let workspace = Workspace.get(byName: "1")
+        let root = workspace.rootTilingContainer
+        root.layout = .tabGroup
+        _ = TestWindow.new(id: 600, parent: root)
+        let split = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+        let nested = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0)
+        _ = TestWindow.new(id: 601, parent: nested)
+        _ = TestWindow.new(id: 602, parent: nested)
+        _ = TestWindow.new(id: 603, parent: split)
+        XCTAssertTrue(ungroupWorkspaceSidebarContainer(identity: split.stableId, workspaceName: "1"))
+        workspace.normalizeContainers()
+        XCTAssertEqual(root.children.map { ($0 as! Window).windowId }, [600, 601, 602, 603])
+        XCTAssertFalse(split.isBound)
+    }
+
+    @MainActor
+    func testContainerCurrentItemsDoNothingAndStaleIdentitiesDoNotMutate() {
+        setUpWorkspacesForTests()
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let split = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0)
+        let child = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+        _ = TestWindow.new(id: 601, parent: child)
+        _ = TestWindow.new(id: 602, parent: split)
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.sideBySide, identity: split.stableId, workspaceName: "1"))
+        XCTAssertTrue(split.children[0] === child)
+        split.layout = .tabGroup
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.tabs, identity: split.stableId, workspaceName: "1"))
+        XCTAssertTrue(split.children[0] === child, "A checked item does nothing, even for legacy nested tabs")
+        split.unbindFromParent()
+        for action in WorkspaceSidebarContainerAction.allCases {
+            XCTAssertFalse(applyWorkspaceSidebarContainerAction(action, identity: split.stableId, workspaceName: "1"))
+        }
+        XCTAssertFalse(flipWorkspaceSidebarSplit(identity: split.stableId, workspaceName: "1"))
+    }
+
+    @MainActor
+    func testDirectColumnSplitGlyphPreservesOneItemPerSlot() {
+        setUpWorkspacesForTests()
+        config.enableNormalizationOppositeOrientationForNestedContainers = true
+        let workspace = Workspace.get(byName: "1")
+        workspace.columns = ColumnState(count: 2, widths: [0.4, 0.6])
+        let root = workspace.rootTilingContainer
+        let split = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+        split.columnSlot = 1
+        _ = TestWindow.new(id: 601, parent: split)
+        _ = TestWindow.new(id: 602, parent: split)
+        let other = TestWindow.new(id: 603, parent: root)
+        other.columnSlot = 2
+        XCTAssertTrue(flipWorkspaceSidebarSplit(identity: split.stableId, workspaceName: "1"))
+        workspace.normalizeContainers()
+        XCTAssertEqual(split.orientation, .h)
+        XCTAssertEqual(root.orientation, .h)
+        XCTAssertEqual(root.children.count, 2)
+        XCTAssertEqual(split.columnSlot, 1)
+        XCTAssertEqual(other.columnSlot, 2)
+        XCTAssertEqual(workspace.columns?.widths, [0.4, 0.6])
+    }
+
+    @MainActor
+    func testZonePreviewNamesPointedWindowAndShowsRefusal() {
+        setUpWorkspacesForTests()
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let source = TestWindow.new(id: 601, parent: root)
+        let target = TestWindow.new(id: 602, parent: root)
+        defer { clearWorkspaceSidebarDropPreview(); clearActiveWorkspaceSidebarDrag() }
+        for zone in WindowDropZone.allCases {
+            previewWorkspaceSidebarDrop(source.windowId, subject: .window, target: .tree(.windowZone(target.windowId, zone: zone)))
+            XCTAssertEqual(TrayMenuModel.shared.workspaceSidebarDropPreview?.destinationDescription, "\(zone.sidebarIntent) \(sidebarDisplayLabel(for: target))")
+        }
+        previewWorkspaceSidebarDrop(source.windowId, subject: .window, target: .tree(.windowZone(601, zone: .middle)))
+        XCTAssertEqual(TrayMenuModel.shared.workspaceSidebarDropPreview?.refusalReason, "Cannot drop an item on itself or its descendants")
+    }
     @MainActor
     func testUnassignedColumnChildrenRemainListedAndSearchable() async {
         setUpWorkspacesForTests()

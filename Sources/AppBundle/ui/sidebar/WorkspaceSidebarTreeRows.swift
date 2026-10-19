@@ -71,21 +71,12 @@ extension WorkspaceSidebarWorkspaceSection {
         switch item.kind {
             case .tabGroup(let group):
                 guard let identity = group.containerIdentity else { return AnyView(workspaceTabGroupView(group)) }
-                header = AnyView(tabGroupHeaderButton(group))
+                header = AnyView(tabGroupHeaderButton(group).contextMenu { containerMenu(identity: identity) })
                 target = .tabGroup(identity, workspace: workspace.name)
                 childIsTab = true
             case .split(let identity, let orientation, let layout):
-                header = AnyView(Button { actions.send(.toggleDisclosure(item.identity)) } label: {
-                    Text("\(orientation == "vertical" ? "↕" : "↔") \(orientation.capitalized) \(layout)")
-                        .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight)
-                        .contentShape(Rectangle())
-                }
-                    .buttonStyle(.plain)
-                    .modifier(WorkspaceSidebarOptionalDragModifier(isEnabled: true, onChanged: { point in
-                        if let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name), let window = container.anyLeafWindowRecursive {
-                            updateSidebarWindowDrag(window.windowId, subject: .group, pointer: point, container: container, sidebarOnly: true)
-                        }
-                    }, onEnded: { point in finishSidebarWindowDrag(pointer: point) })))
+                header = AnyView(splitHeader(item: item, identity: identity, orientation: orientation, layout: layout)
+                    .contextMenu { containerMenu(identity: identity) })
                 target = .split(identity, workspace: workspace.name)
                 childIsTab = false
             case .column(_, let slot, let width):
@@ -124,6 +115,58 @@ extension WorkspaceSidebarWorkspaceSection {
             }
         })
     }
+
+    func splitHeader(item: WorkspaceSidebarItemViewModel, identity: UInt64, orientation: String, layout: String) -> some View {
+        HStack(spacing: 4) {
+            Button {
+                runWorkspaceSidebarSession {
+                    _ = flipWorkspaceSidebarSplit(identity: identity, workspaceName: workspace.name)
+                    await updateWorkspaceSidebarModel()
+                }
+            } label: {
+                Text(orientation == "vertical" ? "↕" : "↔").frame(width: 20, height: rowHeight)
+            }
+            .buttonStyle(.plain)
+            .help(orientation == "vertical" ? "Flip to side by side" : "Flip to stacked")
+            .accessibilityLabel(orientation == "vertical" ? "Flip to side by side" : "Flip to stacked")
+            Button { actions.send(.toggleDisclosure(item.identity)) } label: {
+                Text("\(orientation.capitalized) \(layout)")
+                    .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .modifier(WorkspaceSidebarOptionalDragModifier(isEnabled: true, onChanged: { point in
+                if let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name), let window = container.anyLeafWindowRecursive {
+                    updateSidebarWindowDrag(window.windowId, subject: .group, pointer: point, container: container, sidebarOnly: true)
+                }
+            }, onEnded: { point in finishSidebarWindowDrag(pointer: point) }))
+        }
+    }
+
+    @ViewBuilder
+    func containerMenu(identity: UInt64) -> some View {
+        if let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name) {
+            ForEach(WorkspaceSidebarContainerAction.allCases, id: \.self) { action in
+                containerMenuItem(action, container: container)
+            }
+        }
+    }
+
+    func containerMenuItem(_ action: WorkspaceSidebarContainerAction, container: TilingContainer) -> some View {
+        let current: Bool = workspaceSidebarContainerActionIsCurrent(action, container: container)
+        let refusal: String? = action == .ungroup ? workspaceSidebarUngroupRefusal(container) : nil
+        let disabled: Bool = refusal != nil || (action == .tabs && !config.windowTabs.enabled)
+        return Button {
+            runWorkspaceSidebarSession {
+                _ = applyWorkspaceSidebarContainerAction(action, identity: container.stableId, workspaceName: workspace.name)
+                await updateWorkspaceSidebarModel()
+            }
+        } label: {
+            if current { Label(action.title, systemImage: "checkmark") } else { Text(action.title) }
+        }
+        .disabled(disabled)
+        .help(refusal ?? action.title)
+    }
 }
 
 struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
@@ -132,7 +175,7 @@ struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
     let enabled: Bool
 
     func body(content: Content) -> some View {
-        let active = preview?.treeTarget.map { $0.resolvedHalf(after: false) == target.resolvedHalf(after: false) } == true
+        let active: Bool = preview?.treeTarget.map { $0.matchesRow(target) } == true
         let refused = preview?.refusalReason != nil
         return content.background {
             GeometryReader { geometry in
@@ -142,6 +185,9 @@ struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
             }
         }.overlay {
             if active {
+                if let preview, !preview.offeredZones.isEmpty {
+                    zoneStrip(preview)
+                }
                 if refused {
                     RoundedRectangle(cornerRadius: 4).stroke(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                 } else {
@@ -153,5 +199,28 @@ struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
                 }
             }
         }
+    }
+
+    func zoneStrip(_ preview: WorkspaceSidebarDropPreviewViewModel) -> some View {
+        HStack(spacing: 0) {
+            ForEach(WindowDropZone.allCases, id: \.self) { zone in
+                zoneCell(zone, preview: preview)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    func zoneCell(_ zone: WindowDropZone, preview: WorkspaceSidebarDropPreviewViewModel) -> some View {
+        let offered: Bool = preview.offeredZones.contains(zone)
+        let activeZone: Bool = if case .windowZone(_, let selected) = preview.treeTarget { selected == zone } else { false }
+        let fill: Color = activeZone ? Color.accentColor : Color(nsColor: .windowBackgroundColor).opacity(0.96)
+        return ZStack {
+            if offered {
+                RoundedRectangle(cornerRadius: 3).fill(fill)
+                Image(systemName: zone.symbolName).font(.system(size: 11, weight: .semibold))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .help(zone.sidebarIntent)
     }
 }

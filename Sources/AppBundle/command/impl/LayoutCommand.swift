@@ -57,11 +57,8 @@ struct LayoutCommand: Command {
     guard let parent = window.parent else { return false }
     switch parent.cases {
         case .tilingContainer(let parent):
-            let targetOrientation = targetOrientation ?? parent.orientation
-            let targetLayout = targetLayout ?? parent.layout
-            parent.layout = targetLayout
-            parent.changeOrientation(targetOrientation)
-            return true
+            guard let workspace = parent.nodeWorkspace else { return false }
+            return changeWorkspaceSidebarContainer(identity: parent.stableId, workspaceName: workspace.name, layout: targetLayout, orientation: targetOrientation)
         case .workspace, .macosMinimizedWindowsContainer, .macosFullscreenWindowsContainer,
              .macosPopupWindowsContainer, .macosHiddenAppsWindowsContainer:
             return io.err("The window is non-tiling")

@@ -80,6 +80,8 @@ enum GlobalObserver {
         let modifierFlags = event.modifierFlags
         let origin = LensTraceOrigin(event: event, received: LensTimebase.now())
         runOnMainActor {
+            noteWorkspaceSidebarDragModifiers(modifierFlags)
+            refreshActiveWorkspaceSidebarDragPreviewIfNeeded()
             noteTapBindingFlagsChanged(keyCode: keyCode, modifierFlags: modifierFlags, origin: origin)
         }
     }
@@ -93,6 +95,7 @@ enum GlobalObserver {
         let screenPoint = NSEvent.mouseLocation
         let point = normalizeAppKitScreenPoint(screenPoint)
         runOnMainActor {
+            noteWorkspaceSidebarDragModifiers(modifierFlags)
             WindowTabHintController.shared.pointerActivity(eventType, eventFlags: modifierFlags)
             if isHoverMove { SwitcherPalettePanel.shared.notePointerMoved(at: screenPoint) }
             MousePointerTracker.shared.note(point: point, timestamp: timestamp)

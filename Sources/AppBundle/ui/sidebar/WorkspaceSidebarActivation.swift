@@ -4,6 +4,28 @@ import AppKit
 private var workspaceSidebarItemDragActiveCount = 0
 @MainActor
 private var activeWorkspaceSidebarDrag: ActiveWorkspaceSidebarDrag?
+@MainActor
+private var workspaceSidebarDragModifiers: NSEvent.ModifierFlags = []
+
+@MainActor
+var workspaceSidebarDragUsesZones: Bool { workspaceSidebarDragModifiers.contains(.option) }
+
+@MainActor
+func noteWorkspaceSidebarDragModifiers(_ flags: NSEvent.ModifierFlags) {
+    workspaceSidebarDragModifiers = flags
+}
+
+@MainActor
+func workspaceSidebarDragWindowZones(source: TreeNode, targets: [WorkspaceSidebarDropTarget]) -> [UInt32: [WindowDropZone]] {
+    guard workspaceSidebarDragUsesZones else { return [:] }
+    var result: [UInt32: [WindowDropZone]] = [:]
+    for target in targets {
+        guard case .tree(let tree) = target.kind, let id = tree.windowRowId,
+              let window = Window.get(byId: id) else { continue }
+        result[id] = workspaceSidebarOfferedZones(source: source, target: window)
+    }
+    return result
+}
 
 struct ActiveWorkspaceSidebarDrag: Equatable {
     let windowId: UInt32
@@ -60,6 +82,7 @@ func currentActiveWorkspaceSidebarDrag() -> ActiveWorkspaceSidebarDrag? {
 @MainActor
 func clearActiveWorkspaceSidebarDrag() {
     activeWorkspaceSidebarDrag = nil
+    workspaceSidebarDragModifiers = []
 }
 
 func shouldLockWorkspaceSidebarExpansion(

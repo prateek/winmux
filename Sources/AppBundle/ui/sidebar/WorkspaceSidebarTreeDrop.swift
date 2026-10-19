@@ -15,7 +15,7 @@ func workspaceSidebarLiveContainer(_ identity: UInt64, workspaceName: String) ->
 @MainActor
 func workspaceSidebarTreeDestination(_ target: WorkspaceSidebarTreeDropTarget) -> (workspace: Workspace, node: TreeNode?)? {
     switch target {
-        case .window(let id, _), .tab(let id, _):
+        case .window(let id, _), .tab(let id, _), .windowZone(let id, _):
             guard let window = Window.get(byId: id), let workspace = window.nodeWorkspace else { return nil }
             return (workspace, window)
         case .floatingWindow(let id, _):
@@ -57,6 +57,8 @@ func workspaceSidebarTreeRefusal(source: TreeNode, destination: (workspace: Work
 func workspaceSidebarTreeDropDescription(_ target: WorkspaceSidebarTreeDropTarget, destination: (workspace: Workspace, node: TreeNode?)?) -> String {
     guard let destination else { return "Destination no longer exists" }
     switch target {
+        case .windowZone(_, let zone):
+            return "\(zone.sidebarIntent) \((destination.node as? Window).map(sidebarDisplayLabel) ?? "window")"
         case .window(_, let after), .tab(_, let after):
             let window = destination.node as? Window
             let parent = window?.parent as? TilingContainer
@@ -99,6 +101,19 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
     guard source.isBound, let live = workspaceSidebarTreeDestination(target),
           workspaceSidebarTreeRefusal(source: source, destination: live) == nil else { return false }
     switch target {
+        case .windowZone(_, let zone):
+            guard let window = live.node as? Window,
+                  workspaceSidebarOfferedZones(source: source, target: window).contains(zone) else { return false }
+            if let position = zone.stackSplitPosition {
+                return workspaceSidebarSplit(source: source, target: window, position: position)
+            }
+            switch zone {
+                case .tab:
+                    guard let sourceWindow = source as? Window else { return false }
+                    createOrAppendWindowTabStack(sourceWindow: sourceWindow, onto: window)
+                case .middle: swapNodes(source, window)
+                default: return false
+            }
         case .column(_, let slot), .columnMark(_, let slot):
             source.unbindFromParent()
             live.workspace.bindToColumn(source, slot: slot)
@@ -121,6 +136,36 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
                 source.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
             }
         case .floatingGroup, .floatingWindow: return false
+    }
+    return true
+}
+
+@MainActor
+func workspaceSidebarOfferedZones(source: TreeNode, target: Window) -> [WindowDropZone] {
+    guard let parent = target.parent as? TilingContainer else { return [] }
+    let windowSource = source as? Window
+    if parent.layout == .tabGroup, source.parent === parent { return [] }
+    let tab: [WindowDropZone] = windowSource != nil && config.windowTabs.enabled ? [.tab] : []
+    if parent.layout == .tabGroup { return windowSource != nil ? tab + [.middle] : [] }
+    return tab + [.left, .right, .top, .bottom, .middle]
+}
+
+@MainActor
+private func workspaceSidebarSplit(source: TreeNode, target: Window, position: WindowStackSplitPosition) -> Bool {
+    guard let parent = target.parent as? TilingContainer else { return false }
+    source.unbindFromParent()
+    let binding = target.unbindFromParent()
+    let matching = parent.layout == .tiles && parent.orientation == position.orientation &&
+        !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
+    let container = matching ? parent : TilingContainer(replacing: binding, position.orientation, .tiles)
+    let index = matching ? binding.index : 0
+    let weight = matching ? binding.adaptiveWeight / 2 : WEIGHT_AUTO
+    if position.isPositive {
+        target.bind(to: container, adaptiveWeight: weight, index: index)
+        source.bind(to: container, adaptiveWeight: weight, index: index + 1)
+    } else {
+        source.bind(to: container, adaptiveWeight: weight, index: index)
+        target.bind(to: container, adaptiveWeight: weight, index: index + 1)
     }
     return true
 }

@@ -21,6 +21,7 @@ struct WorkspaceSidebarDropPreviewViewModel: Hashable {
     var treeTarget: WorkspaceSidebarTreeDropTarget? = nil
     var destinationDescription: String? = nil
     var refusalReason: String? = nil
+    var offeredZones: [WindowDropZone] = []
 
     init(
         sourceWindowId: UInt32,
