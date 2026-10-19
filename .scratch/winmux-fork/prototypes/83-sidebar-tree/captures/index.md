@@ -30,7 +30,7 @@ Each named still has a matching `.txt` accessibility readback where relevant. Dr
 | `columns-only-after-sibling.png` | Only workspace 2 reveals Column rows; the split remains flattened |
 | `both-after-sibling.png` | Workspace 2 → Column 1 → vertical split → Notes/Ghostty. Other workspaces retain their defaults |
 | `config-both.png`, `config-reloaded-hover.png` | Both defaults set every workspace and survive a reload; hover reveals the restored starting state |
-| `selftest-top.png`, `selftest-pick.png`, `selftest-50.txt` | All 50 fixture rows passed in Safari before the review's fixes; the page now has 54, checked headless |
+| `selftest-top.png`, `selftest-pick.png`, `selftest-50.txt` | All 50 fixture rows passed in Safari before the review's fixes; the page now has 56, checked headless |
 | `flat-after-search.png` | The empty query after the searches: fourteen windows |
 | `refuse-workspace-drag-from-number.png` | A drag that starts on a workspace number is refused |
 | `final-flat.png` | Defaults restored to false and the original fixture restored |
@@ -48,9 +48,9 @@ Every search below ran on the restored fixture. Counts are read from the page's 
 | `Grievances` | 1 | Workspace 3 → actual Column 1 → TextEdit tabs → Grievances.rtf; first matching window, outline row 3, depth 2 | `search-Grievances.png/.txt` |
 | `qzxnomatch` | 0 | No workspace or window rows | `search-qzxnomatch.png/.txt` |
 
-Headless checks separately confirm exact matching window IDs, disclosure restoration after clearing, independent toggles, each config default and reload, all reference-image states and no JavaScript errors. [pick-results.json](pick-results.json) contains 30 browser assertions and all 54 fixture rows. [browser-results.json](browser-results.json) contains the 43 original A/B/C assertions, rerun with the final pick.
+Headless checks separately confirm exact matching window IDs, disclosure restoration after clearing, independent toggles, each config default and reload, all reference-image states and no JavaScript errors. [pick-results.json](pick-results.json) contains 30 browser assertions and all 56 fixture rows. [browser-results.json](browser-results.json) contains the 43 original A/B/C assertions, rerun with the final pick.
 
-[rule-reversion.json](rule-reversion.json) pairs old and restored results. With the pick's drag-decision branch disabled, restoring first-pass decisions, the **19 changed-rule rows fail** and the 14 unchanged rows pass; restored, all 33 pick rows pass. This is one combined old-rule reversion, not 19 separate selective mutations.
+[rule-reversion.json](rule-reversion.json) pairs old and restored results. With the pick's drag-decision branch disabled, restoring first-pass decisions, the **21 changed-rule rows fail** and the 14 unchanged rows pass; restored, all 35 pick rows pass. This is one combined old-rule reversion, not 21 separate selective mutations.
 
 ## Live browser trees
 

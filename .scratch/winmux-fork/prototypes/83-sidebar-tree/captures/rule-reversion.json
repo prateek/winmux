@@ -66,13 +66,25 @@
     {
       "changed": true,
       "error": "assertion failed",
-      "name": "Pick: tab group onto window stays one sibling",
+      "name": "Pick: a tab group dropped on a tab group joins as its windows, the first in front",
       "pass": false
     },
     {
       "changed": true,
       "error": "assertion failed",
-      "name": "Pick: same workspace row accepted",
+      "name": "Pick: a tab group dropped on a tab joins as its windows at that index, as on its Column mark",
+      "pass": false
+    },
+    {
+      "changed": true,
+      "error": "assertion failed",
+      "name": "Pick: a window joining a tab group comes to the front",
+      "pass": false
+    },
+    {
+      "changed": true,
+      "error": "assertion failed",
+      "name": "Pick: tab group onto window stays one sibling",
       "pass": false
     },
     {
@@ -243,12 +255,22 @@
     },
     {
       "changed": true,
-      "name": "Pick: tab group onto window stays one sibling",
+      "name": "Pick: a tab group dropped on a tab group joins as its windows, the first in front",
       "pass": true
     },
     {
       "changed": true,
-      "name": "Pick: same workspace row accepted",
+      "name": "Pick: a tab group dropped on a tab joins as its windows at that index, as on its Column mark",
+      "pass": true
+    },
+    {
+      "changed": true,
+      "name": "Pick: a window joining a tab group comes to the front",
+      "pass": true
+    },
+    {
+      "changed": true,
+      "name": "Pick: tab group onto window stays one sibling",
       "pass": true
     },
     {
