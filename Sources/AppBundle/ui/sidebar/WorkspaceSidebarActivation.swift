@@ -16,15 +16,9 @@ func noteWorkspaceSidebarDragModifiers(_ flags: NSEvent.ModifierFlags) {
 }
 
 @MainActor
-func workspaceSidebarDragWindowZones(source: TreeNode, targets: [WorkspaceSidebarDropTarget]) -> [UInt32: [WindowDropZone]] {
-    guard workspaceSidebarDragUsesZones else { return [:] }
-    var result: [UInt32: [WindowDropZone]] = [:]
-    for target in targets {
-        guard case .tree(let tree) = target.kind, let id = tree.windowRowId,
-              let window = Window.get(byId: id) else { continue }
-        result[id] = workspaceSidebarOfferedZones(source: source, target: window)
-    }
-    return result
+func workspaceSidebarDragWindowZones(source: TreeNode) -> (UInt32) -> [WindowDropZone] {
+    guard workspaceSidebarDragUsesZones else { return { _ in [] } }
+    return { id in Window.get(byId: id).map { workspaceSidebarOfferedZones(source: source, target: $0) } ?? [] }
 }
 
 struct ActiveWorkspaceSidebarDrag: Equatable {

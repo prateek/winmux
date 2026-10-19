@@ -83,6 +83,8 @@ enum GlobalObserver {
             noteWorkspaceSidebarDragModifiers(modifierFlags)
             refreshActiveWorkspaceSidebarDragPreviewIfNeeded()
             noteTapBindingFlagsChanged(keyCode: keyCode, modifierFlags: modifierFlags, origin: origin)
+            // Option arranges a sidebar drag; a modifier pressed during one is not a tap.
+            if currentActiveWorkspaceSidebarDrag() != nil { noteTapBindingKeyDown() }
         }
     }
 

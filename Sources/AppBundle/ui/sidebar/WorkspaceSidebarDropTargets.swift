@@ -42,12 +42,13 @@ enum WorkspaceSidebarTreeDropTarget: Hashable, Sendable {
 
 func workspaceSidebarDropZone(at point: CGPoint, row: Rect, offered: [WindowDropZone]) -> WindowDropZone? {
     guard row.width > 0, row.contains(point) else { return nil }
-    let index = min(5, Int((point.x - row.minX) / (row.width / 6)))
-    let zone = WindowDropZone.allCases[index]
+    let order = WindowDropZone.sidebarOrder
+    let index = min(order.count - 1, Int((point.x - row.minX) / (row.width / CGFloat(order.count))))
+    let zone = order[index]
     return offered.contains(zone) ? zone : nil
 }
 
-func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSidebarDropTarget], hitSlop: NSEdgeInsets = NSEdgeInsets(), includesTreeTargets: Bool = true, windowZones: [UInt32: [WindowDropZone]] = [:]) -> WorkspaceSidebarDropTarget? {
+func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSidebarDropTarget], hitSlop: NSEdgeInsets = NSEdgeInsets(), includesTreeTargets: Bool = true, windowZones: (UInt32) -> [WindowDropZone] = { _ in [] }) -> WorkspaceSidebarDropTarget? {
     let targets = targets.filter { target in
         if case .tree = target.kind { return includesTreeTargets }
         return true
@@ -68,8 +69,7 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
     guard let target = candidates.min(by: { $0.rect.width * $0.rect.height < $1.rect.width * $1.rect.height }) else { return nil }
     if case .tree(let tree) = target.kind {
         let row = target.rowRect ?? target.rect
-        if let id = tree.windowRowId, let zones = windowZones[id],
-           let zone = workspaceSidebarDropZone(at: point, row: row, offered: zones) {
+        if let id = tree.windowRowId, let zone = workspaceSidebarDropZone(at: point, row: row, offered: windowZones(id)) {
             return .init(kind: .tree(.windowZone(id, zone: zone)), rect: target.rect, rowRect: target.rowRect)
         }
         return .init(kind: .tree(tree.resolvedHalf(after: point.y >= row.center.y)), rect: target.rect, rowRect: target.rowRect)
@@ -129,7 +129,7 @@ func workspaceSidebarDropTarget(at mouseLocation: CGPoint, hitSlop: NSEdgeInsets
             let targets = workspaceSidebarDropTargets.filter {
                 visibleRect?.contains($0.rect.center) == true
             }
-            let zones = arrangementSource.map { workspaceSidebarDragWindowZones(source: $0, targets: targets) } ?? [:]
+            let zones = arrangementSource.map(workspaceSidebarDragWindowZones) ?? { _ in [] }
             return resolveWorkspaceSidebarDropTarget(at: mouseLocation, targets: targets, hitSlop: hitSlop, includesTreeTargets: includesTreeTargets, windowZones: zones)
         }
 }

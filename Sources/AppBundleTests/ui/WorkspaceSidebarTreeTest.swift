@@ -50,7 +50,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
             XCTAssertEqual(workspaceSidebarDropZone(at: point, row: row, offered: zones), zone)
             XCTAssertNil(workspaceSidebarDropZone(at: point, row: row, offered: zones.filter { $0 != zone }))
             let target = WorkspaceSidebarDropTarget(kind: .tree(.tab(602, after: false)), rect: Rect(topLeftX: 30, topLeftY: 50, width: 300, height: 14), rowRect: row)
-            XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: point, targets: [target], windowZones: [602: zones])?.kind, .tree(.windowZone(602, zone: zone)))
+            XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: point, targets: [target], windowZones: { $0 == 602 ? zones : [] })?.kind, .tree(.windowZone(602, zone: zone)))
         }
         XCTAssertNil(workspaceSidebarDropZone(at: CGPoint(x: 29, y: 54), row: row, offered: zones))
     }
@@ -77,6 +77,8 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                 XCTAssertEqual(workspaceSidebarOfferedZones(source: group, target: tab), [])
                 XCTAssertEqual(workspaceSidebarOfferedZones(source: sibling, target: tab), [])
                 XCTAssertEqual(workspaceSidebarOfferedZones(source: window, target: floating), [])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: floating, target: window), enabled ? [.tab, .left, .right, .top, .bottom] : [.left, .right, .top, .bottom])
+                XCTAssertEqual(workspaceSidebarOfferedZones(source: floating, target: tab), enabled ? [.tab] : [])
             }
         }
     }
@@ -92,13 +94,13 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         defer { clearActiveWorkspaceSidebarDrag() }
         for flags: NSEvent.ModifierFlags in [[], .option, [], .option] {
             noteWorkspaceSidebarDragModifiers(flags)
-            let zones = workspaceSidebarDragWindowZones(source: source, targets: [row])
+            let zones = workspaceSidebarDragWindowZones(source: source)
             XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 75, y: 20), targets: [row], windowZones: zones)?.kind,
                            flags.contains(.option) ? .tree(.windowZone(602, zone: .left)) : .tree(.window(602, after: true)))
         }
         clearActiveWorkspaceSidebarDrag()
         beginActiveWorkspaceSidebarDrag(windowId: 601, subject: .window)
-        XCTAssertTrue(workspaceSidebarDragWindowZones(source: source, targets: [row]).isEmpty)
+        XCTAssertTrue(workspaceSidebarDragWindowZones(source: source)(602).isEmpty)
         XCTAssertTrue(target.parent === root)
     }
 
@@ -164,6 +166,12 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
             let workspace = Workspace.get(byName: "1")
             let source = TestWindow.new(id: 601, parent: workspace, rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 240))
             let target = TestWindow.new(id: 602, parent: workspace.rootTilingContainer)
+            if zone == .middle {
+                try await checkDrop(source, .windowZone(602, zone: zone), accepted: false)
+                XCTAssertTrue(source.isFloating, "A floating source is not offered swap")
+                XCTAssertFalse(target.isFloating, "Swap would have floated the pointed window")
+                continue
+            }
             try await checkDrop(source, .windowZone(602, zone: zone))
             XCTAssertFalse(source.isFloating)
             XCTAssertEqual(source.lastFloatingSize, CGSize(width: 320, height: 240))
@@ -969,5 +977,58 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         XCTAssertEqual(destination.rootTilingContainer.children.map { ($0 as? Window)?.windowId }, [existing.windowId, tiled.windowId])
         XCTAssertTrue(floating.parent === destination)
         XCTAssertFalse(isActionableSidebarWorkspaceDropTarget(sourceWorkspaceName: "2", targetKind: .workspace("2")))
+    }
+
+    @MainActor
+    func testTabsAndUngroupKeepTheActiveWindowAndRememberedFocus() {
+        setUpWorkspacesForTests()
+        let workspace = Workspace.get(byName: "1")
+        let root = workspace.rootTilingContainer
+        let other = TestWindow.new(id: 600, parent: root)
+        let split = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 1)
+        let active = TestWindow.new(id: 601, parent: split)
+        let nested = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+        _ = TestWindow.new(id: 602, parent: nested)
+        _ = TestWindow.new(id: 603, parent: nested)
+        active.markAsMostRecentChild()
+        other.markAsMostRecentChild()
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.tabs, identity: split.stableId, workspaceName: "1"))
+        XCTAssertEqual(split.children.map { ($0 as! Window).windowId }, [601, 602, 603])
+        XCTAssertTrue(split.mostRecentChild === active, "The tab that was showing stays showing")
+        XCTAssertTrue(root.mostRecentChild === other, "The workspace's remembered focus is unchanged")
+
+        root.layout = .tabGroup
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.ungroup, identity: split.stableId, workspaceName: "1"))
+        XCTAssertEqual(root.children.map { ($0 as! Window).windowId }, [600, 601, 602, 603])
+        XCTAssertTrue(root.mostRecentChild === other, "Ungrouping into tabs keeps the visible tab")
+
+        setUpWorkspacesForTests()
+        let tiles = Workspace.get(byName: "1").rootTilingContainer
+        let first = TestWindow.new(id: 610, parent: tiles)
+        let group = TilingContainer(parent: tiles, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 1)
+        let inner = TestWindow.new(id: 611, parent: group)
+        _ = TestWindow.new(id: 612, parent: group)
+        inner.markAsMostRecentChild()
+        first.markAsMostRecentChild()
+        XCTAssertTrue(applyWorkspaceSidebarContainerAction(.ungroup, identity: group.stableId, workspaceName: "1"))
+        XCTAssertTrue(tiles.mostRecentChild === first, "Ungrouping into a split keeps the remembered focus")
+        XCTAssertTrue(tiles.childrenByMostRecentUse[1] === inner)
+    }
+
+    @MainActor
+    func testUngroupKeepsTheContainersShareOfItsParent() {
+        for along in [true, false] {
+            setUpWorkspacesForTests()
+            let root = Workspace.get(byName: "1").rootTilingContainer
+            root.changeOrientation(.h)
+            let other = TestWindow.new(id: 600, parent: root, adaptiveWeight: 300)
+            let group = TilingContainer(parent: root, adaptiveWeight: 700, along ? .h : .v, .tiles, index: 1)
+            let a = TestWindow.new(id: 601, parent: group, adaptiveWeight: 600)
+            let b = TestWindow.new(id: 602, parent: group, adaptiveWeight: 100)
+            XCTAssertTrue(applyWorkspaceSidebarContainerAction(.ungroup, identity: group.stableId, workspaceName: "1"))
+            XCTAssertEqual(other.getWeight(.h), 300)
+            XCTAssertEqual(a.getWeight(.h), along ? 600 : 350, accuracy: 0.001)
+            XCTAssertEqual(b.getWeight(.h), along ? 100 : 350, accuracy: 0.001)
+        }
     }
 }

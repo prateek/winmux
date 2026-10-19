@@ -8,6 +8,9 @@ enum WindowDropZone: String, CaseIterable, Hashable, Sendable {
     case bottom
     case middle
 
+    /// The sidebar row's segments, left to right.
+    static let sidebarOrder: [WindowDropZone] = [.tab, .left, .right, .top, .bottom, .middle]
+
     var symbolName: String {
         switch self {
             case .tab: "rectangle.3.group"

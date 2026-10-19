@@ -38,6 +38,13 @@ final class TilingContainer: TreeNode, NonLeafTreeNodeObject { // todo consider 
 extension TilingContainer {
     var isRootContainer: Bool { parent is Workspace }
 
+    /// The `layout` command's change: a nil keeps the current value, and orientation cascades as `changeOrientation` does.
+    @MainActor
+    func changeLayout(_ targetLayout: Layout?, orientation targetOrientation: Orientation?) {
+        layout = targetLayout ?? layout
+        changeOrientation(targetOrientation ?? orientation)
+    }
+
     @MainActor
     func changeOrientation(_ targetOrientation: Orientation) {
         if orientation == targetOrientation {

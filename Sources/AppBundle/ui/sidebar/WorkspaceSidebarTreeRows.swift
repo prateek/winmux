@@ -117,18 +117,24 @@ extension WorkspaceSidebarWorkspaceSection {
     }
 
     func splitHeader(item: WorkspaceSidebarItemViewModel, identity: UInt64, orientation: String, layout: String) -> some View {
-        HStack(spacing: 4) {
-            Button {
-                runWorkspaceSidebarSession {
-                    _ = flipWorkspaceSidebarSplit(identity: identity, workspaceName: workspace.name)
-                    await updateWorkspaceSidebarModel()
+        let glyph: String = orientation == "vertical" ? "↕" : "↔"
+        let flipHelp: String = orientation == "vertical" ? "Flip to side by side" : "Flip to stacked"
+        return HStack(spacing: 4) {
+            // A one-window tab group draws as a split row; only a split flips.
+            if layout == Layout.tiles.rawValue {
+                Button {
+                    runWorkspaceSidebarSession {
+                        _ = flipWorkspaceSidebarSplit(identity: identity, workspaceName: workspace.name)
+                    }
+                } label: {
+                    Text(glyph).frame(width: 20, height: rowHeight)
                 }
-            } label: {
-                Text(orientation == "vertical" ? "↕" : "↔").frame(width: 20, height: rowHeight)
+                .buttonStyle(.plain)
+                .help(flipHelp)
+                .accessibilityLabel(flipHelp)
+            } else {
+                Text(glyph).frame(width: 20, height: rowHeight)
             }
-            .buttonStyle(.plain)
-            .help(orientation == "vertical" ? "Flip to side by side" : "Flip to stacked")
-            .accessibilityLabel(orientation == "vertical" ? "Flip to side by side" : "Flip to stacked")
             Button { actions.send(.toggleDisclosure(item.identity)) } label: {
                 Text("\(orientation.capitalized) \(layout)")
                     .font(.system(size: 13)).frame(maxWidth: .infinity, alignment: .leading).frame(height: rowHeight)
@@ -159,7 +165,6 @@ extension WorkspaceSidebarWorkspaceSection {
         return Button {
             runWorkspaceSidebarSession {
                 _ = applyWorkspaceSidebarContainerAction(action, identity: container.stableId, workspaceName: workspace.name)
-                await updateWorkspaceSidebarModel()
             }
         } label: {
             if current { Label(action.title, systemImage: "checkmark") } else { Text(action.title) }
@@ -203,7 +208,7 @@ struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
 
     func zoneStrip(_ preview: WorkspaceSidebarDropPreviewViewModel) -> some View {
         HStack(spacing: 0) {
-            ForEach(WindowDropZone.allCases, id: \.self) { zone in
+            ForEach(WindowDropZone.sidebarOrder, id: \.self) { zone in
                 zoneCell(zone, preview: preview)
             }
         }
@@ -221,6 +226,5 @@ struct WorkspaceSidebarTreeTargetModifier: ViewModifier {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .help(zone.sidebarIntent)
     }
 }

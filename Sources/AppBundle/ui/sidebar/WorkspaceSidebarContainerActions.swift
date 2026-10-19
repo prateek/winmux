@@ -1,4 +1,5 @@
 import Common
+import Foundation
 
 enum WorkspaceSidebarContainerAction: CaseIterable {
     case tabs
@@ -21,12 +22,13 @@ enum WorkspaceSidebarContainerAction: CaseIterable {
 func changeWorkspaceSidebarContainer(identity: UInt64, workspaceName: String, layout: Layout?, orientation: Orientation?, flattenTabs: Bool = false) -> Bool {
     guard let container = workspaceSidebarLiveContainer(identity, workspaceName: workspaceName) else { return false }
     if flattenTabs, layout == .tabGroup, container.children.contains(where: { $0 is TilingContainer }) {
-        let leaves = container.allLeafWindowsRecursive
-        for child in container.children { child.unbindFromParent() }
-        for leaf in leaves { leaf.bind(to: container, adaptiveWeight: WEIGHT_AUTO, index: INDEX_BIND_LAST) }
+        workspaceSidebarPreservingMru(of: container) {
+            for case let child as TilingContainer in container.children {
+                workspaceSidebarJoinLeaves(child, to: container, index: child.ownIndex.orDie())
+            }
+        }
     }
-    container.layout = layout ?? container.layout
-    container.changeOrientation(orientation ?? container.orientation)
+    container.changeLayout(layout, orientation: orientation)
     return true
 }
 
@@ -45,11 +47,34 @@ func ungroupWorkspaceSidebarContainer(identity: UInt64, workspaceName: String) -
     guard let container = workspaceSidebarLiveContainer(identity, workspaceName: workspaceName),
           workspaceSidebarUngroupRefusal(container) == nil,
           let parent = container.parent as? TilingContainer, let index = container.ownIndex else { return false }
-    let children = parent.layout == .tabGroup ? container.allLeafWindowsRecursive : container.children
-    for (offset, child) in children.enumerated() {
-        child.bind(to: parent, adaptiveWeight: WEIGHT_AUTO, index: index + offset)
+    workspaceSidebarPreservingMru(of: parent) {
+        if parent.layout == .tabGroup {
+            workspaceSidebarJoinLeaves(container, to: parent, index: index)
+            return
+        }
+        // The children share the container's space along the parent's axis, in their own proportions when they lie along it.
+        let children = container.children
+        let share = container.getWeight(parent.orientation)
+        let alongParent = container.layout == .tiles && container.orientation == parent.orientation
+        let total = alongParent ? children.reduce(CGFloat(0)) { $0 + $1.getWeight(parent.orientation) } : CGFloat(children.count)
+        let weights = children.map { alongParent && total > 0 ? share * $0.getWeight(parent.orientation) / total : share / CGFloat(children.count) }
+        for (offset, child) in children.enumerated() {
+            child.bind(to: parent, adaptiveWeight: weights[offset], index: index + offset)
+        }
     }
     return true
+}
+
+/// Rebinding moves each bound node to the front of every ancestor's recency, which would change the visible tab and
+/// the remembered focus; this puts each node's recency back, read through the windows it holds.
+@MainActor
+private func workspaceSidebarPreservingMru(of node: TreeNode, _ body: () -> Void) {
+    func windowsByRecency(_ node: TreeNode) -> [TreeNode] {
+        node.childrenByMostRecentUse.flatMap { child in child is Window ? [child] : windowsByRecency(child) }
+    }
+    let previous = node.parentsWithSelf.map { ($0, windowsByRecency($0)) }
+    body()
+    for (node, order) in previous where node.isBound || node is Workspace { node.restoreChildMru(order) }
 }
 
 @MainActor

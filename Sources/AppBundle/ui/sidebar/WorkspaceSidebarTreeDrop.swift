@@ -146,8 +146,10 @@ func workspaceSidebarOfferedZones(source: TreeNode, target: Window) -> [WindowDr
     let windowSource = source as? Window
     if parent.layout == .tabGroup, source.parent === parent { return [] }
     let tab: [WindowDropZone] = windowSource != nil && config.windowTabs.enabled ? [.tab] : []
-    if parent.layout == .tabGroup { return windowSource != nil ? tab + [.middle] : [] }
-    return tab + [.left, .right, .top, .bottom, .middle]
+    // Swapping with a floating source would float the pointed window; the issue tiles floating windows and arranges nothing else.
+    let swap: [WindowDropZone] = windowSource?.isFloating == true ? [] : [.middle]
+    if parent.layout == .tabGroup { return windowSource != nil ? tab + swap : [] }
+    return tab + [.left, .right, .top, .bottom] + swap
 }
 
 @MainActor
@@ -171,7 +173,7 @@ private func workspaceSidebarSplit(source: TreeNode, target: Window, position: W
 }
 
 @MainActor
-private func workspaceSidebarJoinLeaves(_ source: TreeNode, to container: TilingContainer, index: Int) {
+func workspaceSidebarJoinLeaves(_ source: TreeNode, to container: TilingContainer, index: Int) {
     let windows = source.allLeafWindowsRecursive
     if source is TilingContainer { source.unbindFromParent() }
     for (offset, window) in windows.enumerated() {
