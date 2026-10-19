@@ -218,31 +218,19 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let hidden = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(1, after: false)), frame: CGRect(x: 10, y: 20, width: 100, height: 24))
         let partial = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(2, after: false)), frame: CGRect(x: 10, y: 40, width: 100, height: 24))
         let visible = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(3, after: false)), frame: CGRect(x: 10, y: 60, width: 100, height: 24))
-        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [partial, visible])
-        // The row spans 40-64 and its centre is 52, so 54 is its lower half even with 40-50 under the header.
-        let resolved = resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 54), targets: [
-            WorkspaceSidebarDropTarget(kind: partial.kind, rect: Rect(topLeftX: 10, topLeftY: 40, width: 100, height: 24)),
-        ])
-        XCTAssertEqual(resolved?.kind, .tree(.window(2, after: true)))
+        let clipped = WorkspaceSidebarDropTargetFrame(kind: partial.kind, frame: CGRect(x: 10, y: 50, width: 100, height: 14), rowFrame: partial.frame)
+        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [clipped, visible])
     }
 
-    @MainActor
-    func testTabGroupHeaderDragCarriesItsOwnGroupThroughNestedSplitsAndGroups() {
-        setUpWorkspacesForTests()
-        let root = Workspace.get(byName: "1").rootTilingContainer
-        let outer = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
-        let split = TilingContainer(parent: outer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
-        let inner = TilingContainer(parent: split, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
-        let representative = TestWindow.new(id: 720, parent: inner)
-        _ = TestWindow.new(id: 721, parent: inner)
-        _ = TestWindow.new(id: 722, parent: split)
-        _ = TestWindow.new(id: 723, parent: outer)
-        // Neither `moveNode` nor the nearest tab-group ancestor of the representative is the outer group.
-        XCTAssertFalse(dragSubjectNode(for: representative, subject: .group) === outer)
-        let header = try! XCTUnwrap(workspaceSidebarLiveContainer(outer.stableId, workspaceName: "1"))
-        beginActiveWorkspaceSidebarDrag(windowId: representative.windowId, subject: .group, container: header)
-        defer { clearActiveWorkspaceSidebarDrag() }
-        XCTAssertTrue(workspaceSidebarDragSource(representative, subject: .group) === outer)
+    func testAPartlyHiddenRowTakesDropsOnlyWhereItShowsAndKeepsItsHalves() {
+        // The row spans 40-64, centre 52; the header covers everything above 50.
+        let row = WorkspaceSidebarDropTarget(kind: .tree(.window(2, after: false)), rect: Rect(topLeftX: 10, topLeftY: 50, width: 100, height: 14),
+                                             rowRect: Rect(topLeftX: 10, topLeftY: 40, width: 100, height: 24))
+        let section = WorkspaceSidebarDropTarget(kind: .workspace("1"), rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 400))
+        let targets = [section, row]
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 45), targets: targets)?.kind, .workspace("1"), "The hidden part takes no drop")
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 51), targets: targets)?.kind, .tree(.window(2, after: false)))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 54), targets: targets)?.kind, .tree(.window(2, after: true)), "Halves follow the whole row")
     }
 
     @MainActor

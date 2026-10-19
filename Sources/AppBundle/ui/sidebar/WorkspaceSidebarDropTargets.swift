@@ -47,19 +47,24 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
     } : exact
     guard let target = candidates.min(by: { $0.rect.width * $0.rect.height < $1.rect.width * $1.rect.height }) else { return nil }
     if case .tree(let tree) = target.kind {
-        return .init(kind: .tree(tree.resolvedHalf(after: point.y >= target.rect.center.y)), rect: target.rect)
+        let row = target.rowRect ?? target.rect
+        return .init(kind: .tree(tree.resolvedHalf(after: point.y >= row.center.y)), rect: target.rect, rowRect: target.rowRect)
     }
     return target
 }
 
 struct WorkspaceSidebarDropTarget {
     let kind: WorkspaceSidebarDropTargetKind
+    /// Where the target takes drops: the part of the row that is on screen.
     let rect: Rect
+    /// The whole row, when only part of it is on screen. Its halves decide before or after.
+    var rowRect: Rect? = nil
 }
 
 struct WorkspaceSidebarDropTargetFrame: Equatable {
     let kind: WorkspaceSidebarDropTargetKind
     let frame: CGRect
+    var rowFrame: CGRect? = nil
 }
 
 struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
@@ -71,12 +76,13 @@ struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
 }
 
 func workspaceSidebarVisibleTreeTargets(_ targets: [WorkspaceSidebarDropTargetFrame], viewport: CGRect) -> [WorkspaceSidebarDropTargetFrame] {
-    // A partly visible row keeps its whole frame, so its halves stay where they are drawn;
-    // the header's own drop targets win exact hits over tree rows.
-    targets.filter { target in
-        guard case .tree = target.kind else { return true }
+    // A row takes drops only where it is on screen, and its halves stay where it is drawn.
+    targets.compactMap { target in
+        guard case .tree = target.kind else { return target }
         let visible = target.frame.intersection(viewport)
-        return !visible.isNull && visible.height > 0 && visible.width > 0
+        guard !visible.isNull, visible.height > 0, visible.width > 0 else { return nil }
+        if visible == target.frame { return target }
+        return WorkspaceSidebarDropTargetFrame(kind: target.kind, frame: visible, rowFrame: target.frame)
     }
 }
 

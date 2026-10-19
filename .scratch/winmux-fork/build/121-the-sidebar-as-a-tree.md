@@ -115,6 +115,12 @@ preview behavior. Host and pinned-version guest `make check` pass: 1,690 Swift,
 92 helper/Rust and 171 Python tests. The guest's existing committed-hash check
 skips for a VM sync commit. The merge gate requires GitHub **Build and test** to pass on the head that lands.
 
+A tab group whose active tab is a nested split or a nested tab group still drags
+as its representative window's `moveNode` on every path, as before this feature,
+so the preview and every drop agree. **A dragged tab group moves one window when
+its active tab is a nested container** carries the container itself through the
+drag.
+
 Native rich-desk captures cover all four rail/hover states, activation and pinning,
 both levels independently/together, exact marks and hover, 26 synthetic pointer
 drop/refusal cases, all default/reload/restart combinations, and search/clear.
