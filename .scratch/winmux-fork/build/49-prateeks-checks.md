@@ -160,6 +160,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **A dragged tab group moves one window when its active tab is a nested container**
 - [ ] On the installed build, make a tab group whose active tab is a split (Columns on, then move a window into an occupied Column slot, or join two windows and make their parent a tab group with a third). With your own mouse or trackpad, drag the group's tab-strip header onto another window, then its sidebar header onto another workspace. Pass: every window of the group moves each time, the inner split included; the sidebar lists them all under the destination. Until **A window in a tab group's active split stays on screen when its workspace hides** lands, one window of the split may stay on screen after the workspace drop.
 
+**A skill for a person's agent, shipped with the CLI**
+- [ ] After `brew upgrade --cask --greedy winmux` (the cask's `winmux` is not updated by Sparkle), quit WinMux and run `winmux agent skill | head -3`. Pass: it exits 0 and prints `name: winmux`. Then install it with `mkdir -p ~/.claude/skills/winmux && winmux agent skill > ~/.claude/skills/winmux/SKILL.md`, start WinMux, and ask your agent "which window is focused, on which workspace, and in which Column?". Pass: its answer matches the screen.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

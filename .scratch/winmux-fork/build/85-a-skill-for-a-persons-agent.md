@@ -46,11 +46,7 @@ A fresh host agent with only the installed skill and a shim to the guest created
 
 Loading that agent's config in the guest and pressing both chords showed the focus mark and an editors Lens with exactly Zed and Ghostty. Screenshots, key events and readbacks are retained for the relay. The same query/check/apply probe on the base and changed builds preserved all four windows and produced identical inventory, focus, workspace and Column readbacks. No permission was granted; the debug app and staged apps were closed, with the assigned guest left running. No by-hand upgrade step or release is part of this build.
 
-Remaining acceptance checks for Prateek:
-
-- [ ] Installed cask/Sparkle build and a person's real agent setup.
-- [ ] A second display.
-- [ ] Real sleep, wake and unlock.
+Left to Prateek: the installed CLI printing the skill with WinMux quit, and his own agent answering what is focused with the skill installed, in **Prateek's checks on an installed build and real hardware**. The cask's `winmux` is updated by `brew upgrade --cask --greedy winmux`, not by Sparkle.
 
 ## Sources
 
