@@ -196,10 +196,6 @@ func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
         guard let source, let workspace = Workspace.existing(byName: workspaceName), let columns = workspace.columns,
               (1...columns.slotCount).contains(decision.slot),
               intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
-        // A second mouse-up reset during the run list must not drop this window again.
-        let cache = ColumnDropDecisionCache.shared
-        cache.applyingWindowId = source.windowId
-        defer { if cache.applyingWindowId == source.windowId { cache.applyingWindowId = nil } }
         let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
         syncClosedWindowsCacheToCurrentWorld()
         suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))

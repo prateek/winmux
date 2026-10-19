@@ -19,7 +19,7 @@ func debugDescribe(_ subject: WindowDragSubject) -> String {
 func debugDescribe(_ kind: WindowDragIntentKind) -> String {
     switch kind {
         case .column(let workspace, let slot, let decision):
-            "column(\(workspace), \(slot), decision:\(decision.slot)/\(decision.overflow.rawValue)/\(decision.hook ?? "built-in")\(decision.failure.map { "/failed: \($0)" } ?? ""))"
+            "column(\(workspace), \(slot), decision:\(decision.slot)/\(decision.overflow.rawValue)/\(decision.hook ?? "built-in")\(decision.failure == nil ? "" : "/failed"))"
         case .tabStack(let targetWindowId):
             "tabStack(target:\(targetWindowId))"
         case .reorderTab(let windowId, let targetIndex):

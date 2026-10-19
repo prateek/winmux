@@ -573,36 +573,17 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertEqual(destination.title, "Column 4 · tab group")
     }
 
-    func testADropBeingAppliedHidesOnlyItsOwnWindowsDestinations() async throws {
-        let (workspace, a, b, rect) = try await fixture()
-        let point = CGPoint(x: 1000, y: rect.midY)
-        XCTAssertNotNil(lookup(a, point))
-        ColumnDropDecisionCache.shared.applyingWindowId = a.windowId
-        defer { ColumnDropDecisionCache.shared.applyingWindowId = nil }
-        XCTAssertNil(lookup(a, point), "A second mouse-up reset cannot start another drop of this window")
-        XCTAssertEqual(lookup(b, point)?.kind.columnSlot, 3, "Another window's drag is unaffected")
-        _ = workspace
-    }
-
     func testADecisionForASlotThatNoLongerExistsDropsNothing() async throws {
         let (workspace, a, _, rect) = try await fixture()
         let decision = PlacementDecision(slot: 4, target: "4", overflow: .tabGroup, hook: nil)
-        let destination = columnDragDestination(workspace: workspace, slot: 3, decision: PlacementDecision(slot: 3, target: "3", overflow: .tabGroup, hook: nil),
-                                                incoming: a, rect: workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!, subject: .window)
-        var stale = destination
+        var stale = columnDragDestination(workspace: workspace, slot: 3, decision: PlacementDecision(slot: 3, target: "3", overflow: .tabGroup, hook: nil),
+                                          incoming: a, rect: Rect(topLeftX: rect.minX, topLeftY: rect.minY, width: rect.width, height: rect.height),
+                                          subject: .window)
         stale.kind = .column(workspaceName: workspace.name, slot: 3, decision: decision)
         MousePointerTracker.shared.note(point: CGPoint(x: 1000, y: rect.midY))
         _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window, detachOrigin: .window, destination: stale)
         let applied = try await applyPendingWindowDragIntentWithPolicy()
         XCTAssertFalse(applied)
         XCTAssertEqual(workspace.columnSlot(containing: a), 1)
-        XCTAssertNil(ColumnDropDecisionCache.shared.applyingWindowId)
-    }
-
-}
-
-private extension WindowDragIntentKind {
-    var columnSlot: Int? {
-        if case .column(_, let slot, _) = self { slot } else { nil }
     }
 }

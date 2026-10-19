@@ -18,6 +18,7 @@ final class ColumnDropDecisionCache {
     }
 
     private struct Request {
+        /// Holds the state alive, so the `ObjectIdentifier` in a live key cannot be reused by a new one.
         let columns: ColumnState
         let task: Task<Void, Never>
     }
@@ -29,8 +30,6 @@ final class ColumnDropDecisionCache {
     private var tasks: [Key: Request] = [:]
     private var answers: [Key: PlacementDecision] = [:]
     private var redraw: (() -> Void)?
-    /// The window whose Column drop is binding or running its list; its drag finds no destination meanwhile.
-    var applyingWindowId: UInt32?
     private let evaluate: @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision
 
     init(evaluate: @escaping @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision = {
