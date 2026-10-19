@@ -122,6 +122,26 @@
       },
       {
         "changed": true,
+        "name": "Pick: same-workspace row drop changes nothing",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: an emptied root split takes the next drop at full size",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: a drop on one workspace keeps another workspace's root split",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: emptying a root split to one child keeps the root and its orientation",
+        "pass": true
+      },
+      {
+        "changed": true,
         "name": "Pick: tab group onto window stays one sibling",
         "pass": true
       },
@@ -131,8 +151,13 @@
         "pass": true
       },
       {
-        "changed": true,
-        "name": "Pick: floating tiles onto ws-2",
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-1",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-2",
         "pass": true
       },
       {
@@ -158,11 +183,6 @@
       {
         "changed": true,
         "name": "Pick: floating tiles onto w237",
-        "pass": true
-      },
-      {
-        "changed": true,
-        "name": "Pick: floating tiles onto ws-1",
         "pass": true
       },
       {
@@ -245,7 +265,7 @@
     "pass": true
   },
   {
-    "name": "flat: tabs grouped, floats grouped, no split or Column levels or window tags",
+    "name": "flat: tabs grouped, floating windows flat and marked, no split, floating or Column levels or window tags",
     "pass": true
   },
   {
@@ -301,6 +321,10 @@
     "pass": true
   },
   {
+    "name": "the Splits toggle also reveals the floating group, on its workspace only",
+    "pass": true
+  },
+  {
     "name": "a tab group on a floating group floats its leaf windows",
     "pass": true
   },
@@ -309,7 +333,7 @@
     "pass": true
   },
   {
-    "name": "same-workspace row is accepted",
+    "name": "same-workspace row is accepted and changes nothing",
     "pass": true
   },
   {
@@ -337,10 +361,10 @@
     "metrics": {
       "byDepth": {
         "0": 307,
-        "1": 279,
-        "2": 286
+        "1": 284,
+        "2": 257
       },
-      "height": 625,
+      "height": 577,
       "needed": 307
     }
   },

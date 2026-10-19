@@ -45,6 +45,27 @@
     {
       "changed": true,
       "error": "assertion failed",
+      "name": "Pick: same-workspace row drop changes nothing",
+      "pass": false
+    },
+    {
+      "changed": false,
+      "name": "Pick: an emptied root split takes the next drop at full size",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: a drop on one workspace keeps another workspace's root split",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: emptying a root split to one child keeps the root and its orientation",
+      "pass": true
+    },
+    {
+      "changed": true,
+      "error": "assertion failed",
       "name": "Pick: tab group onto window stays one sibling",
       "pass": false
     },
@@ -55,10 +76,14 @@
       "pass": false
     },
     {
-      "changed": true,
-      "error": "assertion failed",
-      "name": "Pick: floating tiles onto ws-2",
-      "pass": false
+      "changed": false,
+      "name": "Pick: floating stays floating on workspace row ws-1",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: floating stays floating on workspace row ws-2",
+      "pass": true
     },
     {
       "changed": true,
@@ -93,12 +118,6 @@
     {
       "changed": true,
       "error": "assertion failed",
-      "name": "Pick: floating tiles onto ws-1",
-      "pass": false
-    },
-    {
-      "changed": true,
-      "error": "assertion failed",
       "name": "Pick: floating remains floating on floating window",
       "pass": false
     },
@@ -122,22 +141,22 @@
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation tabgroup-231 → tabgroup-231",
+      "name": "Pick: refusal without mutation tabgroup-231 \u2192 tabgroup-231",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation tabgroup-231 → w237",
+      "name": "Pick: refusal without mutation tabgroup-231 \u2192 w237",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation col-2-1 → ws-4",
+      "name": "Pick: refusal without mutation col-2-1 \u2192 ws-4",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation ws-1 → ws-4",
+      "name": "Pick: refusal without mutation ws-1 \u2192 ws-4",
       "pass": true
     },
     {
@@ -204,6 +223,26 @@
     },
     {
       "changed": true,
+      "name": "Pick: same-workspace row drop changes nothing",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: an emptied root split takes the next drop at full size",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: a drop on one workspace keeps another workspace's root split",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: emptying a root split to one child keeps the root and its orientation",
+      "pass": true
+    },
+    {
+      "changed": true,
       "name": "Pick: tab group onto window stays one sibling",
       "pass": true
     },
@@ -213,8 +252,13 @@
       "pass": true
     },
     {
-      "changed": true,
-      "name": "Pick: floating tiles onto ws-2",
+      "changed": false,
+      "name": "Pick: floating stays floating on workspace row ws-1",
+      "pass": true
+    },
+    {
+      "changed": false,
+      "name": "Pick: floating stays floating on workspace row ws-2",
       "pass": true
     },
     {
@@ -244,11 +288,6 @@
     },
     {
       "changed": true,
-      "name": "Pick: floating tiles onto ws-1",
-      "pass": true
-    },
-    {
-      "changed": true,
       "name": "Pick: floating remains floating on floating window",
       "pass": true
     },
@@ -269,22 +308,22 @@
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation tabgroup-231 → tabgroup-231",
+      "name": "Pick: refusal without mutation tabgroup-231 \u2192 tabgroup-231",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation tabgroup-231 → w237",
+      "name": "Pick: refusal without mutation tabgroup-231 \u2192 w237",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation col-2-1 → ws-4",
+      "name": "Pick: refusal without mutation col-2-1 \u2192 ws-4",
       "pass": true
     },
     {
       "changed": false,
-      "name": "Pick: refusal without mutation ws-1 → ws-4",
+      "name": "Pick: refusal without mutation ws-1 \u2192 ws-4",
       "pass": true
     },
     {

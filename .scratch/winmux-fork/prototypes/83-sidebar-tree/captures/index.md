@@ -30,7 +30,9 @@ Each named still has a matching `.txt` accessibility readback where relevant. Dr
 | `columns-only-after-sibling.png` | Only workspace 2 reveals Column rows; the split remains flattened |
 | `both-after-sibling.png` | Workspace 2 → Column 1 → vertical split → Notes/Ghostty. Other workspaces retain their defaults |
 | `config-both.png`, `config-reloaded-hover.png` | Both defaults set every workspace and survive a reload; hover reveals the restored starting state |
-| `selftest-top.png`, `selftest-pick.png`, `selftest-50.txt` | All 50 fixture rows pass in Safari |
+| `selftest-top.png`, `selftest-pick.png`, `selftest-50.txt` | All 50 fixture rows passed in Safari before the review's fixes; the page now has 54, checked headless |
+| `flat-after-search.png` | The empty query after the searches: fourteen windows |
+| `refuse-workspace-drag-from-number.png` | A drag that starts on a workspace number is refused |
 | `final-flat.png` | Defaults restored to false and the original fixture restored |
 
 The pick's two states measure **307 points** in Safari and Chromium: flat tree height 625, both-level height 817 in Chromium. The retained rail is included. Default width is 320. Headless assertions verify no title clips at the measured threshold and that clipping starts two points below it.
@@ -41,14 +43,14 @@ Every search below ran on the restored fixture. Counts are read from the page's 
 
 | Query | Count | Match positions in the pick | Evidence |
 | --- | ---: | --- | --- |
-| Empty | 14 | Workspaces 1/2/3/4 contain 4/5/3/2 windows, including Updater and Calculator | `final-flat.png/.txt` |
+| Empty | 14 | Workspaces 1/2/3/4 contain 4/5/3/2 windows, including Updater and Calculator | `flat-after-search.png/.txt` |
 | `Safari` | 3 | Workspace 2 → actual Column 2 → Safari tabs; match rows 1–3 are Lenses and Search, Fixed Columns, Subscription events. With levels off these are outline rows 3–5, below workspace and Tabs · 3, depth 2 | `search-Safari.png/.txt` |
 | `Grievances` | 1 | Workspace 3 → actual Column 1 → TextEdit tabs → Grievances.rtf; first matching window, outline row 3, depth 2 | `search-Grievances.png/.txt` |
 | `qzxnomatch` | 0 | No workspace or window rows | `search-qzxnomatch.png/.txt` |
 
-Headless checks separately confirm exact matching window IDs, disclosure restoration after clearing, independent toggles, each config default and reload, all reference-image states and no JavaScript errors. [pick-results.json](pick-results.json) contains 29 browser assertions and all 50 fixture rows. [browser-results.json](browser-results.json) contains the 43 original A/B/C assertions, rerun with the final pick.
+Headless checks separately confirm exact matching window IDs, disclosure restoration after clearing, independent toggles, each config default and reload, all reference-image states and no JavaScript errors. [pick-results.json](pick-results.json) contains 30 browser assertions and all 54 fixture rows. [browser-results.json](browser-results.json) contains the 43 original A/B/C assertions, rerun with the final pick.
 
-[rule-reversion.json](rule-reversion.json) pairs old and restored results. The builder physically disabled the pick's drag-decision branch, restoring first-pass decisions: all **20 changed-rule rows failed**, while 9 unchanged pick rows passed. Restoring the branch made all 29 pick rows pass. This is a combined old-rule reversion, not a claim of 20 separate selective mutations.
+[rule-reversion.json](rule-reversion.json) pairs old and restored results. With the pick's drag-decision branch disabled, restoring first-pass decisions, the **19 changed-rule rows fail** and the 14 unchanged rows pass; restored, all 33 pick rows pass. This is one combined old-rule reversion, not 19 separate selective mutations.
 
 ## Live browser trees
 

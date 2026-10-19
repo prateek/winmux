@@ -48,8 +48,8 @@ function relevant(n){return !query||leaves(n).some(match);}
 function label(n){return n.kind==='workspace'?'Workspace '+n.name:n.kind==='column'?'Column '+n.index:n.kind==='tabs'?'Tabs · '+children(n).length:n.kind==='split'?(n.orientation==='horizontal'?'Horizontal':'Vertical')+' '+n.layout:n.kind==='floating'?'Floating':n.title;}
 function icon(w){return '<img src="img/icon-'+esc(w.app.toLowerCase())+'.png" alt="'+esc(w.app)+'">';}
 function representative(n){if(n.kind==='window')return n;return leaves(n).find(w=>w.focused)||leaves(n).find(w=>w.id===(n.rememberedFocus||n.active))||leaves(n)[0];}
-// Native columnPlacementSlot(excluding:): the source's own windows do not occupy a Column, so a same-workspace drop leaves it where it is.
-function columnFor(ws,source){const cols=ws.children.filter(n=>n.kind==='column'),anchor=ws.focusedColumn||1;const empty=cols.filter(c=>leaves(c).every(w=>has(source,w.id))).sort((a,b)=>Math.abs(a.index-anchor)-Math.abs(b.index-anchor)||a.index-b.index);return empty[0]||cols.find(c=>c.index===anchor)||cols[0];}
+// enforceColumnInvariant / columnPlacementSlot for a node arriving from another workspace.
+function columnFor(ws){const cols=ws.children.filter(n=>n.kind==='column'),anchor=ws.focusedColumn||1;const empty=cols.filter(c=>!leaves(c).length).sort((a,b)=>Math.abs(a.index-anchor)-Math.abs(b.index-anchor)||a.index-b.index);return empty[0]||cols.find(c=>c.index===anchor)||cols[0];}
 function operation(sourceId,targetId,at=null,data=desk,pick=false){
  const map=index(data),s=map.get(sourceId),t=map.get(targetId);
  const refuse=reason=>({ok:false,reason});
@@ -58,16 +58,18 @@ function operation(sourceId,targetId,at=null,data=desk,pick=false){
  if(!['window','tabs','split'].includes(a.kind))return refuse(a.kind==='column'?'Columns are fixed by config.':'Workspaces and floating sections are fixed.');
  if(has(a,b.id))return refuse('A node cannot be dropped onto itself or its descendant.');
  if(pick){
-  if(b.kind==='window')return {ok:true,op:'bind at sibling index',target:t.parent.id,at:t.parent.children.indexOf(b)+(at===1?1:0),sibling:b.id,wrap:t.parent.kind==='column',floating:t.parent.kind==='floating',directFloating:true,asLeaves:t.parent.kind==='tabs'};
+  if(b.kind==='window')return {ok:true,op:'bind at sibling index',target:t.parent.id,at:t.parent.children.indexOf(b)+(at===1?1:0),sibling:b.id,wrap:t.parent.kind==='column',floating:t.parent.kind==='floating',directFloating:true};
   if(b.kind==='floating')return {ok:true,op:'layout floating; bind',target:b.id,floating:true,directFloating:true};
   if(b.kind==='workspace'){
+   // A node already on this workspace stays where it is: native rebinding keeps its slot, and the native sidebar offers no same-workspace drop at all.
+   if(s.ws===b)return {ok:true,op:'none: already on this workspace',target:b.id,noop:true};
    // applySidebarWorkspaceMove keeps a floating window floating on the workspace it lands on.
    if(a.kind==='window'&&a.floating)return {ok:true,op:'move-node-to-workspace',target:b.id,floating:true};
-   if(b.columns)return {ok:true,op:'move-node-to-workspace',target:columnFor(b,a).id,column:true};
+   if(b.columns)return {ok:true,op:'move-node-to-workspace',target:columnFor(b).id,column:true};
    return {ok:true,op:'move-node-to-workspace',target:b.id};
   }
   if(b.kind==='column')return {ok:true,op:'move-node-to-column',target:b.id,column:true};
-  if(b.kind==='tabs')return {ok:true,op:'join (tab-group binding)',target:b.id,asLeaves:true};
+  if(b.kind==='tabs')return {ok:true,op:'join (tab-group binding)',target:b.id};
   if(b.kind==='split')return {ok:true,op:'bind at sibling index',target:b.id,at:at??children(b).length};
  }
  if(b.kind==='window')return refuse('A window has no children. Use an insertion line in its split.');
@@ -79,7 +81,7 @@ function operation(sourceId,targetId,at=null,data=desk,pick=false){
  if(b.kind==='workspace'){
    if(s.ws===b)return refuse('Already on this workspace.');
    if(a.kind==='window'&&a.floating)return {ok:true,op:'move-node-to-workspace',target:b.id,floating:true};
-   if(b.columns)return {ok:true,op:'move-node-to-workspace',target:columnFor(b,a).id,column:true};
+   if(b.columns)return {ok:true,op:'move-node-to-workspace',target:columnFor(b).id,column:true};
    return {ok:true,op:'move-node-to-workspace',target:b.id};
  }
  if(b.kind==='column')return {ok:true,op:'move-node-to-column',target:b.id,column:true};
@@ -88,11 +90,11 @@ function operation(sourceId,targetId,at=null,data=desk,pick=false){
  return refuse('This is not a layout parent.');
 }
 function tidy(data){
- function clean(n,root=false){if(n.kind==='window')return n;n.children=n.children.map(c=>clean(c)).filter(Boolean);if(root&&n.kind==='split')return n;if(['tabs','split'].includes(n.kind)&&!n.children.length)return null;if(['tabs','split'].includes(n.kind)&&n.children.length===1)return n.children[0];if(n.kind==='floating'&&!n.children.length)return null;if(n.kind==='tabs'&&!has(n,n.active))n.active=representative(n)?.id;return n;}
- data.workspaces.forEach(ws=>{ws.children=ws.children.map(c=>clean(c,!ws.columns&&c.kind==='split')).filter(Boolean);});
+ function clean(n,root=false){if(n.kind==='window')return n;n.children=n.children.map(c=>clean(c)).filter(Boolean);if(root)return n;if(['tabs','split'].includes(n.kind)&&!n.children.length)return null;if(['tabs','split'].includes(n.kind)&&n.children.length===1)return n.children[0];if(n.kind==='floating'&&!n.children.length)return null;if(n.kind==='tabs'&&!has(n,n.active))n.active=representative(n)?.id;return n;}
+ data.workspaces.forEach(ws=>{ws.children=ws.children.map(c=>clean(c,!ws.columns&&c.kind!=='floating')).filter(Boolean);});
 }
 function applyDrop(sourceId,targetId,at=null,data=desk,pick=false){
- const decision=operation(sourceId,targetId,at,data,pick);if(!decision.ok)return decision;
+ const decision=operation(sourceId,targetId,at,data,pick);if(!decision.ok||decision.noop)return decision;
  const before=index(data),entry=before.get(sourceId),source=entry.node,parent=entry.parent;
  let target=before.get(decision.target).node;
  let insertion=decision.at;if(target===parent&&insertion!==undefined&&parent.children.indexOf(source)<insertion)insertion--;
@@ -111,9 +113,8 @@ function applyDrop(sourceId,targetId,at=null,data=desk,pick=false){
  }else if(target.kind==='workspace'){
    let root=target.children.find(n=>n.kind!=='floating');
    if(!root)target.children.unshift(source);
-   else if(root.kind==='split'){source.size=root.children.reduce((sum,n)=>sum+(n.size||1),0)/root.children.length;root.children.push(source);}
+   else if(root.kind==='split'){source.size=root.children.length?root.children.reduce((sum,n)=>sum+(n.size||1),0)/root.children.length:1;root.children.push(source);}
    else target.children[target.children.indexOf(root)]={id:'split-'+(++serial),kind:'split',layout:'tiles',orientation:'horizontal',children:[root,source]};
- }else if(decision.asLeaves){const incoming=leaves(source);target.children.splice(insertion??target.children.length,0,...incoming);target.active=incoming[0].id;
  }else {if(target.kind==='split'&&target!==parent)source.size=target.children.length?target.children.reduce((sum,n)=>sum+(n.size||1),0)/target.children.length:1;target.children.splice(insertion??target.children.length,0,source);}
  tidy(data);
  const focused=data.workspaces.flatMap(leaves).find(w=>w.focused);
@@ -182,7 +183,7 @@ function setupStage(stage,v,key){
  const dropIndex=(e,target)=>v==='P'&&target.classList.contains('window')?(e.clientY<target.getBoundingClientRect().top+target.getBoundingClientRect().height/2?0:1):target.hasAttribute('data-at')?+target.dataset.at:null;
  side.ondragover=e=>{const target=e.target.closest('[data-target]');if(!target||!dragId)return;e.preventDefault();side.querySelectorAll('.over,.refused,.before,.after').forEach(el=>el.classList.remove('over','refused','before','after'));const at=dropIndex(e,target),d=operation(dragId,target.dataset.target,at,desk,v==='P');target.classList.add(d.ok?'over':'refused');if(d.ok&&d.sibling)target.classList.add(at===0?'before':'after');target.title=d.ok?d.op:d.reason;e.dataTransfer.dropEffect=d.ok?'move':'none';$('status').textContent=d.ok?d.op+' → '+label(index().get(d.target).node):'Refused: '+d.reason;};
  side.ondragenter=side.ondragover;
- side.ondrop=e=>{const target=e.target.closest('[data-target]');if(!target)return;e.preventDefault();const source=dragId||e.dataTransfer.getData('text/plain');const d=applyDrop(source,target.dataset.target,dropIndex(e,target),desk,v==='P');dragId=null;$('status').textContent=d.ok?'Applied: '+d.op+'. The tree, rail and miniature now share the changed desk.':'Refused: '+d.reason;render();};
+ side.ondrop=e=>{const target=e.target.closest('[data-target]');if(!target)return;e.preventDefault();const source=dragId||e.dataTransfer.getData('text/plain');const d=applyDrop(source,target.dataset.target,dropIndex(e,target),desk,v==='P');dragId=null;$('status').textContent=d.ok?(d.noop?'Already on this workspace: nothing changes.':'Applied: '+d.op+'. The tree, rail and miniature now share the changed desk.'):'Refused: '+d.reason;render();};
  side.querySelectorAll('.row[draggable=false]').forEach(row=>{const reason='Fixed: '+label(index().get(row.dataset.target).node)+'. Layout drags move windows, tab groups or splits.';if(v==='P')row.title=reason;row.addEventListener('pointerdown',()=>{$('status').textContent=reason;});});
 }
 function widthMetrics(v){
@@ -221,19 +222,17 @@ function pickTests(){
  test('same-parent before/after adjusts source removal',()=>{const d=fresh();return move(d,'w214','w222',1).ok&&index(d).get('w222').parent.children.map(n=>n.id).join(',')==='w222,w214';});
  for(const [at,expected] of [[0,'w231,w214,w237,w238'],[1,'w231,w237,w214,w238']])test('tab index '+at,()=>{const d=fresh();return move(d,'w214','w237',at).ok&&order(d,'tabgroup-231')===expected;});
  for(const at of [0,1])test('direct Column child sibling '+at+' forms vertical split',()=>{const d=fresh();move(d,'w214','w239',at);const p=index(d).get('w239').parent;return p.kind==='split'&&p.orientation==='vertical'&&p.children.map(n=>n.id).join(',')===(at?'w239,w214':'w214,w239')&&index(d).get('w214').col.id==='col-2-1';});
- test('same-workspace drop leaves a lone Column window in its Column',()=>{const d=fresh();return move(d,'w249','ws-2').ok&&index(d).get('w249').col.id==='col-2-3'&&order(d,'col-2-1')==='w239';});
- test('same-workspace drop leaves a tab group whole in its Column',()=>{const d=fresh();return move(d,'tabgroup-231','ws-2').ok&&index(d).get('tabgroup-231').col.id==='col-2-2'&&order(d,'tabgroup-231')==='w231,w237,w238';});
- test('a drop on one workspace keeps another workspace\'s root split',()=>{const d=fresh();move(d,'w214','ws-1');return index(d).has('root-4')&&index(d).get('w265').parent.id==='root-4';});
- test('emptying a root split to one child keeps the root and its orientation',()=>{const d=fresh();move(d,'w204','ws-4');return index(d).has('root-1')&&index(d).get('root-1').node.orientation==='horizontal';});
- test('a tab group dropped on a tab group joins as its windows',()=>{const d=fresh();return move(d,'tabgroup-250','tabgroup-231').ok&&!index(d).has('tabgroup-250')&&order(d,'tabgroup-231')==='w231,w237,w238,w250,w251';});
- test('a tab group dropped on a tab joins as its windows at that index',()=>{const d=fresh();return move(d,'tabgroup-250','w237',0).ok&&!index(d).has('tabgroup-250')&&order(d,'tabgroup-231')==='w231,w250,w251,w237,w238';});
+ test('same-workspace row drop changes nothing',()=>{const d=fresh();for(const [s,t] of [['w249','ws-2'],['w231','ws-2'],['w214','ws-1']])if(!move(d,s,t).ok)return false;return JSON.stringify(d)===JSON.stringify(fixture);});
+ test('an emptied root split takes the next drop at full size',()=>{const d=fresh();move(d,'w265','ws-1');const r=move(d,'w214','ws-4');return r.ok&&index(d).get('w214').parent.id==='root-4'&&index(d).get('w214').node.size===1;},false);
+ test('a drop on one workspace keeps another workspace\'s root split',()=>{const d=fresh();move(d,'w214','ws-3');return index(d).has('root-4')&&index(d).get('w265').parent.id==='root-4';},false);
+ test('emptying a root split to one child keeps the root and its orientation',()=>{const d=fresh();move(d,'w204','ws-4');return index(d).has('root-1')&&index(d).get('root-1').node.orientation==='horizontal';},false);
  test('tab group onto window stays one sibling',()=>{const d=fresh();return move(d,'tabgroup-231','w214',0).ok&&order(d,'root-1-1')==='tabgroup-231,w214,w222';});
  test('same workspace row accepted',()=>{const d=fresh();return move(d,'w214','ws-1').ok;});
- for(const target of ['ws-1','ws-2'])test('floating stays floating on workspace row '+target,()=>{const d=fresh();const r=move(d,'w266',target);const e=index(d).get('w266');return r.ok&&e.node.floating&&e.parent.kind==='floating'&&e.ws.id===target;});
+ for(const target of ['ws-1','ws-2'])test('floating stays floating on workspace row '+target,()=>{const d=fresh();const r=move(d,'w266',target);const e=index(d).get('w266');return r.ok&&e.node.floating&&e.parent.kind==='floating'&&e.ws.id===target;},false);
  for(const target of ['col-2-1','tabgroup-231','root-1-1','w214','w237'])test('floating tiles onto '+target,()=>{const d=fresh();const r=move(d,'w266',target);return r.ok&&!index(d).get('w266').node.floating&&index(d).get('w266').parent.kind!=='floating';});
  test('floating remains floating on floating window',()=>{const d=fresh();return move(d,'w266','w287',0).ok&&order(d,'float-1')==='w266,w287'&&index(d).get('w266').node.floating;});
  test('floating group accepts and floats tiled source',()=>{const d=fresh();return move(d,'w214','float-4').ok&&index(d).get('w214').node.floating;});
- test('sole workspace window still gets a pointed sibling after cleanup',()=>{const d=fresh();move(d,'w214','ws-1');return move(d,'w239','w265',0).ok&&index(d).get('w265').parent.kind==='split'&&index(d).get('w265').parent.children.map(n=>n.id).join(',')==='w239,w265';});
+ test('sole workspace window still gets a pointed sibling after cleanup',()=>{const d=fresh();move(d,'w214','ws-3');return move(d,'w239','w265',0).ok&&index(d).get('w265').parent.kind==='split'&&index(d).get('w265').parent.children.map(n=>n.id).join(',')==='w239,w265';});
  test('tab group floats as leaf windows on floating target',()=>{const d=fresh();return move(d,'tabgroup-231','float-4').ok&&!index(d).has('tabgroup-231')&&index(d).get('float-4').node.children.map(n=>n.id).join(',')==='w266,w231,w237,w238'&&['w231','w237','w238'].every(id=>index(d).get(id).node.floating);});
  for(const [s,t] of [['tabgroup-231','tabgroup-231'],['tabgroup-231','w237'],['col-2-1','ws-4'],['ws-1','ws-4']])test('refusal without mutation '+s+' → '+t,()=>{const d=fresh(),before=JSON.stringify(d);return !move(d,s,t).ok&&JSON.stringify(d)===before;},false);
  for(const target of ['ws-4','ws-2','col-2-1','tabgroup-231','root-1-1'])test('unchanged parent rule '+target,()=>{const d=fresh(),r=move(d,'w214',target),location=index(d).get('w214');if(!r.ok||d.workspaces.flatMap(leaves).length!==14)return false;if(target==='ws-4')return location.ws.id==='ws-4';if(target==='ws-2'){const empty=fresh();move(empty,'tabgroup-231','ws-4');move(empty,'w214','ws-2');return location.col.id==='col-2-1'&&location.parent.kind==='tabs'&&index(empty).get('w214').col.id==='col-2-2';}if(target==='col-2-1')return location.col.id===target&&location.parent.kind==='tabs';if(target==='tabgroup-231')return order(d,target)==='w231,w237,w238,w214';return order(d,target)==='w222,w214';},false);

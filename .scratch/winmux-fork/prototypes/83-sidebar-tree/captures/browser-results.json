@@ -126,6 +126,26 @@
       },
       {
         "changed": true,
+        "name": "Pick: same-workspace row drop changes nothing",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: an emptied root split takes the next drop at full size",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: a drop on one workspace keeps another workspace's root split",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: emptying a root split to one child keeps the root and its orientation",
+        "pass": true
+      },
+      {
+        "changed": true,
         "name": "Pick: tab group onto window stays one sibling",
         "pass": true
       },
@@ -135,8 +155,13 @@
         "pass": true
       },
       {
-        "changed": true,
-        "name": "Pick: floating tiles onto ws-2",
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-1",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-2",
         "pass": true
       },
       {
@@ -162,11 +187,6 @@
       {
         "changed": true,
         "name": "Pick: floating tiles onto w237",
-        "pass": true
-      },
-      {
-        "changed": true,
-        "name": "Pick: floating tiles onto ws-1",
         "pass": true
       },
       {
