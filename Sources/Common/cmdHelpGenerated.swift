@@ -226,7 +226,8 @@ let place_help_generated = "USAGE: place [-h|--help] --dry-run --window-id <id> 
 public let debug_hooks_help_generated = """
 USAGE: debug-hooks [-h|--help] [on|off|status] [--json]
 
-Capture Policy hook calls in hook-capture.jsonl in WinMux's state directory.
+Capture Policy hook calls in hook-capture.jsonl in WinMux's state directory
+(hook-capture-debug.jsonl for a debug build).
 With no subcommand, print status. Capture is off at startup.
 On starts a fresh capture, or extends an active capture, for 15 minutes.
 Off prints the path and record count. Status also reports any write error.

@@ -11,14 +11,15 @@ struct DebugHooksCommand: Command {
             case .on:
                 do { try store.start() }
                 catch {
-                    if args.json, let json = JSONEncoder.winMuxDefault.encodeToString(store.status()) { io.out(json) }
-                    return io.err(store.status().error.stringOrNil ?? error.localizedDescription)
+                    let status = store.status()
+                    if args.json { io.out(String(decoding: try JSONEncoder.winMuxDefault.encode(status), as: UTF8.self)) }
+                    return io.err(status.error.stringOrNil ?? error.localizedDescription)
                 }
             case .off: store.stop()
             case .status: break
         }
         let status = store.status()
-        if args.json { return io.out(JSONEncoder.winMuxDefault.encodeToString(status) ?? "null") }
+        if args.json { return io.out(String(decoding: try JSONEncoder.winMuxDefault.encode(status), as: UTF8.self)) }
         let state = status.capturing ? "on" : "off"
         let prefix = if let stopped = store.stoppedItselfAt, !status.capturing {
             "Hook capture stopped itself at \(HookCaptureStore.timestamp(stopped))."

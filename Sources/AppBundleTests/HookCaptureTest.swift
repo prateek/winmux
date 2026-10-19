@@ -81,12 +81,9 @@ final class HookCaptureTest: XCTestCase {
             XCTAssertEqual(record["time"], .string("2023-11-14T22:13:20.000Z"))
             XCTAssertNotNil(record["arguments-ms"])
             XCTAssertNotNil(record["duration-ms"])
-            let eventData = try JSONEncoder().encode(XCTUnwrap(events.last))
-            let event = try JSONDecoder().decode(JSONValue.self, from: eventData)
-            XCTAssertEqual(event["_event"], .string("hook-called"))
-            for key in ["time", "hook", "kind", "window-id", "args", "result", "error", "arguments-ms", "duration-ms"] {
-                XCTAssertEqual(event[key], record[key], key)
-            }
+            let event = try String(decoding: subscriptionEncoder.encode(XCTUnwrap(events.last)), as: UTF8.self)
+            let line = try XCTUnwrap(String(contentsOf: store.path, encoding: .utf8).split(separator: "\n").last)
+            XCTAssertEqual(event, line.replacingOccurrences(of: "{", with: "{\"_event\":\"hook-called\",", options: [], range: line.startIndex..<line.index(after: line.startIndex)))
         }
         XCTAssertEqual(store.status().records, 3)
     }
@@ -292,5 +289,17 @@ final class HookCaptureTest: XCTestCase {
         _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
         let again = try await parseCommand("debug-hooks off").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertFalse(again.stdout.joined().contains("stopped itself"))
+    }
+
+    func testAFailedOnAfterTheDeadlineDoesNotBlameTheDeadline() async throws {
+        _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        now.addTimeInterval(901)
+        XCTAssertFalse(store.status().capturing)
+        try FileManager.default.removeItem(at: directory)
+        try Data().write(to: directory)
+        _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let status = try await parseCommand("debug-hooks").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertFalse(status.stdout.joined().contains("stopped itself"), status.stdout.joined())
+        XCTAssertTrue(status.stdout.joined().contains("Error:"), status.stdout.joined())
     }
 }

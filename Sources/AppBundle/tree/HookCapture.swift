@@ -61,17 +61,11 @@ final class HookCaptureStore {
         return formatter
     }()
 
-    /// The file's records and the `hook-called` event are encoded alike, so a line and its event match byte for byte apart from `_event`.
-    static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
-        return encoder
-    }()
-
     static func timestamp(_ date: Date) -> String { formatter.string(from: date) }
 
     func start() throws {
         let extending = isCapturing()
+        stoppedItselfAt = nil
         do {
             // Extending keeps the records; a file removed meanwhile is created again, empty.
             if !extending || !FileManager.default.fileExists(atPath: path.path) {
@@ -89,7 +83,6 @@ final class HookCaptureStore {
             error = nil
             generation = UUID()
         }
-        stoppedItselfAt = nil
         until = now().addingTimeInterval(15 * 60)
     }
 
@@ -119,7 +112,7 @@ final class HookCaptureStore {
     func append(_ record: HookCaptureRecord, call: Call) {
         guard isCapturing(), call.generation == generation else { return }
         do {
-            var data = try Self.encoder.encode(record)
+            var data = try subscriptionEncoder.encode(record)
             data.append(0x0a)
             let file = try FileHandle(forWritingTo: path)
             defer { try? file.close() }

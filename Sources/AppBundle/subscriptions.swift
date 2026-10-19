@@ -32,7 +32,7 @@ func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: Subscri
                     )
                 case .windowDetected, .bindingTriggered, .configReloaded, .lensOpened, .lensClosed, .columnsChanged, .hookCalled: continue
             }
-            if await connection.writeAtomic(event, jsonEncoder).error != nil {
+            if await connection.writeAtomic(event, subscriptionEncoder).error != nil {
                 return
             }
         }
@@ -42,7 +42,8 @@ func handleSubscribeAndWaitTillError(_ connection: NWConnection, _ args: Subscri
     await connection.readTillError()
 }
 
-private let jsonEncoder: JSONEncoder = {
+/// Also encodes hook capture's file records, so a line and its `hook-called` event match apart from `_event`.
+let subscriptionEncoder: JSONEncoder = {
     let e = JSONEncoder()
     e.outputFormatting = [.withoutEscapingSlashes, .sortedKeys]
     return e
@@ -52,7 +53,7 @@ func broadcastEvent(_ event: ServerEvent) {
     Task { @MainActor in
         for (id, subscriber) in subscribers {
             guard subscriber.events.contains(event.eventType) else { continue }
-            if await subscriber.connection.writeAtomic(event, jsonEncoder).error != nil {
+            if await subscriber.connection.writeAtomic(event, subscriptionEncoder).error != nil {
                 _ = subscribers.removeValue(forKey: id)
             }
         }
