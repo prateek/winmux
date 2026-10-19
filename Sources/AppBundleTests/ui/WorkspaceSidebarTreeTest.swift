@@ -1092,4 +1092,55 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         XCTAssertEqual(left.getWeight(.h), 225, accuracy: 0.001, "The pair's half of the stack's 600 keeps its 3:1 split")
         XCTAssertEqual(right.getWeight(.h), 75, accuracy: 0.001)
     }
+
+    @MainActor
+    func testSplitIsChosenAfterTheSourcesOwnSplitIsNormalizedAway() async throws {
+        for position: WindowDropZone in [.left, .right, .top, .bottom] {
+            setUpWorkspacesForTests()
+            config.enableNormalizationFlattenContainers = true
+            config.enableNormalizationOppositeOrientationForNestedContainers = true
+            let workspace = Workspace.get(byName: "1")
+            let root = workspace.rootTilingContainer
+            root.changeOrientation(.h)
+            let outer = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+            let source = TestWindow.new(id: 601, parent: outer)
+            let inner = TilingContainer(parent: outer, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 1)
+            let target = TestWindow.new(id: 602, parent: inner)
+            _ = TestWindow.new(id: 603, parent: inner)
+            _ = TestWindow.new(id: 604, parent: root)
+            workspace.normalizeContainers()
+            try await checkDrop(source, .windowZone(602, zone: position))
+            workspace.normalizeContainers()
+            let pair = try XCTUnwrap(source.parent as? TilingContainer)
+            XCTAssertTrue(target.parent === pair, "\(position)")
+            XCTAssertEqual(pair.orientation, position.stackSplitPosition.orDie().orientation, "\(position): the split is the one the zone named")
+            let order = pair.children.compactMap { ($0 as? Window)?.windowId }.filter { [601, 602].contains($0) }
+            XCTAssertEqual(order, position == .left || position == .top ? [601, 602] : [602, 601], "\(position)")
+        }
+    }
+
+    @MainActor
+    func testWindowsOfASplitThatIsATabTakeOnlySwap() {
+        setUpWorkspacesForTests()
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let tabs = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .v, .tabGroup, index: 0)
+        let split = TilingContainer(parent: tabs, adaptiveWeight: WEIGHT_AUTO, .h, .tiles, index: 0)
+        let first = TestWindow.new(id: 601, parent: split)
+        let target = TestWindow.new(id: 602, parent: split)
+        _ = TestWindow.new(id: 604, parent: tabs)
+        let outside = TestWindow.new(id: 605, parent: root)
+        XCTAssertEqual(workspaceSidebarOfferedZones(source: outside, target: target), [.middle])
+        XCTAssertEqual(workspaceSidebarOfferedZones(source: first, target: target), [.middle])
+    }
+
+    @MainActor
+    func testARefusedZoneSkipsTheFloatingSizeRead() async throws {
+        setUpWorkspacesForTests()
+        let workspace = Workspace.get(byName: "1")
+        let source = TestWindow.new(id: 601, parent: workspace, rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 240))
+        _ = TestWindow.new(id: 602, parent: workspace.rootTilingContainer)
+        source.lastFloatingSize = CGSize(width: 100, height: 100)
+        try await checkDrop(source, .windowZone(602, zone: .middle), accepted: false)
+        XCTAssertEqual(source.lastFloatingSize, CGSize(width: 100, height: 100), "A zone the source is not offered is refused before the AX read")
+    }
 }

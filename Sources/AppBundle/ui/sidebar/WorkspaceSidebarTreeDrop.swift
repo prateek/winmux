@@ -147,39 +147,42 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
 func workspaceSidebarOfferedZones(source: TreeNode, target: Window) -> [WindowDropZone] {
     guard let parent = target.parent as? TilingContainer else { return [] }
     let windowSource = source as? Window
+    // A floating source is tiled by the drop; a source in a macOS container (minimized, hidden, fullscreen) is not arranged.
+    guard source.parent is TilingContainer || windowSource?.isFloating == true else { return [] }
     if parent.layout == .tabGroup, source.parent === parent { return [] }
     let tab: [WindowDropZone] = windowSource != nil && config.windowTabs.enabled ? [.tab] : []
-    // Swapping with a source outside the tiling tree would move the pointed window out of it: a floating source is tiled, and nothing else.
+    // Swapping with a floating source would float the pointed window.
     let swap: [WindowDropZone] = source.parent is TilingContainer ? [.middle] : []
     if parent.layout == .tabGroup { return windowSource != nil ? tab + swap : [] }
+    // A split that is itself a tab cannot hold a split of its group's orientation once normalized, so its windows take
+    // only a swap, like tabs, and stay out of nested containers in tab groups.
+    if (parent.parent as? TilingContainer)?.layout == .tabGroup { return windowSource != nil ? swap : [] }
     return tab + [.left, .right, .top, .bottom] + swap
 }
 
 @MainActor
 private func workspaceSidebarSplit(source: TreeNode, target: Window, position: WindowStackSplitPosition) -> Bool {
-    func takesSibling(_ parent: TilingContainer) -> Bool {
-        parent.layout == .tiles && parent.orientation == position.orientation &&
-            !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
-    }
     guard target.parent is TilingContainer else { return false }
-    let sharedParent = source.parent === target.parent
+    let sourceWorkspace = source.nodeWorkspace
     source.unbindFromParent()
-    // A split the source leaves with only the pointed window is flattened by normalization, which would then flip a
-    // new split's orientation to differ from the split's parent: split beside that one-window split instead.
-    var anchor: TreeNode = target
-    if sharedParent, let lone = target.parent as? TilingContainer, lone.children.count == 1, !lone.isRootContainer, !takesSibling(lone) { anchor = lone }
-    guard let parent = anchor.parent as? TilingContainer else { return false }
-    let binding = anchor.unbindFromParent()
-    let matching = takesSibling(parent)
+    // Choose the split against the tree normalization leaves once the source is gone. A split the source leaves with
+    // one child is flattened into its parent, and a split chosen before that would be turned by normalization to run
+    // across its new parent, against the zone.
+    sourceWorkspace?.normalizeContainers()
+    // Normalization keeps a tiled window tiled.
+    let parent = (target.parent as? TilingContainer).orDie()
+    let binding = target.unbindFromParent()
+    let matching = parent.layout == .tiles && parent.orientation == position.orientation &&
+        !(parent.isRootContainer && parent.nodeWorkspace?.columns != nil)
     let container = matching ? parent : TilingContainer(replacing: binding, position.orientation, .tiles)
     let index = matching ? binding.index : 0
     let weight = matching ? binding.adaptiveWeight / 2 : WEIGHT_AUTO
     if position.isPositive {
-        anchor.bind(to: container, adaptiveWeight: weight, index: index)
+        target.bind(to: container, adaptiveWeight: weight, index: index)
         source.bind(to: container, adaptiveWeight: weight, index: index + 1)
     } else {
         source.bind(to: container, adaptiveWeight: weight, index: index)
-        anchor.bind(to: container, adaptiveWeight: weight, index: index + 1)
+        target.bind(to: container, adaptiveWeight: weight, index: index + 1)
     }
     return true
 }

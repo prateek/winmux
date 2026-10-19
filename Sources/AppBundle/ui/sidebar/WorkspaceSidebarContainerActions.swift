@@ -50,20 +50,19 @@ private func ungroupWorkspaceSidebarContainer(_ container: TilingContainer) -> B
         // The children share the container's space along the parent's axis, in their own proportions when they lie
         // along it. A child split that runs the parent's way is spliced in the same way: bound whole, normalization
         // would turn it across the parent and rotate its windows.
-        @MainActor func spread(_ children: [TreeNode], share: CGFloat, alongParent: Bool) -> [(TreeNode, CGFloat)] {
-            let total: CGFloat = alongParent ? children.reduce(CGFloat(0)) { $0 + $1.getWeight(parent.orientation) } : CGFloat(children.count)
-            return children.flatMap { child -> [(TreeNode, CGFloat)] in
-                let weight: CGFloat = alongParent && total > 0 ? share * child.getWeight(parent.orientation) / total : share / CGFloat(children.count)
-                if let split = child as? TilingContainer, split.layout == .tiles, split.orientation == parent.orientation {
-                    return spread(split.children, share: weight, alongParent: true)
-                }
-                return [(child, weight)]
+        @MainActor func runsAlongParent(_ node: TreeNode) -> Bool {
+            (node as? TilingContainer).map { $0.layout == .tiles && $0.orientation == parent.orientation } == true
+        }
+        @MainActor func spread(_ children: [TreeNode], share: CGFloat, proportional: Bool) -> [(node: TreeNode, weight: CGFloat)] {
+            let total: CGFloat = proportional ? children.reduce(CGFloat(0)) { $0 + $1.getWeight(parent.orientation) } : CGFloat(children.count)
+            return children.flatMap { child -> [(node: TreeNode, weight: CGFloat)] in
+                let weight: CGFloat = proportional && total > 0 ? share * child.getWeight(parent.orientation) / total : share / CGFloat(children.count)
+                return runsAlongParent(child) ? spread(child.children, share: weight, proportional: true) : [(child, weight)]
             }
         }
-        let alongParent = container.layout == .tiles && container.orientation == parent.orientation
-        let pieces = spread(container.children, share: container.getWeight(parent.orientation), alongParent: alongParent)
+        let pieces = spread(container.children, share: container.getWeight(parent.orientation), proportional: runsAlongParent(container))
         for (offset, piece) in pieces.enumerated() {
-            piece.0.bind(to: parent, adaptiveWeight: piece.1, index: index + offset)
+            piece.node.bind(to: parent, adaptiveWeight: piece.weight, index: index + offset)
         }
     }
     return true
