@@ -81,7 +81,7 @@ struct WorkspaceSidebarDropTarget {
     let kind: WorkspaceSidebarDropTargetKind
     /// Where the target takes drops, clipped to the scroll viewport for targets inside it.
     let rect: Rect
-    /// The whole frame, when only part of it is on screen. A row's halves decide before or after.
+    /// The whole frame, when only part of it is on screen. Every target ranks by it; a row's halves decide before or after.
     var rowRect: Rect? = nil
     var viewport: Rect? = nil
 

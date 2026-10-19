@@ -57,8 +57,9 @@ final class WorkspaceSidebarViewportDropTest: XCTestCase {
             ], viewport: right)
         let targets = workspaceSidebarScreenDropTargets(frames, convert: rect)
         XCTAssertNil(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 160, y: 120), targets: targets, hitSlop: slop, includesTreeTargets: false))
-        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 166, y: 123), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("upper"))
-        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 154, y: 123), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("left"))
+        // Slop still works inside each pane, next to the gap.
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 166, y: 57), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("upper"))
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 150, y: 95), targets: targets, hitSlop: slop, includesTreeTargets: false)?.kind, .workspace("left"))
     }
 
     func testScrollingDoesNotChangeWhichSectionTakesASlopDrop() {
