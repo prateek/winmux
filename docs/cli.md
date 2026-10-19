@@ -40,8 +40,11 @@ and count. Each form accepts `--json`, with `capturing`, `path`, `until` and
 Capture is off on startup and survives config reloads. Turning it on from off
 truncates the file; another `on` while capturing keeps its records and restarts
 the fixed 15 minutes. The file lives in WinMux's state directory
-(`$XDG_STATE_HOME/winmux`, or `~/.local/state/winmux`). A file write failure stops
-capture and logs the reason. See [the hook guide](columns.md) for record contents
+(`$XDG_STATE_HOME/winmux`, or `~/.local/state/winmux`), readable only by you; a
+debug build writes `hook-capture-debug.jsonl` there instead. The record count is
+this WinMux process's capture, so a restart reports 0 for a file a previous run
+wrote. A file write failure stops capture and logs the reason. `off` after the
+deadline says the capture stopped itself. See [the hook guide](columns.md) for record contents
 and preview behavior. This command is unavailable in config or command URLs.
 
 ## Who can drive WinMux
