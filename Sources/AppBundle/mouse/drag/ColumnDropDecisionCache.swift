@@ -24,11 +24,13 @@ final class ColumnDropDecisionCache {
 
     private var draggedWindowId: UInt32?
     private var context: Context?
-    private(set) var generation = 0
+    private var generation = 0
     private var pointedSlot: Int?
     private var tasks: [Key: Request] = [:]
     private var answers: [Key: PlacementDecision] = [:]
     private var redraw: (() -> Void)?
+    /// A drop owns its answer from `beginDrop` to `endDrop`; drag lookups find no destination meanwhile.
+    private(set) var isDropping = false
     private let evaluate: @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision
 
     init(evaluate: @escaping @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision = {
@@ -38,12 +40,9 @@ final class ColumnDropDecisionCache {
     }
 
     private static func context(window: Window, workspace: Workspace) -> Context? {
-        workspace.columns.map { columns in
-            let children = workspace.rootTilingContainer.children
-            return Context(windowId: window.windowId, workspace: ObjectIdentifier(workspace), columns: ObjectIdentifier(columns),
-                           occupancy: (1...columns.slotCount).map { slot in
-                               children.first { $0.columnSlot == slot }?.allLeafWindowsRecursive.map(\.windowId) ?? []
-                           })
+        workspace.columns.map {
+            Context(windowId: window.windowId, workspace: ObjectIdentifier(workspace), columns: ObjectIdentifier($0),
+                    occupancy: workspace.columnOccupancy)
         }
     }
 
@@ -59,11 +58,14 @@ final class ColumnDropDecisionCache {
     }
 
     func track(window: Window, workspace: Workspace) {
+        track(window: window, context: Self.context(window: window, workspace: workspace))
+    }
+
+    private func track(window: Window, context key: Context?) {
         if draggedWindowId != window.windowId {
             clear()
             draggedWindowId = window.windowId
         }
-        let key = Self.context(window: window, workspace: workspace)
         if context != key {
             context = key
             pointedSlot = nil
@@ -73,11 +75,12 @@ final class ColumnDropDecisionCache {
 
     func preview(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode,
                  onReady: @escaping () -> Void) -> PlacementDecision {
-        track(window: window, workspace: workspace)
-        _ = request(window: window, workspace: workspace, slot: slot, incoming: incoming)
+        let context = Self.context(window: window, workspace: workspace)
+        track(window: window, context: context)
+        _ = request(window: window, workspace: workspace, context: context, slot: slot, incoming: incoming)
         pointedSlot = slot
         redraw = onReady
-        return answer(window: window, workspace: workspace, slot: slot)
+        return context.flatMap { answers[Key(context: $0, slot: slot)] }
             ?? PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
     }
 
@@ -86,24 +89,35 @@ final class ColumnDropDecisionCache {
         Self.context(window: window, workspace: workspace).flatMap { answers[Key(context: $0, slot: slot)] }
     }
 
-    /// Ends the drag's previews: a drop takes its answer first, and only a later `clear` abandons it.
-    func beginDrop() -> Int {
+    /// Ends the previews and hands the drop the request for this key, landed or still running.
+    func beginDrop(window: Window, workspace: Workspace, slot: Int) -> Task<PlacementDecision, Never>? {
+        let key = Self.context(window: window, workspace: workspace).map { Key(context: $0, slot: slot) }
+        let answer = key.flatMap { answers[$0] }
+        var request = key.flatMap { tasks.removeValue(forKey: $0) }
+        if request?.columns !== workspace.columns { request = nil }
         clear()
-        return generation
+        isDropping = true
+        if let answer { return Task { answer } }
+        return request?.task
+    }
+
+    func endDrop() {
+        isDropping = false
     }
 
     func decision(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode) async -> PlacementDecision? {
-        if context == nil { track(window: window, workspace: workspace) }
+        let context = Self.context(window: window, workspace: workspace)
+        if self.context == nil { track(window: window, context: context) }
         let requestGeneration = generation
-        let requestContext = context
+        let requestContext = self.context
         let columns = workspace.columns
-        let answer = await request(window: window, workspace: workspace, slot: slot, incoming: incoming).value
-        guard generation == requestGeneration, context == requestContext, workspace.columns === columns else { return nil }
+        let answer = await request(window: window, workspace: workspace, context: context, slot: slot, incoming: incoming).value
+        guard generation == requestGeneration, self.context == requestContext, workspace.columns === columns else { return nil }
         return answer
     }
 
-    private func request(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode) -> Task<PlacementDecision, Never> {
-        guard let columns = workspace.columns, let context = Self.context(window: window, workspace: workspace) else {
+    private func request(window: Window, workspace: Workspace, context: Context?, slot: Int, incoming: TreeNode) -> Task<PlacementDecision, Never> {
+        guard let columns = workspace.columns, let context else {
             return Task { PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil) }
         }
         let key = Key(context: context, slot: slot)
@@ -112,8 +126,9 @@ final class ColumnDropDecisionCache {
         let evaluate = evaluate
         let task = Task { @MainActor [weak self] in
             let answer = await evaluate(window, workspace, slot, incoming)
-            if let self, self.generation == requestGeneration,
-               workspace.columns === columns {
+            // Kept only for the tree it was asked about: the hook reads the records when it starts.
+            if let self, self.generation == requestGeneration, workspace.columns === columns,
+               Self.context(window: window, workspace: workspace) == key.context {
                 self.answers[key] = answer
                 if self.context == key.context, self.pointedSlot == slot { self.redraw?() }
             }

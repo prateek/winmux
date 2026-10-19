@@ -93,7 +93,7 @@ enum ColumnPolicy {
         if let value = result["column"]?.stringOrNil {
             target = value
             switch value {
-                case "focused": slot = focusedSlot ?? columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: window)
+                case "focused": slot = focusedSlot ?? columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: incoming ?? window)
                 case "mru": slot = workspace.mruColumnSlot(excluding: incoming ?? window)
                 case "nearest-empty": slot = builtIn.slot
                 case "last": slot = columns.count
@@ -125,16 +125,13 @@ enum ColumnPolicy {
     }
 
     /// A drop's decision: the pointed Column, or what the hook answers with that Column focused.
-    /// A hook that fails, or whose records cannot be read, leaves the pointed Column as with no hook.
+    /// A hook that fails leaves the pointed Column as with no hook; so do Column records that cannot be read,
+    /// which is a window's failure, not the hook's.
     static func dropDecision(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode? = nil,
                              supervisor: any PolicyHookHelper = PolicyHooks.current) async -> PlacementDecision {
         var pointed = PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
-        guard hook("place", on: workspace) != nil else { return pointed }
-        guard let records = try? await workspace.columnRecords(excluding: incoming ?? window) else {
-            supervisor.recordHookFailure("\(hook("place", on: workspace) ?? "place"): Column records unavailable")
-            pointed.failure = supervisor.lastHookError
-            return pointed
-        }
+        guard hook("place", on: workspace) != nil,
+              let records = try? await workspace.columnRecords(excluding: incoming ?? window) else { return pointed }
         let answer = await decision(window: window, workspace: workspace, supervisor: supervisor, columnsSnapshot: records,
                                     focusedSlot: slot, excluding: incoming)
         guard let failure = answer.failure else { return answer }

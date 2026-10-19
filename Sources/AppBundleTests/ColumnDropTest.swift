@@ -251,11 +251,25 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertEqual(evaluations, 2, "Returning to a key within one drag reuses its first evaluation")
     }
 
-    func testDropAbandonsHookAnswerWhenTheDragIsCancelledDuringEvaluation() async throws {
-        try await checkAbandonedDrop { _ in cancelManipulatedWithMouseState() }
+    func testCancellingTheDragWhileTheHookRunsStillDrops() async throws {
+        try await checkDropDuringHook(applies: true) { _ in cancelManipulatedWithMouseState() }
+    }
+
+    func testAForcedFrameOrSecondMouseUpWhileTheHookRunsStillDrops() async throws {
+        try await checkDropDuringHook(applies: true) { workspace in
+            let window = Window.get(byId: 41)!
+            let rect = workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!.cgRect
+            XCTAssertNil(self.lookup(window, CGPoint(x: 600, y: rect.midY)), "No destination while a drop runs")
+            ColumnDropDecisionCache.shared.track(window: window, workspace: workspace)
+            clearPendingWindowDragIntent()
+        }
     }
 
     private func checkAbandonedDrop(change: (Workspace) -> Void) async throws {
+        try await checkDropDuringHook(applies: false, change: change)
+    }
+
+    private func checkDropDuringHook(applies: Bool, change: (Workspace) -> Void) async throws {
         let (workspace, a, _, rect) = try await fixture()
         let helper = ControlledPolicyHooks()
         PolicyHooks.setOverrideForTests(helper)
@@ -275,9 +289,71 @@ final class ColumnDropTest: XCTestCase {
         change(workspace)
         gate.release()
         let applied = try await drop.value
-        XCTAssertFalse(applied)
-        XCTAssertEqual(workspace.columnSlot(containing: a), 1)
+        XCTAssertEqual(applied, applies)
+        XCTAssertEqual(workspace.columnSlot(containing: a), applies ? 2 : 1)
         XCTAssertNil(pendingWindowDragIntent)
+        XCTAssertFalse(ColumnDropDecisionCache.shared.isDropping)
+        XCTAssertEqual(helper.calls.count, 1)
+    }
+
+    func testDropReleasedBeforeTheAnswerTakesThePreviewsRequest() async throws {
+        let (workspace, a, _, rect) = try await fixture()
+        let helper = ControlledPolicyHooks()
+        PolicyHooks.setOverrideForTests(helper)
+        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
+        helper.answers["columns.place"] = .success(.object(["column": .int(3), "overflow": .string("tab-group")]))
+        let gate = ReloadGate()
+        helper.gates["columns.place"] = gate
+        let point = CGPoint(x: 600, y: rect.midY)
+        let destination = try XCTUnwrap(lookup(a, point))
+        XCTAssertEqual(destination.title, "Column 2 · tab group", "The provisional preview before the answer lands")
+        await gate.entered.wait()
+        MousePointerTracker.shared.note(point: point)
+        _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window, detachOrigin: .window, destination: destination)
+        let drop = Task { @MainActor in try await applyPendingWindowDragIntentWithPolicy() }
+        await Task.yield()
+        gate.release()
+        let applied = try await drop.value
+        XCTAssertTrue(applied)
+        XCTAssertEqual(workspace.columnSlot(containing: a), 3)
+        XCTAssertEqual(helper.calls.count, 1, "The drop awaits the preview's request instead of asking again")
+    }
+
+    func testAWindowArrivingWhileTheHookRunsIsAskedAboutAgain() async throws {
+        let (workspace, a, _, rect) = try await fixture()
+        let helper = ControlledPolicyHooks()
+        PolicyHooks.setOverrideForTests(helper)
+        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
+        helper.answers["columns.place"] = .success(.object(["column": .string("nearest-empty"), "overflow": .string("tab-group")]))
+        let gate = ReloadGate()
+        helper.gates["columns.place"] = gate
+        let provisional = PlacementDecision(slot: 3, target: "3", overflow: .tabGroup, hook: nil)
+        let destination = columnDragDestination(workspace: workspace, slot: 3, decision: provisional, incoming: a,
+                                                rect: workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!, subject: .window)
+        MousePointerTracker.shared.note(point: CGPoint(x: 1000, y: rect.midY))
+        _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window, detachOrigin: .window, destination: destination)
+        let drop = Task { @MainActor in try await applyPendingWindowDragIntentWithPolicy() }
+        await gate.entered.wait()
+        helper.gates["columns.place"] = nil
+        let arrival = TestWindow.new(id: 45, parent: workspace)
+        workspace.bindToColumn(arrival, slot: 3)
+        gate.release()
+        let applied = try await drop.value
+        XCTAssertTrue(applied)
+        XCTAssertEqual(helper.calls.count, 2)
+        XCTAssertEqual(workspace.columnSlot(containing: a), 1, "Column 3 filled during the wait, so the nearest empty is Column 1")
+    }
+
+    func testGroupFloatFloatsEachWindowAndLeavesNoContainer() async throws {
+        let (workspace, a, _, c, helper) = try await groupFixture()
+        helper.answers["columns.place"] = .success(.object(["column": .string("focused"), "overflow": .string("float")]))
+        let group = try XCTUnwrap(c.parent as? TilingContainer)
+        let applied = try await dropGroup(c, on: workspace, slot: 2)
+        XCTAssertTrue(applied)
+        XCTAssertTrue(a.isFloating)
+        XCTAssertTrue(c.isFloating)
+        XCTAssertFalse(group.isBound)
+        XCTAssertFalse(workspace.rootTilingContainer.children.contains { $0.columnSlot == 1 })
     }
 
     func testFixedHookOutranksPointerAndRunsCommandsOnlyAfterDrop() async throws {
@@ -447,28 +523,6 @@ final class ColumnDropTest: XCTestCase {
         XCTAssertNil(cache.answer(window: a, workspace: workspace, slot: 3), "An answer for the old occupancy is not reused")
         _ = await cache.decision(window: a, workspace: workspace, slot: 3, incoming: a)
         XCTAssertEqual(evaluations, 2)
-    }
-
-    func testClearingTheIntentWhileTheHookRunsDoesNotAbandonTheDrop() async throws {
-        let (workspace, a, _, rect) = try await fixture()
-        let helper = ControlledPolicyHooks()
-        PolicyHooks.setOverrideForTests(helper)
-        config.columns = ColumnsConfig(.object(["place": .string("columns.place")]), workspaces: nil)
-        helper.answers["columns.place"] = .success(.object(["column": .int(2), "overflow": .string("tab-group")]))
-        let gate = ReloadGate()
-        helper.gates["columns.place"] = gate
-        let provisional = PlacementDecision(slot: 2, target: "2", overflow: .tabGroup, hook: nil)
-        let destination = columnDragDestination(workspace: workspace, slot: 2, decision: provisional, incoming: a,
-                                                rect: workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!, subject: .window)
-        MousePointerTracker.shared.note(point: CGPoint(x: 600, y: rect.midY))
-        _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window, detachOrigin: .window, destination: destination)
-        let drop = Task { @MainActor in try await applyPendingWindowDragIntentWithPolicy() }
-        await gate.entered.wait()
-        clearPendingWindowDragIntent()
-        gate.release()
-        let applied = try await drop.value
-        XCTAssertTrue(applied)
-        XCTAssertEqual(workspace.columnSlot(containing: a), 2)
     }
 
     func testSqueezeIntoAnExistingExtraColumnIsATabGroup() async throws {

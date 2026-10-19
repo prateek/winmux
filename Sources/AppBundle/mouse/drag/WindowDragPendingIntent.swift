@@ -194,34 +194,32 @@ func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
         let cache = ColumnDropDecisionCache.shared
         let target = Workspace.existing(byName: workspaceName)
         let inside = intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point)
-        let cached = source.flatMap { source in target.flatMap { cache.answer(window: source, workspace: $0, slot: slot) } }
-        // Hide the overlay and end the previews before the hook can suspend: nothing after this reads them.
+        // The drop takes over the preview's request for this key, landed or not, so the hook is asked once.
+        // Until it ends, drag lookups find no destination, so a forced frame or a second mouse-up cannot start another.
+        let pending = source.flatMap { source in target.flatMap { cache.beginDrop(window: source, workspace: $0, slot: slot) } }
+        defer { cache.endDrop() }
         clearPendingWindowDragIntent()
-        let generation = cache.beginDrop()
-        guard let source, let workspace = target, workspace.columns != nil, inside else { return false }
-        // The whole subject binds once with the answer the overlay drew for it, as one node.
+        guard let source, let workspace = target, let columns = workspace.columns, inside else { return false }
         let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
+        let location = ColumnPolicy.Location(source)
+        var occupancy = workspace.columnOccupancy
+        var decision: PlacementDecision
+        if let pending { decision = await pending.value }
+        else { decision = await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming) }
+        // A window that arrived or left while the hook ran changes what it answers: ask again.
+        for _ in 0..<3 where occupancy != workspace.columnOccupancy && location.contains(source) && workspace.columns === columns {
+            occupancy = workspace.columnOccupancy
+            decision = await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming)
+        }
+        guard location.contains(source), workspace.columns === columns, occupancy == workspace.columnOccupancy else { return false }
         syncClosedWindowsCacheToCurrentWorld()
         suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))
+        // The whole subject binds once with that answer, as one node.
         return try await PolicyHookCompletion.perform(window: source, workspace: workspace, normalizes: true,
-            evaluate: {
-                if let cached { return cached }
-                return await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming)
-            },
-            runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
-                guard cache.generation == generation else { return .fallback(false) }
+            evaluate: { decision }, runList: { ($0.hook, $0.run) }, abandoned: { false }) { decision, _ in
                 let arrives = incoming.nodeWorkspace !== workspace
-                let placement = ColumnPlacement.resolve(decision, columns: workspace.columns.orDie(),
-                                                        children: workspace.rootTilingContainer.children, incoming: incoming)
-                if case .float = placement.effect, !(incoming is Window) {
-                    for window in incoming.allLeafWindowsRecursive {
-                        window.unbindFromParent()
-                        window.bindAsFloatingWindow(to: workspace)
-                    }
-                } else {
-                    if incoming.isBound { incoming.unbindFromParent() }
-                    workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
-                }
+                if incoming.isBound { incoming.unbindFromParent() }
+                workspace.bindToColumn(incoming, slot: decision.slot, overflow: decision.overflow)
                 if arrives { _ = source.focusWindow() }
                 return .completed(true)
             }
