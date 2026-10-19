@@ -55,7 +55,7 @@ func resolveWorkspaceSidebarDropTarget(at point: CGPoint, targets: [WorkspaceSid
 
 struct WorkspaceSidebarDropTarget {
     let kind: WorkspaceSidebarDropTargetKind
-    /// Where the target takes drops: the part of the row that is on screen.
+    /// Where the target takes drops. A tree row's is the part of it on screen; other targets are not clipped.
     let rect: Rect
     /// The whole row, when only part of it is on screen. Its halves decide before or after.
     var rowRect: Rect? = nil

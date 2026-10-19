@@ -228,7 +228,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                                              rowRect: Rect(topLeftX: 10, topLeftY: 40, width: 100, height: 24))
         let section = WorkspaceSidebarDropTarget(kind: .workspace("1"), rect: Rect(topLeftX: 0, topLeftY: 0, width: 320, height: 400))
         let targets = [section, row]
-        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 45), targets: targets)?.kind, .workspace("1"), "The hidden part takes no drop")
+        XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 45), targets: targets)?.kind, .workspace("1"), "The row's hidden part is not the row: the point falls to the enclosing section, as it did before tree rows existed")
         XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 51), targets: targets)?.kind, .tree(.window(2, after: false)))
         XCTAssertEqual(resolveWorkspaceSidebarDropTarget(at: CGPoint(x: 50, y: 54), targets: targets)?.kind, .tree(.window(2, after: true)), "Halves follow the whole row")
     }
