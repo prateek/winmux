@@ -140,7 +140,7 @@ extension WindowMouseInteractionDriver {
 
 extension WindowMouseInteractionDriver {
     func beginCompositedMovePreview(sourceWindow: Window, session: MoveSession) {
-        guard session.subject == .group else {
+        guard session.subject.isGroup else {
             clearMovePreview()
             return
         }
@@ -165,7 +165,7 @@ extension WindowMouseInteractionDriver {
     func updateCompositedMovePreview(sourceWindow: Window, mouseLocation: CGPoint) {
         guard let state = dragSourcePreviewState,
               state.windowId == sourceWindow.windowId,
-              state.subject == .group
+              state.subject.isGroup
         else { return }
         let frame = Rect(
             topLeftX: mouseLocation.x - state.mouseOffset.x,

@@ -78,11 +78,11 @@ enum WorkspaceSidebarAction: Equatable {
     case renameWorkspace(String, displayName: String)
     case deleteWorkspace(String)
     case moveWindow(UInt32, toWorkspace: String)
-    case moveTabGroup(UInt32, toWorkspace: String)
+    case moveTabGroup(UInt64, toWorkspace: String)
     case moveWindowToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
-    case moveTabGroupToNewWorkspace(UInt32, projectId: WorkspaceProjectId, monitorScopeId: String)
+    case moveTabGroupToNewWorkspace(UInt64, projectId: WorkspaceProjectId, monitorScopeId: String)
     case previewWindowDrop(UInt32, target: WorkspaceSidebarDropTargetKind)
-    case previewTabGroupDrop(UInt32, target: WorkspaceSidebarDropTargetKind)
+    case previewTabGroupDrop(UInt64, target: WorkspaceSidebarDropTargetKind)
     case clearDropPreview
 }
 
@@ -92,8 +92,8 @@ struct WorkspaceSidebarActions {
     var hoverWorkspace: @MainActor (String, Bool) -> Void
     var windowDragChanged: @MainActor (UInt32, CGPoint) -> Void
     var windowDragEnded: @MainActor (UInt32, CGPoint) -> Void
-    var tabGroupDragChanged: @MainActor (UInt32, CGPoint) -> Void
-    var tabGroupDragEnded: @MainActor (UInt32, CGPoint) -> Void
+    var tabGroupDragChanged: @MainActor (UInt64, CGPoint) -> Void
+    var tabGroupDragEnded: @MainActor (UInt64, CGPoint) -> Void
 
     init(
         send: @escaping @MainActor (WorkspaceSidebarAction) -> Void = { _ in },
@@ -101,8 +101,8 @@ struct WorkspaceSidebarActions {
         hoverWorkspace: @escaping @MainActor (String, Bool) -> Void = { _, _ in },
         windowDragChanged: @escaping @MainActor (UInt32, CGPoint) -> Void = { _, _ in },
         windowDragEnded: @escaping @MainActor (UInt32, CGPoint) -> Void = { _, _ in },
-        tabGroupDragChanged: @escaping @MainActor (UInt32, CGPoint) -> Void = { _, _ in },
-        tabGroupDragEnded: @escaping @MainActor (UInt32, CGPoint) -> Void = { _, _ in }
+        tabGroupDragChanged: @escaping @MainActor (UInt64, CGPoint) -> Void = { _, _ in },
+        tabGroupDragEnded: @escaping @MainActor (UInt64, CGPoint) -> Void = { _, _ in }
     ) {
         self.send = send
         self.setDropTargets = setDropTargets

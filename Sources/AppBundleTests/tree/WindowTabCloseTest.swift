@@ -227,7 +227,7 @@ final class WindowTabCloseTest: XCTestCase {
 
     func testHeldWidthDrivesContentWidthsAndBothDragStartHitTests() {
         let (group, windows) = group()
-        let strip = WindowTabStripViewModel(id: ObjectIdentifier(group), workspaceName: "tabs",
+        let strip = WindowTabStripViewModel(id: ObjectIdentifier(group), containerIdentity: 0, workspaceName: "tabs",
             frame: CGRect(x: 0, y: 0, width: 1000, height: 36), groupFrame: .zero,
             activeWindowId: 1, activeWindowCornerRadius: 16,
             tabs: windows.prefix(2).map { WindowTabItemViewModel(windowId: $0.windowId, workspaceName: "tabs", appName: "Demo", appBundleId: nil, appBundlePath: nil, title: "Window", isActive: $0.windowId == 1) },
@@ -247,7 +247,7 @@ final class WindowTabCloseTest: XCTestCase {
         let model = WindowTabCloseModel.shared
         XCTAssertTrue(model.begin(2, pointer: WindowTabClosePointer(stripId: id, hold: WindowTabWidthHold(width: 160, stripWidth: 1000, tabCount: 5))))
         let panel = WindowTabStripPanelController.shared.stripPanel(for: id)
-        panel.hostingView.strip = WindowTabStripViewModel(id: id, workspaceName: "tabs", frame: .zero,
+        panel.hostingView.strip = WindowTabStripViewModel(id: id, containerIdentity: 0, workspaceName: "tabs", frame: .zero,
             groupFrame: .zero, activeWindowId: 1, activeWindowCornerRadius: 16, tabs: [], occludingFloatingWindowFrames: [])
         WindowTabStripPanelController.shared.removeStaleStripPanels(activeIds: [])
         XCTAssertNil(model.widthHolds[id]?.width)
@@ -324,7 +324,7 @@ final class WindowTabCloseTest: XCTestCase {
         XCTAssertEqual(publishes, 1)
         XCTAssertEqual(model.hoveredTabIds[id], 3)
         let panel = WindowTabStripPanelController.shared.stripPanel(for: id)
-        panel.hostingView.strip = WindowTabStripViewModel(id: id, workspaceName: "tabs", frame: .zero,
+        panel.hostingView.strip = WindowTabStripViewModel(id: id, containerIdentity: 0, workspaceName: "tabs", frame: .zero,
             groupFrame: .zero, activeWindowId: 1, activeWindowCornerRadius: 16, tabs: [], occludingFloatingWindowFrames: [])
         WindowTabStripPanelController.shared.removeStaleStripPanels(activeIds: [])
         XCTAssertNil(model.hoveredTabIds[id])

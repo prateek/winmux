@@ -31,6 +31,7 @@ func focusWindowFromTabStrip(_ windowId: UInt32, fallbackWorkspace: String) {
             }
             return WindowTabStripViewModel(
                 id: strip.id,
+                containerIdentity: strip.containerIdentity,
                 workspaceName: strip.workspaceName,
                 frame: strip.frame,
                 groupFrame: strip.groupFrame,

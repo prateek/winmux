@@ -1231,6 +1231,7 @@ private enum MarketingFixtures {
     ) -> WindowTabStripViewModel {
         WindowTabStripViewModel(
             id: ObjectIdentifier(identity),
+            containerIdentity: 0,
             workspaceName: workspace,
             frame: CGRect(x: 0, y: 0, width: 400, height: 40),
             groupFrame: CGRect(x: 0, y: 0, width: 400, height: 400),

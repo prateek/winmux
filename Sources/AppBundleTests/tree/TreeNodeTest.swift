@@ -484,7 +484,7 @@ final class TreeNodeTest: XCTestCase {
         setDraggedWindowAnchorRect(Rect(topLeftX: 0, topLeftY: 0, width: 100, height: 100), for: window.windowId)
         currentlyManipulatedWithMouseWindowId = window.windowId
         setCurrentMouseManipulationKind(.move)
-        setCurrentMouseDragSubject(.group)
+        setCurrentMouseDragSubject(.group(workspace.rootTilingContainer.stableId))
         setCurrentMouseTabDetachOrigin(.tabStrip)
         setCurrentMouseDragStartedInSidebar(true)
 

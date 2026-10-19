@@ -17,7 +17,7 @@ func currentWindowSurfaceDestination(
     }
 
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
-    let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
     if shouldSuppressSelfGroupSurfaceTarget(
         sourceNode: sourceNode,
         targetWorkspace: targetWorkspace,
@@ -87,7 +87,7 @@ private func shouldSuppressSelfGroupSurfaceTarget(
     subject: WindowDragSubject,
     sourceWindow: Window,
 ) -> Bool {
-    guard subject == .group,
+    guard subject.isGroup,
           let sourceWorkspace = sourceNode.nodeWorkspace,
           sourceWorkspace === targetWorkspace,
           sourceNode.windowDragVisibleRect?.contains(mouseLocation) == true

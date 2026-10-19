@@ -466,7 +466,7 @@ final class ColumnDropTest: XCTestCase {
         let (source, a, _, _) = try await fixture()
         let c = TestWindow.new(id: 43, parent: source)
         source.bindToColumn(c, slot: 1)
-        let incoming = dragSubjectNode(for: c, subject: .group)
+        let incoming = try XCTUnwrap(dragSubjectNode(for: c, subject: .group((c.parent as! TilingContainer).stableId)))
         XCTAssertEqual(incoming.allLeafWindowsRecursive.map(\.windowId), [41, 43])
         let destination = Workspace.get(byName: "Other")
         destination.columns = ColumnState(count: 3)
@@ -481,8 +481,8 @@ final class ColumnDropTest: XCTestCase {
         let records = try await source.columnRecords(excluding: incoming).arrayOrNil!
         XCTAssertEqual(records[0]["empty"], .bool(true))
         let decision = await warmedPreview(c, workspace: destination, slot: 2, incoming: incoming)
-        let preview = columnDragDestination(workspace: destination, slot: 2, decision: decision, incoming: incoming, rect: rect, subject: .group)
-        _ = setPendingWindowDragIntent(sourceWindowId: c.windowId, sourceSubject: .group, detachOrigin: .window, destination: preview)
+        let preview = columnDragDestination(workspace: destination, slot: 2, decision: decision, incoming: incoming, rect: rect, subject: .group((c.parent as! TilingContainer).stableId))
+        _ = setPendingWindowDragIntent(sourceWindowId: c.windowId, sourceSubject: .group((c.parent as! TilingContainer).stableId), detachOrigin: .window, destination: preview)
         let applied = try await applyPendingWindowDragIntentWithPolicy()
         XCTAssertTrue(applied)
         XCTAssertTrue(a.nodeWorkspace === destination)
@@ -511,11 +511,11 @@ final class ColumnDropTest: XCTestCase {
 
     private func dropGroup(_ c: TestWindow, on workspace: Workspace, slot: Int) async throws -> Bool {
         let rect = workspace.rootTilingContainer.lastAppliedLayoutPhysicalRect!
-        let incoming = dragSubjectNode(for: c, subject: .group)
+        let incoming = try XCTUnwrap(dragSubjectNode(for: c, subject: .group((c.parent as! TilingContainer).stableId)))
         let decision = await warmedPreview(c, workspace: workspace, slot: slot, incoming: incoming)
-        let preview = columnDragDestination(workspace: workspace, slot: slot, decision: decision, incoming: incoming, rect: rect, subject: .group)
+        let preview = columnDragDestination(workspace: workspace, slot: slot, decision: decision, incoming: incoming, rect: rect, subject: .group((c.parent as! TilingContainer).stableId))
         MousePointerTracker.shared.note(point: rect.center)
-        _ = setPendingWindowDragIntent(sourceWindowId: c.windowId, sourceSubject: .group, detachOrigin: .window, destination: preview)
+        _ = setPendingWindowDragIntent(sourceWindowId: c.windowId, sourceSubject: .group((c.parent as! TilingContainer).stableId), detachOrigin: .window, destination: preview)
         return try await applyPendingWindowDragIntentWithPolicy()
     }
 
@@ -537,7 +537,7 @@ final class ColumnDropTest: XCTestCase {
     func testGroupMruDropExcludesTheWholeGroup() async throws {
         let (workspace, _, b, c, helper) = try await groupFixture()
         helper.answers["columns.place"] = .success(.object(["column": .string("mru"), "overflow": .string("tab-group")]))
-        let incoming = dragSubjectNode(for: c, subject: .group)
+        let incoming = try XCTUnwrap(dragSubjectNode(for: c, subject: .group((c.parent as! TilingContainer).stableId)))
         let decision = await ColumnPolicy.dropDecision(window: c, workspace: workspace, slot: 3, incoming: incoming)
         XCTAssertEqual(decision.slot, workspace.columnSlot(containing: b), "The group's own Column is not its MRU target")
     }

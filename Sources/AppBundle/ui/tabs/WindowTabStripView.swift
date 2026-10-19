@@ -38,14 +38,14 @@ extension WindowTabStripView {
             .onChanged { _ in
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldAllowTabStripChromeGroupDrag(windowId: windowId)
+                      shouldAllowTabStripChromeGroupDrag(windowId: windowId, containerIdentity: strip.containerIdentity)
                 else { return }
-                updateMoveFromTabStrip(windowId)
+                updateMoveFromTabStrip(windowId, containerIdentity: strip.containerIdentity)
             }
             .onEnded { _ in
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldContinueCurrentGroupDrag(windowId: windowId)
+                      shouldContinueCurrentGroupDrag(windowId: windowId, subject: .group(strip.containerIdentity))
                 else { return }
                 finishMoveFromTabStrip()
             }
@@ -65,9 +65,9 @@ extension WindowTabStripView {
                 ) else { return }
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldAllowTabStripChromeGroupDrag(windowId: windowId)
+                      shouldAllowTabStripChromeGroupDrag(windowId: windowId, containerIdentity: strip.containerIdentity)
                 else { return }
-                updateMoveFromTabStrip(windowId)
+                updateMoveFromTabStrip(windowId, containerIdentity: strip.containerIdentity)
             }
             .onEnded { value in
                 guard isWindowTabStripScrollBackgroundDragStart(
@@ -78,7 +78,7 @@ extension WindowTabStripView {
                 ) else { return }
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldContinueCurrentGroupDrag(windowId: windowId)
+                      shouldContinueCurrentGroupDrag(windowId: windowId, subject: .group(strip.containerIdentity))
                 else { return }
                 finishMoveFromTabStrip()
             }
@@ -99,9 +99,9 @@ extension WindowTabStripView {
                 ) else { return }
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldAllowTabStripChromeGroupDrag(windowId: windowId)
+                      shouldAllowTabStripChromeGroupDrag(windowId: windowId, containerIdentity: strip.containerIdentity)
                 else { return }
-                updateMoveFromTabStrip(windowId)
+                updateMoveFromTabStrip(windowId, containerIdentity: strip.containerIdentity)
             }
             .onEnded { value in
                 guard isWindowTabStripChromeGroupDragStart(
@@ -113,7 +113,7 @@ extension WindowTabStripView {
                 ) else { return }
                 noteCurrentMousePointerSample()
                 guard let windowId,
-                      shouldContinueCurrentGroupDrag(windowId: windowId)
+                      shouldContinueCurrentGroupDrag(windowId: windowId, subject: .group(strip.containerIdentity))
                 else { return }
                 finishMoveFromTabStrip()
             }
@@ -180,6 +180,7 @@ extension WindowTabStripView {
 
             WindowTabGroupHandleView(
                 windowId: groupDragWindowId,
+                containerIdentity: strip.containerIdentity,
                 workspaceName: strip.workspaceName
             )
         }
@@ -297,9 +298,9 @@ extension WindowTabStripView {
 
     func handleTabDragChanged(tab: WindowTabItemViewModel, translation: CGSize) {
         guard !closeModel.closingWindowIds.contains(tab.windowId) else { return }
-        if shouldPromoteTabStripDragToGroup(windowId: tab.windowId) {
+        if shouldPromoteTabStripDragToGroup(windowId: tab.windowId, containerIdentity: strip.containerIdentity) {
             clearTabDragState()
-            updateMoveFromTabStrip(tab.windowId)
+            updateMoveFromTabStrip(tab.windowId, containerIdentity: strip.containerIdentity)
             return
         }
         if hasCommittedToDetach {
@@ -319,7 +320,7 @@ extension WindowTabStripView {
 
     func handleTabDragEnded(tab: WindowTabItemViewModel, context: WindowTabStripLayoutContext) {
         guard !closeModel.closingWindowIds.contains(tab.windowId) else { return }
-        if shouldContinueCurrentGroupDrag(windowId: tab.windowId) {
+        if shouldContinueCurrentGroupDrag(windowId: tab.windowId, subject: .group(strip.containerIdentity)) {
             finishMoveFromTabStrip()
         } else if hasCommittedToDetach {
             hasCommittedToDetach = false

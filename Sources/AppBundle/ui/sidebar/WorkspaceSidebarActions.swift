@@ -229,8 +229,9 @@ func moveWindowFromSidebar(_ windowId: UInt32, toWorkspace workspaceName: String
 }
 
 @MainActor
-func moveTabGroupFromSidebar(_ windowId: UInt32, toWorkspace workspaceName: String) {
-    moveSidebarSource(windowId, subject: .group, toWorkspace: workspaceName)
+func moveTabGroupFromSidebar(_ containerIdentity: UInt64, toWorkspace workspaceName: String) {
+    guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else { return }
+    moveSidebarSource(window.windowId, subject: .group(containerIdentity), toWorkspace: workspaceName)
 }
 
 @MainActor
@@ -239,8 +240,9 @@ func moveWindowToNewWorkspaceFromSidebar(_ windowId: UInt32, projectId: Workspac
 }
 
 @MainActor
-func moveTabGroupToNewWorkspaceFromSidebar(_ windowId: UInt32, projectId: WorkspaceProjectId, monitorScopeId: String) {
-    moveSidebarSourceToNewWorkspace(windowId, subject: .group, projectId: projectId, monitorScopeId: monitorScopeId)
+func moveTabGroupToNewWorkspaceFromSidebar(_ containerIdentity: UInt64, projectId: WorkspaceProjectId, monitorScopeId: String) {
+    guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else { return }
+    moveSidebarSourceToNewWorkspace(window.windowId, subject: .group(containerIdentity), projectId: projectId, monitorScopeId: monitorScopeId)
 }
 
 @MainActor
@@ -286,13 +288,14 @@ private func moveSidebarSourceToNewWorkspace(
 
 @MainActor
 func previewWorkspaceSidebarDrop(_ windowId: UInt32, subject: WindowDragSubject, target: WorkspaceSidebarDropTargetKind) {
-    guard let sourceWindow = Window.get(byId: windowId) else {
+    guard let sourceWindow = Window.get(byId: windowId),
+          workspaceSidebarDragSource(sourceWindow, subject: subject) != nil else {
         clearWorkspaceSidebarDropPreview()
         return
     }
     if case .tree(let treeTarget) = target {
         guard let source = workspaceSidebarDragSource(sourceWindow, subject: subject) else { clearWorkspaceSidebarDropPreview(); return }
-        var preview = workspaceSidebarSourcePreview(sourceWindow: sourceWindow, subject: subject)
+        guard var preview = workspaceSidebarSourcePreview(sourceWindow: sourceWindow, subject: subject) else { clearWorkspaceSidebarDropPreview(); return }
         let destination = workspaceSidebarTreeDestination(treeTarget)
         preview.treeTarget = treeTarget
         if workspaceSidebarDragUsesZones, let targetWindow = destination?.node as? Window {
@@ -349,7 +352,7 @@ func clearWorkspaceSidebarDropPreview() {
 }
 
 @MainActor
-func workspaceSidebarSourcePreview(sourceWindow: Window, subject: WindowDragSubject) -> WorkspaceSidebarDropPreviewViewModel {
+func workspaceSidebarSourcePreview(sourceWindow: Window, subject: WindowDragSubject) -> WorkspaceSidebarDropPreviewViewModel? {
     workspaceSidebarDropPreview(
         sourceWindow: sourceWindow,
         subject: subject,
@@ -360,8 +363,12 @@ func workspaceSidebarSourcePreview(sourceWindow: Window, subject: WindowDragSubj
 
 @MainActor
 func showWorkspaceSidebarDragCursorPreview(sourceWindow: Window, subject: WindowDragSubject, point: CGPoint) {
+    guard let preview = workspaceSidebarSourcePreview(sourceWindow: sourceWindow, subject: subject) else {
+        WindowDragCursorProxyPanel.shared.hide()
+        return
+    }
     WindowDragCursorProxyPanel.shared.show(
-        preview: workspaceSidebarSourcePreview(sourceWindow: sourceWindow, subject: subject),
+        preview: preview,
         mouseScreenPoint: denormalizedAppKitScreenPoint(point),
     )
 }
@@ -388,8 +395,8 @@ private func workspaceSidebarDropPreview(
     targetsNewWorkspace: Bool,
     targetProjectId: WorkspaceProjectId? = nil,
     targetMonitorScopeId: String? = nil,
-) -> WorkspaceSidebarDropPreviewViewModel {
-    let moveNode = workspaceSidebarDragSource(sourceWindow, subject: subject)
+) -> WorkspaceSidebarDropPreviewViewModel? {
+    guard let moveNode = workspaceSidebarDragSource(sourceWindow, subject: subject) else { return nil }
     let isTabGroup = moveNode is TilingContainer
     let sourceLabel = if let container = moveNode as? TilingContainer, container.layout == .tiles {
         "\(container.orientation == .v ? "Vertical" : "Horizontal") tiles"
@@ -406,8 +413,8 @@ private func workspaceSidebarDropPreview(
         targetProjectId: targetProjectId,
         targetMonitorScopeId: targetMonitorScopeId,
         isTabGroup: isTabGroup,
-        windowCount: max(moveNode?.allLeafWindowsRecursive.count ?? 0, 1),
-        tabItems: moveNode.map { workspaceSidebarDropPreviewTabs(for: $0, isTabGroup: isTabGroup) } ?? [],
+        windowCount: max(moveNode.allLeafWindowsRecursive.count, 1),
+        tabItems: workspaceSidebarDropPreviewTabs(for: moveNode, isTabGroup: isTabGroup),
     )
 }
 
@@ -602,7 +609,7 @@ func workspaceSidebarFallbackWorkspaceName(for windowId: UInt32) -> String? {
 }
 
 @MainActor
-func updateSidebarWindowDrag(_ windowId: UInt32, subject: WindowDragSubject = .window, pointer: CGPoint? = nil, container: TilingContainer? = nil, sidebarOnly: Bool = false) {
+func updateSidebarWindowDrag(_ windowId: UInt32, subject: WindowDragSubject = .window, pointer: CGPoint? = nil, sidebarOnly: Bool = false) {
     if let pointer {
         MousePointerTracker.shared.note(point: pointer)
         postWorkspaceSidebarDragPointerNotification(workspaceSidebarDragPointerChangedNotification, pointer: pointer)
@@ -614,7 +621,7 @@ func updateSidebarWindowDrag(_ windowId: UInt32, subject: WindowDragSubject = .w
         clearActiveWorkspaceSidebarDrag()
         return
     }
-    beginActiveWorkspaceSidebarDrag(windowId: window.windowId, subject: subject, container: container, sidebarOnly: sidebarOnly)
+    beginActiveWorkspaceSidebarDrag(windowId: window.windowId, subject: subject, sidebarOnly: sidebarOnly)
     let point = MousePointerTracker.shared.currentSample.point
     updateActiveWorkspaceSidebarDragPreview(sourceWindow: window, subject: subject)
     if sidebarOnly {

@@ -54,16 +54,21 @@ func isWorkspaceSidebarItemDragActive() -> Bool {
 }
 
 @MainActor
-func beginActiveWorkspaceSidebarDrag(windowId: UInt32, subject: WindowDragSubject, container: TilingContainer? = nil, sidebarOnly: Bool = false) {
+func beginActiveWorkspaceSidebarDrag(windowId: UInt32, subject: WindowDragSubject, sidebarOnly: Bool = false) {
     if let activeWorkspaceSidebarDrag, activeWorkspaceSidebarDrag.windowId == windowId,
        activeWorkspaceSidebarDrag.subject == subject { return }
     guard let window = Window.get(byId: windowId) else { return }
-    let node = container ?? (dragSubjectNode(for: window, subject: subject) as? TilingContainer)
+    guard let node = dragSubjectNode(for: window, subject: subject) else {
+        clearActiveWorkspaceSidebarDrag()
+        return
+    }
     let source: WorkspaceSidebarDragSource
-    if let node, let workspace = node.nodeWorkspace {
-        source = .container(node.stableId, workspace: workspace.name)
-    } else {
-        source = .window(windowId)
+    switch subject {
+        case .group(let id):
+            guard let workspace = node.nodeWorkspace else { return }
+            source = .container(id, workspace: workspace.name)
+        case .window:
+            source = .window(windowId)
     }
     activeWorkspaceSidebarDrag = ActiveWorkspaceSidebarDrag(windowId: windowId, subject: subject, source: source, sidebarOnly: sidebarOnly)
 }

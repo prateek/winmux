@@ -10,6 +10,7 @@ struct WindowTabChromeTabItem: Equatable, Identifiable {
 
 struct WindowTabChromeItem: Equatable, Identifiable {
     let id: ObjectIdentifier
+    let containerIdentity: UInt64
     let workspaceName: String
     let activeWindowId: UInt32
     let orderingWindowId: UInt32

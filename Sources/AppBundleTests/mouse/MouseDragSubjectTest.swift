@@ -26,7 +26,7 @@ final class MouseDragSubjectTest: XCTestCase {
             isOptionPressed: false,
         ))
         XCTAssertTrue(shouldAllowSameWorkspaceWindowSurfaceIntent(
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             isOptionPressed: true,
         ))

@@ -143,7 +143,7 @@ func resolvedDraggedWindowAnchorRect(for window: Window, subject: WindowDragSubj
         case .window:
             window.lastAppliedLayoutPhysicalRect ?? window.moveNode.lastAppliedLayoutPhysicalRect
         case .group:
-            window.moveNode.lastAppliedLayoutPhysicalRect ?? window.lastAppliedLayoutPhysicalRect
+            dragSubjectNode(for: window, subject: subject)?.lastAppliedLayoutPhysicalRect ?? window.lastAppliedLayoutPhysicalRect
     }
 }
 
@@ -173,22 +173,26 @@ func isWindowInDraggableTabGroup(_ window: Window) -> Bool {
 }
 
 @MainActor
-func shouldContinueCurrentGroupDrag(windowId: UInt32) -> Bool {
+func shouldContinueCurrentGroupDrag(windowId: UInt32, subject: WindowDragSubject) -> Bool {
     getCurrentMouseManipulationKind() == .move &&
         currentlyManipulatedWithMouseWindowId == windowId &&
-        getCurrentMouseDragSubject() == .group
+        getCurrentMouseDragSubject().isGroup &&
+        getCurrentMouseDragSubject() == subject
 }
 
 @MainActor
 func resolvedMouseDragSubject(for window: Window) -> WindowDragSubject {
-    if shouldContinueCurrentGroupDrag(windowId: window.windowId) {
-        return .group
+    if shouldContinueCurrentGroupDrag(windowId: window.windowId, subject: getCurrentMouseDragSubject()) {
+        return getCurrentMouseDragSubject()
     }
     let isOptionPressed = currentSessionModifierFlags().contains(.maskAlternate)
-    return shouldPromoteWindowDragToTabGroupDrag(
+    if shouldPromoteWindowDragToTabGroupDrag(
         isOptionPressed: isOptionPressed,
         isTabbedWindow: isWindowInDraggableTabGroup(window),
-    ) ? .group : .window
+    ), let parent = window.parent as? TilingContainer {
+        return .group(parent.stableId)
+    }
+    return .window
 }
 
 @MainActor
@@ -327,7 +331,7 @@ func shouldIgnoreMovedObsForManagedWindowDragSession(
           observedWindowId != nil,
           observedWindowId == currentWindowId
     else { return false }
-    return startedInSidebar || detachOrigin == .tabStrip || subject == .group
+    return startedInSidebar || detachOrigin == .tabStrip || subject.isGroup
 }
 
 func shouldIgnoreWindowTabStripMouseEventsDuringDrag(detachOrigin: TabDetachOrigin) -> Bool {

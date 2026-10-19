@@ -166,8 +166,8 @@ extension WorkspaceSidebarWorkspaceSection {
         switch payload {
             case .window(let windowId):
                 actions.send(.moveWindow(windowId, toWorkspace: workspace.name))
-            case .tabGroup(let representativeWindowId):
-                actions.send(.moveTabGroup(representativeWindowId, toWorkspace: workspace.name))
+            case .tabGroup(let containerIdentity):
+                actions.send(.moveTabGroup(containerIdentity, toWorkspace: workspace.name))
         }
     }
 }
@@ -177,9 +177,8 @@ private func workspaceSidebarPayload(_ payload: WorkspaceSidebarDragPayload, com
     switch payload {
         case .window(let windowId):
             return Window.get(byId: windowId)?.nodeWorkspace?.name == workspaceName
-        case .tabGroup(let representativeWindowId):
-            guard let window = Window.get(byId: representativeWindowId) else { return false }
-            return dragSubjectNode(for: window, subject: .group).nodeWorkspace?.name == workspaceName
+        case .tabGroup(let containerIdentity):
+            return workspaceSidebarLiveContainer(containerIdentity)?.nodeWorkspace?.name == workspaceName
     }
 }
 extension WorkspaceSidebarWorkspaceSection {
@@ -510,7 +509,6 @@ extension WorkspaceSidebarWorkspaceSection {
                 workspaceWindowButton(
                     tab,
                     allowsDrag: true,
-                    subject: .window,
                     leadingHitInset: workspaceSidebarTabGroupChildLeadingIndent,
                 )
             }
@@ -550,12 +548,17 @@ extension WorkspaceSidebarWorkspaceSection {
         .modifier(WorkspaceSidebarOptionalDragModifier(
             isEnabled: true,
             onChanged: {
-                actions.tabGroupDragChanged(group.representativeWindowId, $0)
+                guard let identity = group.containerIdentity else { return }
+                actions.tabGroupDragChanged(identity, $0)
             },
-            onEnded: { actions.tabGroupDragEnded(group.representativeWindowId, $0) },
+            onEnded: {
+                guard let identity = group.containerIdentity else { return }
+                actions.tabGroupDragEnded(identity, $0)
+            },
         ))
         .workspaceSidebarDrag(enabled: true) {
-            WorkspaceSidebarDragPayload.tabGroup(group.representativeWindowId).itemProvider
+            guard let identity = group.containerIdentity else { return NSItemProvider() }
+            return WorkspaceSidebarDragPayload.tabGroup(identity).itemProvider
         }
         .onHover { hover in
             hoveredTabGroupId = hover ? group.representativeWindowId :
@@ -569,7 +572,6 @@ extension WorkspaceSidebarWorkspaceSection {
     func workspaceWindowButton(
         _ window: WorkspaceSidebarWindowViewModel,
         allowsDrag: Bool,
-        subject: WindowDragSubject = .window,
         leadingHitInset: CGFloat = 0,
         isTabChild: Bool = false,
     ) -> some View {
@@ -604,18 +606,10 @@ extension WorkspaceSidebarWorkspaceSection {
         .modifier(WorkspaceSidebarOptionalDragModifier(
             isEnabled: allowsDrag,
             onChanged: { pointer in
-                if subject == .group {
-                    actions.tabGroupDragChanged(window.windowId, pointer)
-                } else {
-                    actions.windowDragChanged(window.windowId, pointer)
-                }
+                actions.windowDragChanged(window.windowId, pointer)
             },
             onEnded: { pointer in
-                if subject == .group {
-                    actions.tabGroupDragEnded(window.windowId, pointer)
-                } else {
-                    actions.windowDragEnded(window.windowId, pointer)
-                }
+                actions.windowDragEnded(window.windowId, pointer)
             },
         ))
         .workspaceSidebarDrag(enabled: allowsDrag) {

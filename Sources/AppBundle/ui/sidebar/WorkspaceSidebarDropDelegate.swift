@@ -61,8 +61,8 @@ struct WorkspaceSidebarDropDelegate: DropDelegate {
         switch payload {
             case .window(let windowId):
                 actions.send(.previewWindowDrop(windowId, target: target))
-            case .tabGroup(let representativeWindowId):
-                actions.send(.previewTabGroupDrop(representativeWindowId, target: target))
+            case .tabGroup(let containerIdentity):
+                actions.send(.previewTabGroupDrop(containerIdentity, target: target))
         }
     }
 

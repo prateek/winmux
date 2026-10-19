@@ -68,7 +68,7 @@ final class MissionControlTest: XCTestCase {
         let owner = NSObject()
         let id = ObjectIdentifier(owner)
         TrayMenuModel.shared.windowTabStrips = [WindowTabStripViewModel(
-            id: id, workspaceName: focus.workspace.name,
+            id: id, containerIdentity: 0, workspaceName: focus.workspace.name,
             frame: CGRect(x: 100, y: 380, width: 400, height: 28),
             groupFrame: CGRect(x: 100, y: 100, width: 400, height: 308),
             activeWindowId: nil, activeWindowCornerRadius: 12, tabs: [], occludingFloatingWindowFrames: []
@@ -133,7 +133,7 @@ final class MissionControlTest: XCTestCase {
         let owner = NSObject()
         let id = ObjectIdentifier(owner)
         TrayMenuModel.shared.windowTabStrips = [WindowTabStripViewModel(
-            id: id, workspaceName: focus.workspace.name,
+            id: id, containerIdentity: 0, workspaceName: focus.workspace.name,
             frame: CGRect(x: 200, y: 480, width: 400, height: 28),
             groupFrame: CGRect(x: 200, y: 200, width: 400, height: 308),
             activeWindowId: nil, activeWindowCornerRadius: 12, tabs: [], occludingFloatingWindowFrames: []
@@ -164,7 +164,7 @@ final class MissionControlTest: XCTestCase {
         XCTAssertTrue(active.focusWindow())
         let id = ObjectIdentifier(group)
         TrayMenuModel.shared.windowTabStrips = [WindowTabStripViewModel(
-            id: id, workspaceName: focus.workspace.name,
+            id: id, containerIdentity: 0, workspaceName: focus.workspace.name,
             frame: CGRect(x: 100, y: 380, width: 400, height: 28),
             groupFrame: CGRect(x: 100, y: 100, width: 400, height: 308),
             activeWindowId: nil, activeWindowCornerRadius: 12, tabs: [], occludingFloatingWindowFrames: []
