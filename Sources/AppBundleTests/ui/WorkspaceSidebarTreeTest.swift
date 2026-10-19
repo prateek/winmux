@@ -632,8 +632,14 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let hidden = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(1, after: false)), frame: CGRect(x: 10, y: 20, width: 100, height: 24))
         let partial = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(2, after: false)), frame: CGRect(x: 10, y: 40, width: 100, height: 24))
         let visible = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(3, after: false)), frame: CGRect(x: 10, y: 60, width: 100, height: 24))
-        let clipped = WorkspaceSidebarDropTargetFrame(kind: partial.kind, frame: CGRect(x: 10, y: 50, width: 100, height: 14), rowFrame: partial.frame)
-        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [clipped, visible])
+        let clipped = WorkspaceSidebarDropTargetFrame(kind: partial.kind, frame: CGRect(x: 10, y: 50, width: 100, height: 14), rowFrame: partial.frame, viewport: viewport)
+        let boundedVisible = WorkspaceSidebarDropTargetFrame(kind: visible.kind, frame: visible.frame, viewport: viewport)
+        XCTAssertEqual(workspaceSidebarVisibleTargets([hidden, partial, visible], viewport: viewport), [clipped, boundedVisible])
+        let section = WorkspaceSidebarDropTargetFrame(kind: .workspace("1"), frame: CGRect(x: 0, y: 20, width: 320, height: 360))
+        let create = WorkspaceSidebarDropTargetFrame(kind: .newWorkspace(projectId: workspaceProjectDefaultId, monitorScopeId: "display"), frame: section.frame)
+        for target in [section, create] {
+            XCTAssertEqual(workspaceSidebarVisibleTargets([target], viewport: viewport), [.init(kind: target.kind, frame: viewport, rowFrame: target.frame, viewport: viewport)])
+        }
     }
 
     func testAPartlyHiddenRowTakesDropsOnlyWhereItShowsAndKeepsItsHalves() {
