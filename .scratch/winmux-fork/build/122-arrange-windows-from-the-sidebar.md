@@ -58,9 +58,7 @@ this tree path and must preserve the ordinary sibling path, including hidden par
 
 ### Checks for Prateek
 
-- [ ] Repeat the arrangements on an installed build with a real mouse or trackpad and keyboard.
-- [ ] Check a second display.
-- [ ] Check real sleep, wake and unlock.
+- [ ] On an installed build, with a real trackpad or mouse and keyboard, Option-drag window rows into a split and a tab group, and release Option mid-drag once. Pass: the zones appear while Option is held, the drop makes what the highlighted zone names, and with Option released the row shows the plain before/after line and the drop makes a sibling.
 
 ## Built and checked
 
@@ -72,7 +70,7 @@ this tree path and must preserve the ordinary sibling path, including hidden par
 - **Refused** is narrowed by the build rulings: Column Policy has no prohibition on these groups, and a floating source may tile through a zone. No additional Column refusal was introduced. Undo remains out of scope. **A dragged tab group moves one window when its active tab is a nested container** and **A workspace section scrolled under the sidebar's chrome takes drops there** remain separate work.
 - Host and pinned-version guest `make check` pass: 1,712 Swift tests, 92 helper/Rust tests and 171 script tests. The guest skips the existing committed-hash check for its sync commit. Fifty-three sidebar tree tests cover all zone arrangements and eligibility, geometry, modifiers, floating/AX races, command behavior, menus, ungrouping, cascade and Column slots. Disabling zone/container application produces 35 failures in four selected tests; the restored implementation passes. An additional failing assertion established normalization's ownership of empty-container removal.
 - Rich-desk screenshots, AX snapshots, `list-windows` transcripts and `agent query` raw trees check splits, tabs, swap, floating tiling, a Column-child wrapper, every menu action and the glyph. The same script against the separately built base and feature trees produces identical plain-drop input, inventory, raw trees and Column readbacks; the layout command's vertical result also matches. Stationary Option-release evidence shows the preview and commit reverting together. Proof tools are in `.scratch/winmux-fork/proofs/sidebar-arrange/`; final-commit pull request demos belong to the demo pass. No Search was used.
-- Installed-build use, a second display and real sleep/wake/unlock remain Prateek's checks above. No new by-hand upgrade or permission step is needed. The builder publishes no release.
+- Installed-build use with a real trackpad and keyboard remains Prateek's check above. No new by-hand upgrade or permission step is needed. The builder publishes no release.
 - The proof driver uses `dm` for actual drag events and waits after its final release. Early plain takes that ended `cliclick` immediately after `du` sometimes left the button held and the preview open; an explicit later release committed that same drag. With the trailing wait and independent combined-session button-state checks, five base and five feature takes all make siblings. The input failures are retained as diagnostic evidence, with no app workaround.
 
 ## Sources
