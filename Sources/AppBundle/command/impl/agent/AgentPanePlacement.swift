@@ -33,7 +33,7 @@ private func placeAgentPane(
     relation: AgentPaneRelationKind,
     insertion: (parent: TilingContainer, anchor: TreeNode),
 ) {
-    guard let binding = workspaceSidebarSiblingBindingData(source: source, target: insertion.anchor, after: relation.sourceIsAfterTarget) else { return }
+    guard let binding = siblingBindingData(source: source, target: insertion.anchor, after: relation.sourceIsAfterTarget) else { return }
     source.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
     source.mostRecentWindowRecursive?.markAsMostRecentChild()
 }

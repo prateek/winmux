@@ -71,9 +71,12 @@ struct WorkspaceSidebarDropTargetPreferenceKey: PreferenceKey {
 }
 
 func workspaceSidebarVisibleTreeTargets(_ targets: [WorkspaceSidebarDropTargetFrame], viewport: CGRect) -> [WorkspaceSidebarDropTargetFrame] {
-    targets.filter {
-        guard case .tree = $0.kind else { return true }
-        return viewport.contains($0.frame)
+    // A row half under the header or the bottom edge keeps its visible half as a target.
+    targets.compactMap { target in
+        guard case .tree = target.kind else { return target }
+        let visible = target.frame.intersection(viewport)
+        guard !visible.isNull, visible.height > 0, visible.width > 0 else { return nil }
+        return WorkspaceSidebarDropTargetFrame(kind: target.kind, frame: visible)
     }
 }
 

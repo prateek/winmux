@@ -25,6 +25,6 @@ func makeWorkspaceSidebarTabGroupViewModel(
         windowCount: container.allLeafWindowsRecursive.count,
         isFocused: representativeWindow.moveNode == currentFocus.windowOrNil?.moveNode,
         tabs: tabs,
-        containerIdentity: container.sidebarIdentity,
+        containerIdentity: container.stableId,
     )
 }

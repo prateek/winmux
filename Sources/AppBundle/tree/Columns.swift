@@ -262,11 +262,9 @@ extension Workspace {
         var insertionIndex = index
         for window in node.allLeafWindowsRecursive {
             if window.isBound { window.unbindFromParent() }
-            window.bindAsFloatingWindow(to: self)
-            if insertionIndex != INDEX_BIND_LAST {
-                window.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: min(insertionIndex, children.count - 1))
-                insertionIndex += 1
-            }
+            let index = insertionIndex == INDEX_BIND_LAST ? INDEX_BIND_LAST : min(insertionIndex, children.count)
+            window.bind(to: self, adaptiveWeight: WEIGHT_AUTO, index: index)
+            if insertionIndex != INDEX_BIND_LAST { insertionIndex += 1 }
         }
         if node is TilingContainer, node.isBound { node.unbindFromParent() }
     }

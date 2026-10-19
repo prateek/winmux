@@ -29,18 +29,18 @@ Make the sidebar tree a place to arrange the layout with the mouse: make splits 
 
 `WorkspaceSidebarItemViewModel.children` holds the actual layout tree with real-parent
 identity and index metadata. Container identities are monotonic `UInt64` values
-from `TilingContainer.sidebarIdentity`. `WorkspaceSidebarWorkspaceViewModel.projectedItems`
+from `TilingContainer.stableId`. `WorkspaceSidebarWorkspaceViewModel.projectedItems`
 stores the display projection, with a cached window-to-Column lookup. Extend that
 projection and `WorkspaceSidebarTreeRows`,
 not the retained prototype JavaScript or the dormant SwiftUI drop delegate.
 
 `WorkspaceSidebarDropTargetKind.tree` carries `WorkspaceSidebarTreeDropTarget`.
-Tree targets register only inside the scroll viewport. `resolveWorkspaceSidebarDropTarget`
+Tree targets are clipped to the scroll viewport. `resolveWorkspaceSidebarDropTarget`
 prioritizes exact monitor/new-workspace controls, then picks the smallest containing
 row and resolves its half once. `workspaceSidebarDragTarget` serves preview and commit;
 `applyWorkspaceSidebarTreeDrop` resolves live container/window identities and performs
 the binding. Split/tab targets that have become Columns roots cancel, including
-after suspended AX reads. `workspaceSidebarSiblingBindingData` is the indexed sibling
+after suspended AX reads. `siblingBindingData` is the indexed sibling
 seam also used by agent-pane placement. `Columns.swift` owns the shared vertical
 Column wrapper and floating-leaf binder; floating drops restore remembered sizes.
 `ActiveWorkspaceSidebarDrag` owns the source identity. Split sources cancel outside

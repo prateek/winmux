@@ -10,13 +10,14 @@ func workspaceSidebarFilteredWorkspacesByProject(
     let projectNames = Dictionary(uniqueKeysWithValues: projects.map { ($0.id, $0.displayName) })
     return workspacesByProject.mapValues { workspaces in
         workspaces.compactMap { workspace in
-            var result = workspace
             let projectName = projectNames[workspace.projectId]
-            result.items = workspace.items.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
-            if !result.items.isEmpty { return result }
+            // Every window's text includes its workspace's names, so a workspace match keeps it whole.
             let workspaceMatches = workspaceSidebarSearchTextMatches(
                 [workspace.displayName, workspace.sidebarLabel, workspace.name, workspace.monitorName, projectName], terms: terms)
-            return workspaceMatches ? workspace : nil
+            if workspaceMatches { return workspace }
+            var result = workspace
+            result.items = workspace.items.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
+            return result.items.isEmpty ? nil : result
         }
     }
 }
@@ -39,10 +40,10 @@ private func workspaceSidebarSearchResultItem(_ item: WorkspaceSidebarItemViewMo
         case .tabGroup(var group):
             let matches = group.tabs.filter { workspaceSidebarWindowMatches($0, workspace: workspace, projectName: projectName, terms: terms) }
             result.children = item.children.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }
-            guard !matches.isEmpty || !result.children.isEmpty || workspaceSidebarSearchTextMatches(
-                [group.title, workspace.displayName, workspace.name, projectName], terms: terms) else { return nil }
+            let titleMatches = workspaceSidebarSearchTextMatches([group.title, workspace.displayName, workspace.name, projectName], terms: terms)
+            guard !matches.isEmpty || !result.children.isEmpty || titleMatches else { return nil }
             group.searchVisibleTabs = matches
-            result = .init(kind: .tabGroup(group), children: result.children, realParent: item.realParent, indexInParent: item.indexInParent, columnSlot: item.columnSlot, isSearchAncestor: true, isSearchRevealed: true)
+            result = .init(kind: .tabGroup(group), children: result.children, realParent: item.realParent, indexInParent: item.indexInParent, columnSlot: item.columnSlot, isSearchAncestor: !titleMatches, isSearchRevealed: true)
             return result
         case .split, .column, .floating:
             result.children = item.children.compactMap { workspaceSidebarSearchResultItem($0, workspace: workspace, projectName: projectName, terms: terms) }

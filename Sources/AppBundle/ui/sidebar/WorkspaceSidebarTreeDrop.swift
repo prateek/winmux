@@ -5,7 +5,7 @@ import Common
 func workspaceSidebarLiveContainer(_ identity: UInt64, workspaceName: String) -> TilingContainer? {
     guard let workspace = Workspace.existing(byName: workspaceName) else { return nil }
     func find(_ node: TreeNode) -> TilingContainer? {
-        if let container = node as? TilingContainer, container.sidebarIdentity == identity { return container }
+        if let container = node as? TilingContainer, container.stableId == identity { return container }
         for child in node.children { if let found = find(child) { return found } }
         return nil
     }
@@ -84,8 +84,9 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
                 index = ownIndex + (after ? 1 : 0)
                 index -= windows.filter { $0.parent === destination.workspace && ($0.ownIndex ?? Int.max) < index }.count
             }
+            let wereTiled = windows.filter { !$0.isFloating }
             destination.workspace.bindLeavesAsFloating(source, at: index)
-            for window in windows {
+            for window in wereTiled {
                 if let size = window.lastFloatingSize { window.setAxFrame(nil, size) }
             }
             return true
@@ -109,7 +110,7 @@ func applyWorkspaceSidebarTreeDrop(source: TreeNode, target: WorkspaceSidebarTre
             workspaceSidebarJoinLeaves(source, to: container, index: INDEX_BIND_LAST)
         case .window(_, let after), .tab(_, let after):
             guard let node = live.node, let parent = node.parent as? TilingContainer,
-                  let binding = workspaceSidebarSiblingBindingData(source: source, target: node, after: after) else { return false }
+                  let binding = siblingBindingData(source: source, target: node, after: after) else { return false }
             if live.workspace.columns != nil, parent === live.workspace.rootTilingContainer {
                 let wrapper = live.workspace.wrapColumnChildInVerticalSplit(node)
                 source.columnSlot = nil

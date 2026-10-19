@@ -16,7 +16,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let flat = workspaceSidebarProjectItems(tree, splits: false, columns: false)
         XCTAssertEqual(flat.map(\.identity), [.window(first.windowId), .window(second.windowId)])
         XCTAssertEqual(flat.map(\.indexInParent), [0, 1])
-        XCTAssertTrue(flat.allSatisfy { $0.realParent == .container(workspace.rootTilingContainer.sidebarIdentity) })
+        XCTAssertTrue(flat.allSatisfy { $0.realParent == .container(workspace.rootTilingContainer.stableId) })
     }
 
     @MainActor
@@ -41,7 +41,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
             let workspace = Workspace.get(byName: "1")
             let root = workspace.rootTilingContainer
             root.layout = layout
-            let target: WorkspaceSidebarTreeDropTarget = layout == .tiles ? .split(root.sidebarIdentity, workspace: "1") : .tabGroup(root.sidebarIdentity, workspace: "1")
+            let target: WorkspaceSidebarTreeDropTarget = layout == .tiles ? .split(root.stableId, workspace: "1") : .tabGroup(root.stableId, workspace: "1")
             workspace.columns = ColumnState(count: 2)
             let sourceParent = Workspace.get(byName: "2").rootTilingContainer
             let source = TestWindow.new(id: 704, parent: sourceParent)
@@ -59,7 +59,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let root = workspace.rootTilingContainer
         let sourceWorkspace = Workspace.get(byName: "2")
         let source = TestWindow.new(id: 709, parent: sourceWorkspace)
-        let target = WorkspaceSidebarTreeDropTarget.split(root.sidebarIdentity, workspace: "1")
+        let target = WorkspaceSidebarTreeDropTarget.split(root.stableId, workspace: "1")
         XCTAssertNotNil(workspaceSidebarTreeDestination(target))
         source.beforeAxSize = { workspace.columns = ColumnState(count: 2) }
         try await checkDrop(source, target, accepted: false)
@@ -89,6 +89,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let groups = workspaceSidebarFilteredWorkspacesByProject([workspaceProjectDefaultId: [model]], projects: [], query: "special group")[workspaceProjectDefaultId]!
         XCTAssertEqual(groups.count, 1)
         if case .tabGroup(let result) = groups.first?.items.first?.kind { XCTAssertEqual(result.searchVisibleTabs, []) }
+        XCTAssertEqual(groups.first?.items.first?.isSearchAncestor, false, "A group whose own title matches is a match, not a dimmed ancestor")
         var empty = model
         empty.items = []
         for query in ["label", "studio", "work"] {
@@ -195,20 +196,20 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         setUpWorkspacesForTests()
         let workspace = Workspace.get(byName: "1")
         var old: TilingContainer? = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
-        let identity = old!.sidebarIdentity
+        let identity = old!.stableId
         weak var freed = old
         old!.unbindFromParent()
         old = nil
         XCTAssertNil(freed)
         let replacement = TilingContainer(parent: workspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
-        XCTAssertGreaterThan(replacement.sidebarIdentity, identity)
+        XCTAssertGreaterThan(replacement.stableId, identity)
         XCTAssertNil(workspaceSidebarLiveContainer(identity, workspaceName: "1"))
-        XCTAssertTrue(workspaceSidebarLiveContainer(replacement.sidebarIdentity, workspaceName: "1") === replacement)
+        XCTAssertTrue(workspaceSidebarLiveContainer(replacement.stableId, workspaceName: "1") === replacement)
         var state = WorkspaceSidebarTreeState()
         state.collapsedNodes = [.container(identity)]
         let models = await buildWorkspaceSidebarWorkspaceViewModels(currentFocus: focus, workspaceLabels: [:], availableMonitors: [])
         state.prune(workspaces: models)
-        XCTAssertFalse(state.collapsedNodes.contains(.container(replacement.sidebarIdentity)))
+        XCTAssertFalse(state.collapsedNodes.contains(.container(replacement.stableId)))
         XCTAssertTrue(state.collapsedNodes.isEmpty)
     }
 
@@ -217,7 +218,45 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let hidden = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(1, after: false)), frame: CGRect(x: 10, y: 20, width: 100, height: 24))
         let partial = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(2, after: false)), frame: CGRect(x: 10, y: 40, width: 100, height: 24))
         let visible = WorkspaceSidebarDropTargetFrame(kind: .tree(.window(3, after: false)), frame: CGRect(x: 10, y: 60, width: 100, height: 24))
-        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [visible])
+        let clipped = WorkspaceSidebarDropTargetFrame(kind: partial.kind, frame: CGRect(x: 10, y: 50, width: 100, height: 14))
+        XCTAssertEqual(workspaceSidebarVisibleTreeTargets([hidden, partial, visible], viewport: viewport), [clipped, visible])
+    }
+
+    @MainActor
+    func testTabGroupHeaderDragCarriesTheGroupWhenItsActiveTabIsANestedSplit() {
+        setUpWorkspacesForTests()
+        let root = Workspace.get(byName: "1").rootTilingContainer
+        let group = TilingContainer(parent: root, adaptiveWeight: WEIGHT_AUTO, .h, .tabGroup, index: 0)
+        let nested = TilingContainer(parent: group, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
+        let representative = TestWindow.new(id: 720, parent: nested)
+        _ = TestWindow.new(id: 721, parent: nested)
+        _ = TestWindow.new(id: 722, parent: group)
+        beginActiveWorkspaceSidebarDrag(windowId: representative.windowId, subject: .group)
+        defer { clearActiveWorkspaceSidebarDrag() }
+        XCTAssertTrue(workspaceSidebarDragSource(representative, subject: .group) === group)
+    }
+
+    @MainActor
+    func testFloatingReorderKeepsTheSizeOfAnAlreadyFloatingWindow() async throws {
+        setUpWorkspacesForTests()
+        let source = Workspace.get(byName: "1")
+        let target = Workspace.get(byName: "2")
+        let window = TestWindow.new(id: 723, parent: source, rect: Rect(topLeftX: 20, topLeftY: 30, width: 900, height: 700))
+        window.lastFloatingSize = CGSize(width: 320, height: 240)
+        try await checkDrop(window, .floatingGroup("2"))
+        XCTAssertTrue(window.parent === target)
+        let rect = try await window.getAxRect()
+        XCTAssertEqual(rect?.size, CGSize(width: 900, height: 700))
+    }
+
+    func testWorkspaceNameMatchKeepsTheWholeWorkspaceUndimmed() {
+        let window = WorkspaceSidebarWindowViewModel(windowId: 724, workspaceName: "coding", appName: "Editor", appBundleId: nil, appBundlePath: nil, title: "Draft", isFocused: false)
+        let occupied = WorkspaceSidebarItemViewModel(kind: .column(workspace: "coding", slot: 1, fraction: 0.5), children: [.init(kind: .window(window), columnSlot: 1)], columnSlot: 1)
+        let empty = WorkspaceSidebarItemViewModel(kind: .column(workspace: "coding", slot: 2, fraction: 0.5), columnSlot: 2)
+        let model = WorkspaceSidebarWorkspaceViewModel(name: "coding", projectId: workspaceProjectDefaultId, displayName: "coding", sidebarLabel: "", isGeneratedName: false, monitorScopeId: "", monitorName: nil, isFocused: false, isVisible: true, items: [occupied, empty])
+        let results = workspaceSidebarFilteredWorkspacesByProject([workspaceProjectDefaultId: [model]], projects: [], query: "coding")[workspaceProjectDefaultId]!
+        XCTAssertEqual(results.first?.items.map(\.identity), [.column("coding", 1), .column("coding", 2)])
+        XCTAssertEqual(results.first?.items.map(\.isSearchAncestor), [false, false])
     }
 
     func testRenderReadsReuseProjectionStorageAndModelChangesRebuildIt() {
@@ -276,7 +315,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                 let sourceParent = TilingContainer(parent: sourceWorkspace.rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
                 let source = TestWindow.new(id: 901, parent: sourceParent)
                 let target = TestWindow.new(id: 902, parent: targetWorkspace.rootTilingContainer)
-                let binding = workspaceSidebarSiblingBindingData(source: source, target: target, after: after)!
+                let binding = siblingBindingData(source: source, target: target, after: after)!
                 source.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
                 XCTAssertTrue(source.parent === target.parent)
                 XCTAssertEqual(source.ownIndex, target.ownIndex! + (after ? 1 : -1))
@@ -313,7 +352,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         let source = TilingContainer(parent: Workspace.get(byName: "1").rootTilingContainer, adaptiveWeight: WEIGHT_AUTO, .v, .tiles, index: 0)
         _ = TestWindow.new(id: 933, parent: source)
         _ = TestWindow.new(id: 934, parent: source)
-        try await checkDrop(source, .tabGroup(tabs.sidebarIdentity, workspace: "2"))
+        try await checkDrop(source, .tabGroup(tabs.stableId, workspace: "2"))
         XCTAssertEqual(tabs.allLeafWindowsRecursive.map(\.windowId), [931, 932, 933, 934])
         XCTAssertFalse(source.isBound)
         try await checkDrop(tabs, .floatingGroup("2"))
@@ -349,7 +388,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         try await checkDrop(floating, .tab(first.windowId, after: true))
         XCTAssertTrue(floating.parent === tabs)
         XCTAssertEqual(tabs.allLeafWindowsRecursive.map(\.windowId), [941, 943, 942])
-        let identity = tabs.sidebarIdentity
+        let identity = tabs.stableId
         tabs.unbindFromParent()
         try await checkDrop(TestWindow.new(id: 944, parent: workspace.rootTilingContainer), .split(identity, workspace: "1"), accepted: false)
     }
@@ -363,7 +402,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         _ = TestWindow.new(id: 972, parent: split)
         let sourceParent = Workspace.get(byName: "2").rootTilingContainer
         let source = TestWindow.new(id: 973, parent: sourceParent)
-        let target = WorkspaceSidebarTreeDropTarget.split(split.sidebarIdentity, workspace: "1")
+        let target = WorkspaceSidebarTreeDropTarget.split(split.stableId, workspace: "1")
         split.layout = .tabGroup
         try await checkDrop(source, target, accepted: false)
         XCTAssertTrue(source.parent === sourceParent)
@@ -414,7 +453,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         var model = models.first { $0.name == "2" }!
         XCTAssertEqual(model.columnWidths, [0.28, 0.44, 0.28])
         XCTAssertEqual(model.columnSlot(for: 981), 2)
-        model.collapsedNodes = [.container(tabs.sidebarIdentity), .column("2", 2)]
+        model.collapsedNodes = [.container(tabs.stableId), .column("2", 2)]
         let original = model
         let title = model.items.flatMap(\.descendantItems).compactMap { item -> WorkspaceSidebarWindowViewModel? in
             if case .window(let window) = item.kind { return window }; return nil
@@ -446,7 +485,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
                     let windows = (0...2).map { TestWindow.new(id: UInt32(850 + $0), parent: root) }
                     let source = windows[sourceIndex]
                     let target = windows[targetIndex]
-                    let binding = workspaceSidebarSiblingBindingData(source: source, target: target, after: after)!
+                    let binding = siblingBindingData(source: source, target: target, after: after)!
                     source.bind(to: binding.parent, adaptiveWeight: binding.adaptiveWeight, index: binding.index)
                     var expected = windows.filter { $0 !== source }
                     let index = expected.firstIndex { $0 === target }! + (after ? 1 : 0)
@@ -467,7 +506,7 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         window.columnSlot = 2
         let tree = await buildWorkspaceSidebarLayoutTree(for: workspace, currentFocus: focus)
         XCTAssertEqual(tree.count, 3)
-        XCTAssertEqual(tree[1].children.first?.realParent, .container(workspace.rootTilingContainer.sidebarIdentity))
+        XCTAssertEqual(tree[1].children.first?.realParent, .container(workspace.rootTilingContainer.stableId))
         XCTAssertEqual(tree[1].children.first?.indexInParent, 0)
         XCTAssertEqual(workspaceSidebarProjectItems(tree, splits: false, columns: false).map(\.id), ["window:890"])
     }
