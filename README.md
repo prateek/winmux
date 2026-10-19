@@ -45,6 +45,21 @@ workspace-sidebar = {
 },
 ```
 
+The rail shows workspace numbers. The expanded tree starts flat, with tab groups and
+floating-window glyphs. Column marks show each Column's width and remembered focus;
+hovering a window highlights its Column. The small Splits and Columns buttons reveal
+layout levels for that workspace. `workspace-sidebar.tree.splits` and
+`workspace-sidebar.tree.columns` set their starting states (both default to `false`).
+Changing one default clears only that toggle's session overrides. Disclosure choices
+last for the sidebar session; Search reveals matching paths without changing them.
+The expanded width defaults to 320 points; an explicit `width` keeps its configured value.
+
+Drop on the upper or lower half of a window to insert before or after it in its real
+parent, including when that parent is hidden. Container rows append, Column rows and
+marks place into that Column, and floating targets float the incoming windows.
+Dropping on the current workspace's row leaves the layout unchanged. A preview names
+the destination or explains a refused self/descendant drop.
+
 To keep the full sidebar visible, reserve its expanded width when laying out tiled windows:
 
 ```nickel

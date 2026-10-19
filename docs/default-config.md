@@ -2,6 +2,12 @@
 
 With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new windows use ordinary tree tiling. Startup does not write a starter file unless it is converting a legacy config. “Open config” creates an editable import-only starter when needed.
 
+The sidebar's expanded width defaults to 320 points. `workspace-sidebar.tree.splits`
+and `workspace-sidebar.tree.columns` are Boolean defaults, both `false`. They reveal
+split/floating groupings and Column slots respectively. Each workspace's buttons
+override those defaults for the session. Changing a default clears its overrides;
+the other toggle keeps its choices. Explicit sidebar widths are preserved.
+
 `restore-windows-on-quit` is a Bool, default `true`. Quitting WinMux, from its menu, the system's Quit or logout, or SIGTERM, SIGINT and SIGHUP, puts each window that was open when WinMux started back at the frame it had then. A window moved to another display or resized by hand still goes back to that frame. A window opened while WinMux ran stays where it is, and one parked on a hidden workspace is centred on its display. A window whose recorded display is gone stays where it is if it is on screen, and is otherwise centred on the nearest display. The records live in memory for one run of WinMux: a config reload keeps them, and a closed window is never reopened. Set `restore-windows-on-quit = false` to centre every window at its last floating size, as earlier versions did.
 
 `url-scheme` is a Bool, default `true`. Set it to `false` to refuse `winmux://` URL commands; a config reload applies to the next URL. [URL commands](url-scheme.md) has the form, the refused commands and who can use it.
