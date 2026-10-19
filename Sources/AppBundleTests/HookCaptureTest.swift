@@ -307,6 +307,7 @@ final class HookCaptureTest: XCTestCase {
     func testAFailedFreshOnDoesNotReportThePreviousCapturesCount() async throws {
         try store.start()
         _ = await call("arrive")
+        XCTAssertEqual(store.status().records, 1)
         store.stop()
         try FileManager.default.removeItem(at: directory)
         try Data().write(to: directory)
