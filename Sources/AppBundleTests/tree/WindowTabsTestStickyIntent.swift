@@ -136,14 +136,14 @@ import XCTest
 
         XCTAssertTrue(beginWindowMoveWithMouseSessionIfNeeded(
             windowId: window.windowId,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             detachOrigin: .window,
             startedInSidebar: true,
             anchorRect: groupRect,
         ))
         XCTAssertFalse(beginWindowMoveWithMouseSessionIfNeeded(
             windowId: window.windowId,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             detachOrigin: .window,
             startedInSidebar: true,
             anchorRect: nil,
@@ -242,7 +242,7 @@ import XCTest
         XCTAssertFalse(updatePendingWindowDragIntent(
             sourceWindow: source,
             mouseLocation: target.swapDropZoneRect.orDie().center,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             detachOrigin: .window,
         ))
         XCTAssertNil(debugPendingWindowDragIntentSummary())
@@ -267,7 +267,7 @@ import XCTest
         XCTAssertFalse(updatePendingWindowDragIntent(
             sourceWindow: source,
             mouseLocation: target.stackSplitDropZoneRect(position: .left).orDie().center,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             detachOrigin: .window,
         ))
         XCTAssertNil(debugPendingWindowDragIntentSummary())

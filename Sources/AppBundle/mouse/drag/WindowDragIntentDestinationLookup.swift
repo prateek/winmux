@@ -16,7 +16,7 @@ func currentWindowDragIntentDestination(
         return nil
     }
 
-    let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
     let sourceWorkspace = sourceNode.nodeWorkspace
     if let columnDestination = currentColumnDragDestination(sourceWindow: sourceWindow, workspace: targetWorkspace,
@@ -117,7 +117,7 @@ private func workspaceZoneMoveDestination(
         subtitle: "Drop to move this item to \(targetWorkspace.name)",
         previewStyle: zone.previewStyleForWorkspaceMove,
         previewGeometry: zone.previewGeometryForWorkspaceMove,
-        isGroup: subject == .group,
+        isGroup: subject.isGroup,
         dropIntentOverlay: WindowDropIntentOverlayModel(
             targetFrame: workspaceRect,
             activeZone: zone,
@@ -183,6 +183,6 @@ private func workspaceMoveDestination(
         subtitle: "Drop to move this item to this workspace",
         previewStyle: .workspaceMove,
         previewGeometry: .rounded,
-        isGroup: subject == .group,
+        isGroup: subject.isGroup,
     )
 }

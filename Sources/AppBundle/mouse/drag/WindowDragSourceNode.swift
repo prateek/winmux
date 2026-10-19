@@ -2,10 +2,10 @@ import AppKit
 import Common
 
 @MainActor
-func dragSubjectNode(for sourceWindow: Window, subject: WindowDragSubject) -> TreeNode {
+func dragSubjectNode(for sourceWindow: Window, subject: WindowDragSubject) -> TreeNode? {
     switch subject {
         case .window: sourceWindow
-        case .group: sourceWindow.moveNode
+        case .group(let id): workspaceSidebarLiveContainer(id)
     }
 }
 
@@ -28,7 +28,7 @@ func dragIntentTargetNode(
         )
         return sourceParent
     }
-    if subject == .group, detachOrigin != .tabStrip {
+    if subject.isGroup, detachOrigin != .tabStrip {
         return targetWindow
     }
     return targetWindow.moveNode
@@ -67,7 +67,7 @@ func isBlockedByDragTargetContainment(sourceNode: TreeNode, targetNode: TreeNode
 
 @MainActor
 func isInvalidGroupSelfTarget(sourceNode: TreeNode, targetNode: TreeNode, subject: WindowDragSubject) -> Bool {
-    guard subject == .group else { return false }
+    guard subject.isGroup else { return false }
     return targetNode.parentsWithSelf.contains(sourceNode)
 }
 
@@ -105,8 +105,20 @@ func preservesWorkspaceSidebarTreePreview(isOverSidebar: Bool) -> Bool {
     currentActiveWorkspaceSidebarDrag() != nil && isOverSidebar
 }
 
+/// A drag whose subject is gone shows nothing.
+@MainActor
+func clearStaleDragSubjectFeedback() {
+    clearPendingWindowDragIntent()
+    setWorkspaceSidebarDropPreviewIfChanged(nil)
+    WindowDragCursorProxyPanel.shared.hide()
+}
+
 @MainActor
 func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject, destination: WindowDragIntentDestination?) {
+    guard let moveNode = dragSubjectNode(for: sourceWindow, subject: subject) else {
+        clearStaleDragSubjectFeedback()
+        return
+    }
     let point = MousePointerTracker.shared.currentSample.point
     guard !preservesWorkspaceSidebarTreePreview(isOverSidebar: WorkspaceSidebarPanel.panel(containing: point) != nil) else { return }
     guard let destination, destination.previewStyle == .sidebarWorkspaceMove else {
@@ -132,7 +144,6 @@ func updateSidebarDragFeedback(sourceWindow: Window, subject: WindowDragSubject,
         return
     }
 
-    let moveNode = dragSubjectNode(for: sourceWindow, subject: subject)
     let isTabGroup = moveNode is TilingContainer
     let windowCount = max(moveNode.allLeafWindowsRecursive.count, 1)
     let sourceLabel = sidebarDragSourceTitle(for: sourceWindow, subject: subject)

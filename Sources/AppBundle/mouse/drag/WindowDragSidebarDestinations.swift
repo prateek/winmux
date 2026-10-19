@@ -32,11 +32,17 @@ func isActionableSidebarWorkspaceDropTarget(
 
 @MainActor
 func currentSidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation: CGPoint, subject: WindowDragSubject) -> WindowDragIntentDestination? {
+    guard let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop, includesTreeTargets: false) else { return nil }
+    return sidebarWorkspaceDropDestination(sourceWindow: sourceWindow, mouseLocation: mouseLocation, subject: subject, target: target)
+}
+
+@MainActor
+func sidebarWorkspaceDropDestination(sourceWindow: Window, mouseLocation: CGPoint, subject: WindowDragSubject, target: WorkspaceSidebarDropTarget) -> WindowDragIntentDestination? {
     let sourceLabel = sidebarDragSourceTitle(for: sourceWindow, subject: subject)
-    let isGroup = subject == .group
-    let sourceWorkspaceName = dragSubjectNode(for: sourceWindow, subject: subject).nodeWorkspace?.name
-    if let target = workspaceSidebarDropTarget(at: mouseLocation, hitSlop: sidebarWorkspaceDropTargetHitSlop, includesTreeTargets: false),
-       isActionableSidebarWorkspaceDropTarget(sourceWorkspaceName: sourceWorkspaceName, targetKind: target.kind)
+    let isGroup = subject.isGroup
+    guard let source = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
+    let sourceWorkspaceName = source.nodeWorkspace?.name
+    if isActionableSidebarWorkspaceDropTarget(sourceWorkspaceName: sourceWorkspaceName, targetKind: target.kind)
     {
         switch target.kind {
             case .tree: return nil

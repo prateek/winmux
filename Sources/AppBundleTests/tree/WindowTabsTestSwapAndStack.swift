@@ -137,7 +137,7 @@ import XCTest
         XCTAssertEqual(resolvedWindowRect.width, windowRect.width)
         XCTAssertEqual(resolvedWindowRect.height, windowRect.height)
 
-        let resolvedGroupRect = resolvedDraggedWindowAnchorRect(for: window, subject: .group).orDie()
+        let resolvedGroupRect = resolvedDraggedWindowAnchorRect(for: window, subject: .group(tabGroup.stableId)).orDie()
         XCTAssertEqual(resolvedGroupRect.topLeftX, groupRect.topLeftX)
         XCTAssertEqual(resolvedGroupRect.topLeftY, groupRect.topLeftY)
         XCTAssertEqual(resolvedGroupRect.width, groupRect.width)
@@ -158,7 +158,7 @@ import XCTest
 
         let pinnedRect = pinnedDraggedWindowRect(
             for: window,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             fallbackAnchorRect: groupRect,
         )
 
@@ -180,7 +180,7 @@ import XCTest
 
         let pinnedRect = pinnedDraggedWindowRect(
             for: window,
-            subject: .group,
+            subject: .group(tabGroup.stableId),
             fallbackAnchorRect: groupRect,
         )
 
@@ -252,7 +252,7 @@ import XCTest
         XCTAssertTrue(target.focusWindow())
         XCTAssertTrue(applyWindowSwapDragIntent(
             sourceWindow: source,
-            sourceSubject: .group,
+            sourceSubject: .group(tabGroup.stableId),
             targetWindow: target,
         ))
 
@@ -270,7 +270,7 @@ import XCTest
 
         XCTAssertFalse(applyWindowSwapDragIntent(
             sourceWindow: source,
-            sourceSubject: .group,
+            sourceSubject: .group(tabGroup.stableId),
             targetWindow: target,
         ))
         assertEquals(root.layoutDescription, .h_tiles([
@@ -373,7 +373,7 @@ import XCTest
 
         XCTAssertFalse(applyWindowStackSplitDragIntent(
             sourceWindow: source,
-            sourceSubject: .group,
+            sourceSubject: .group(tabGroup.stableId),
             targetWindow: target,
             position: .left,
         ))

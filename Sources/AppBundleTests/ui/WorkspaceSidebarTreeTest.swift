@@ -582,14 +582,14 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         defer { setMonitorsForTests(nil) }
         XCTAssertTrue(monitor.setActiveWorkspace(targetWorkspace))
         let target = TestWindow.new(id: 708, parent: targetWorkspace.rootTilingContainer)
-        beginActiveWorkspaceSidebarDrag(windowId: first.windowId, subject: .group, container: split, sidebarOnly: true)
+        beginActiveWorkspaceSidebarDrag(windowId: first.windowId, subject: .group(split.stableId), sidebarOnly: true)
         defer { clearActiveWorkspaceSidebarDrag(); clearPendingWindowDragIntent() }
-        XCTAssertTrue(workspaceSidebarDragSource(first, subject: .group) === split)
-        XCTAssertNil(currentWindowDragIntentDestination(sourceWindow: first, mouseLocation: CGPoint(x: 500, y: 500), subject: .group, detachOrigin: .window))
+        XCTAssertTrue(workspaceSidebarDragSource(first, subject: .group(split.stableId)) === split)
+        XCTAssertNil(currentWindowDragIntentDestination(sourceWindow: first, mouseLocation: CGPoint(x: 500, y: 500), subject: .group(split.stableId), detachOrigin: .window))
         XCTAssertFalse(workspaceSidebarTreeAcceptsTarget(sourceWorkspaceName: "1", target: .monitor("display")))
         XCTAssertFalse(workspaceSidebarTreeAcceptsTarget(sourceWorkspaceName: "1", target: .newWorkspace(projectId: workspaceProjectDefaultId, monitorScopeId: "display")))
         XCTAssertTrue(workspaceSidebarTreeAcceptsTarget(sourceWorkspaceName: "1", target: .tree(.window(target.windowId, after: true))))
-        _ = setPendingWindowDragIntent(sourceWindowId: first.windowId, sourceSubject: .group, detachOrigin: .window,
+        _ = setPendingWindowDragIntent(sourceWindowId: first.windowId, sourceSubject: .group(split.stableId), detachOrigin: .window,
                                        destination: WindowDragIntentDestination(kind: .moveToWorkspace(workspaceName: "2"), previewRect: monitor.rect,
                                            interactionRect: monitor.rect, title: "Move", subtitle: "", previewStyle: .workspaceMove,
                                            previewGeometry: .rounded, isGroup: true))
@@ -598,8 +598,8 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
         XCTAssertTrue(split.parent === root)
         XCTAssertEqual(split.allLeafWindowsRecursive.map(\.windowId), [706, 707])
         XCTAssertNil(currentActiveWorkspaceSidebarDrag())
-        beginActiveWorkspaceSidebarDrag(windowId: first.windowId, subject: .group, container: split, sidebarOnly: true)
-        let source = try XCTUnwrap(workspaceSidebarDragSource(first, subject: .group))
+        beginActiveWorkspaceSidebarDrag(windowId: first.windowId, subject: .group(split.stableId), sidebarOnly: true)
+        let source = try XCTUnwrap(workspaceSidebarDragSource(first, subject: .group(split.stableId)))
         try await checkDrop(source, .window(target.windowId, after: true))
         XCTAssertTrue(split.parent === targetWorkspace.rootTilingContainer)
         XCTAssertEqual(split.allLeafWindowsRecursive.map(\.windowId), [706, 707])

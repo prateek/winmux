@@ -12,6 +12,7 @@ func buildWindowTabStripViewModelsFromChromeItems() async -> [WindowTabStripView
         )
         strips.append(WindowTabStripViewModel(
             id: item.id,
+            containerIdentity: item.containerIdentity,
             workspaceName: item.workspaceName,
             frame: windowTabBarFrame(fromGroupFrame: groupFrame),
             groupFrame: groupFrame,

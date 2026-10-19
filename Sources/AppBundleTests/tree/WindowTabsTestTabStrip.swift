@@ -111,7 +111,7 @@ import XCTest
 
         XCTAssertTrue(beginWindowMoveWithMouseSessionIfNeeded(
             windowId: 42,
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             startedInSidebar: false,
             anchorRect: nil,
@@ -132,7 +132,7 @@ import XCTest
     func testWindowTabStripDragInProgressRecognizesGroupDrag() {
         XCTAssertTrue(isWindowTabStripDragInProgress(
             kind: .move,
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             startedInSidebar: false,
         ))
@@ -211,11 +211,11 @@ import XCTest
 
     func testCompositedGroupPreviewOnlyRunsForTabStripOriginatedGroupDrags() {
         XCTAssertTrue(shouldShowCompositedGroupMovePreview(
-            subject: .group,
+            subject: .group(0),
             startedInSidebar: false,
         ))
         XCTAssertFalse(shouldShowCompositedGroupMovePreview(
-            subject: .group,
+            subject: .group(0),
             startedInSidebar: true,
         ))
         XCTAssertFalse(shouldShowCompositedGroupMovePreview(
@@ -433,7 +433,7 @@ import XCTest
         ))
         XCTAssertFalse(isWindowTabStripDragInProgress(
             kind: .move,
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             startedInSidebar: true,
         ))

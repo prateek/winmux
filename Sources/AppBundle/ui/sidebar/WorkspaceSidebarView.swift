@@ -940,9 +940,9 @@ extension WorkspaceSidebarView {
                                         projectId: projectId,
                                         monitorScopeId: createMonitorScopeId,
                                     ))
-                                case .tabGroup(let representativeWindowId):
+                                case .tabGroup(let containerIdentity):
                                     actions.send(.moveTabGroupToNewWorkspace(
-                                        representativeWindowId,
+                                        containerIdentity,
                                         projectId: projectId,
                                         monitorScopeId: createMonitorScopeId,
                                     ))

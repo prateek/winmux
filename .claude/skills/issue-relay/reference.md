@@ -33,6 +33,14 @@ The follow-up and demo passes use the same line with `pass2` and `demo` in place
 - A launch can end within a minute with exit 0, `[done] end_turn` and the line "Selected model is at capacity" in its log, having changed nothing. When there are no commits and no report, wait two minutes and launch again.
 - A capacity cutoff can also come mid-pass, after the builder has changed files, with no commit and no report. Relaunch the same prompt with a note before it that names the uncommitted work and the logs or takes it left, tells the builder to continue from `git diff` rather than start over, and to commit as soon as its tests pass. #129 needed this three times.
 
+## Red and green runs
+
+A test seen to fail without its fix, in step 6 or in a builder pass, is only evidence when the run that failed was built from the code you think it was:
+
+- `swift build` colours its errors, so `grep " error:"` misses them. Strip the escapes first: `sed 's/\x1b\[[0-9;]*m//g'`.
+- A failed build leaves the previous test binary in place, and `swift test --skip-build` runs it. Require `Build complete!` in the log before trusting a run.
+- When you add a test, check that the executed test count moved. #254 lost most of a review round to a "red" and a "green" that were both stale binaries.
+
 ## Waiting for CI
 
 - After a push, wait until a run exists for the head commit: `gh pr checks` says "no checks reported" for about a minute, and `--watch` can return the previous run's result.

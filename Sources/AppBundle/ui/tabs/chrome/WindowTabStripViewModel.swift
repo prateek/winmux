@@ -2,6 +2,7 @@ import CoreGraphics
 
 struct WindowTabStripViewModel: Identifiable, Equatable {
     let id: ObjectIdentifier
+    let containerIdentity: UInt64
     let workspaceName: String
     let frame: CGRect
     let groupFrame: CGRect

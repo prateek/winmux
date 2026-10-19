@@ -310,7 +310,7 @@ final class ColumnPolicyTest: XCTestCase {
         let rect = Rect(topLeftX: 0, topLeftY: 0, width: 1000, height: 800)
         MousePointerTracker.shared.note(point: rect.center)
         defer { clearPendingWindowDragIntent(); MousePointerTracker.shared.reset() }
-        XCTAssertTrue(setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .group, detachOrigin: .window,
+        XCTAssertTrue(setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .group((a.parent as! TilingContainer).stableId), detachOrigin: .window,
             destination: WindowDragIntentDestination(kind: .moveToWorkspace(workspaceName: destination.name),
                 previewRect: rect, interactionRect: rect, title: "Destination", subtitle: "", previewStyle: .workspaceMove,
                 previewGeometry: .rounded, isGroup: true)))

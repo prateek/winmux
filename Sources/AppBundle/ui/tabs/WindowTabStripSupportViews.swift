@@ -45,6 +45,7 @@ struct WindowTabFramesPreferenceKey: PreferenceKey {
 
 struct WindowTabGroupHandleView: View {
     let windowId: UInt32?
+    let containerIdentity: UInt64
     let workspaceName: String
 
     var body: some View {
@@ -69,14 +70,14 @@ struct WindowTabGroupHandleView: View {
                 .onChanged { _ in
                     noteCurrentMousePointerSample()
                     guard let windowId,
-                          shouldAllowTabStripChromeGroupDrag(windowId: windowId)
+                          shouldAllowTabStripChromeGroupDrag(windowId: windowId, containerIdentity: containerIdentity)
                     else { return }
-                    updateMoveFromTabStrip(windowId)
+                    updateMoveFromTabStrip(windowId, containerIdentity: containerIdentity)
                 }
                 .onEnded { _ in
                     noteCurrentMousePointerSample()
                     guard let windowId,
-                          shouldContinueCurrentGroupDrag(windowId: windowId)
+                          shouldContinueCurrentGroupDrag(windowId: windowId, subject: .group(containerIdentity))
                     else { return }
                     finishMoveFromTabStrip()
                 },

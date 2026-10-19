@@ -31,7 +31,7 @@ import XCTest
             observedWindowId: 10,
             currentWindowId: 10,
             kind: .move,
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             startedInSidebar: false,
         ))

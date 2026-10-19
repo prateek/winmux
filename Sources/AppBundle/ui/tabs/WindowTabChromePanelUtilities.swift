@@ -5,6 +5,7 @@ extension WindowTabStripViewModel {
     func alignedForWindowTabChrome() -> WindowTabStripViewModel {
         WindowTabStripViewModel(
             id: id,
+            containerIdentity: containerIdentity,
             workspaceName: workspaceName,
             frame: frame.alignedToBackingPixels(),
             groupFrame: groupFrame.alignedToBackingPixels(),

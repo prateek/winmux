@@ -22,9 +22,31 @@ Nothing.
 
 ## Done when
 
-- [ ] Tests with a tab group whose active tab is a nested split, and one whose active tab holds a nested tab group, show that every drop path moves the whole outer group, and that the preview's window count and tabs are its own.
-- [ ] In a guest, such a header dragged onto a sidebar row, a workspace and a tile on screen moves the whole group each time, read back with `list-windows` and the agent tree.
-- [ ] Group drags whose active tab is a plain window behave as before.
+- [x] Tests with a tab group whose active tab is a nested split, and one whose active tab holds a nested tab group, show that every drop path moves the whole outer group, and that the preview's window count and tabs are its own.
+- [x] In a guest, such a header dragged onto a sidebar row, a workspace and a tile on screen moves the whole group each time, read back with `list-windows` and the agent tree.
+- [x] Group drags whose active tab is a plain window behave as before.
+
+## Built and checked
+
+The group subject carries the header container's `UInt64` stable id from every start. One live-container lookup searches workspace tiling trees; the representative window still supplies the session window id, focus, frame gate and anchor fallback. Group resolution never falls back to that window. A flattened or unbound container gives no destination, preview or pending intent, and an already pending drop refuses it.
+
+Tab-strip chrome and copied strip models retain the container id. Flat sidebar headers, their drag payloads and actions carry the same id; tree rows start the same subject. The active sidebar source is derived once from that subject. Option promotion still requires the window's direct parent to be a multi-child tab group. Window and detached-tab subjects, target resolution, drop zones, Column placement and Policy hooks retain their behavior. This does not change which tab a group drop shows.
+
+Fifteen `NestedGroupDragTest` tests use both shipped normalization settings and assert that both fixture shapes survive normalization. The fixtures cover strip, flat-sidebar and tree-sidebar starts; on-screen lookup and pending apply; Column policy apply; sidebar window and split rows; workspace, new-workspace and monitor-chip drops; preview counts and leaf tabs; anchor/ghost/model identity; containment refusal; stale ids before and after an intent is set, and mid-drag from the sidebar header or for a missing window, which clears the drag's preview, intent and cursor ghost; session/intent identity; and post-drag AX suppression for every window of the moved group. The first base run failed the tile, tree-row, workspace and preview regressions. Restoring the old source resolution after implementation failed nine tests with 101 assertions. Existing tests changed their call sites only; their assertions remain unchanged.
+
+Host and pinned-toolchain guest `make check` pass: 1,735 Swift tests, 92 helper/Rust tests and 171 script tests. The guest script suite skips its existing committed-hash check for the sync commit. CI's swift.org toolchain remains the pull request's gate.
+
+The drag-start seam tests unsubscribe the mouse driver's native display callback after each synchronous start. Their explicit pointer samples own the test drag; a real tick with no mouse button held otherwise treats it as a missed mouse-up and can leave a refresh running after the test. That leak was caught by a full guest run entering real AX code under test mocks, then removed without changing assertions.
+
+The guest pointer script builds fixture A with `join-with` and `layout tab-group`, and fixture B through Columns and `move-node-to-column`. Screenshots show each nested shape, the whole group crossing a tile, the sidebar row reorder and the workspace transfer, including previews listing all three or four leaves. Every drop has a fixed-delay `list-windows --all` and agent readback. The agent raw tree compacts a tab group's nested children to representative ids; its inventory, sidebar hierarchy and exact staging commands supply the additional shape evidence. The same plain-active-tab script against the base and feature builds produces identical input coordinates and final tree/window summaries. Proof tools are in `.scratch/winmux-fork/proofs/group-drag/`. No Search or permission grant was used. Builder evidence uses stills after the system video recorder stalled without a prompt; final pull request demos are separate.
+
+The review found that a group dropped on a Columns workspace with a `place` hook is placed window by window after it arrives, as every group drag already was, and that the Column drop-decision cache ignores the drag subject. Both are **A tab group dropped on a Columns workspace with a `place` hook comes apart**. Option-promoted drags keep their direct-parent rule: Option-dragging a window or tab inside a nested split stays a window drag.
+
+No Default was changed. The builder publishes no release, and no by-hand upgrade or permission step is introduced.
+
+### Checks left with Prateek
+
+Dragging a nested group's headers with a real pointer on the installed build is a check in **Prateek's checks on an installed build and real hardware**.
 
 ## Sources
 

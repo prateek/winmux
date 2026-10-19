@@ -12,7 +12,7 @@ func applyWindowSwapDragIntent(
     ) {
         return false
     }
-    let sourceNode = dragSubjectNode(for: sourceWindow, subject: sourceSubject)
+    guard let sourceNode = dragSubjectNode(for: sourceWindow, subject: sourceSubject) else { return false }
     let targetNode = dragIntentTargetNode(
         sourceWindow: sourceWindow,
         targetWindow: targetWindow,

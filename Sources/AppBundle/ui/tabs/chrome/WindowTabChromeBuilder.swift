@@ -29,6 +29,7 @@ private func makeWindowTabChromeItem(
     guard !tabs.isEmpty else { return nil }
     return WindowTabChromeItem(
         id: ObjectIdentifier(container),
+        containerIdentity: container.stableId,
         workspaceName: workspace.name,
         activeWindowId: activeWindow.windowId,
         orderingWindowId: activeWindow.windowId,

@@ -182,6 +182,7 @@ extension WindowTabStripPanelController {
         let tabBarRect = windowTabBarRect(forGroupFrameRect: groupFrameRect)
         return WindowTabStripViewModel(
             id: baseStrip.id,
+            containerIdentity: baseStrip.containerIdentity,
             workspaceName: baseStrip.workspaceName,
             frame: tabBarRect.toAppKitScreenRect.alignedToBackingPixels(),
             groupFrame: groupFrameRect.toAppKitScreenRect.alignedToBackingPixels(),

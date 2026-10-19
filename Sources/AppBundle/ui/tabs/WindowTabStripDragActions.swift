@@ -9,7 +9,7 @@ func updateDetachedTabFromTabStrip(_ windowId: UInt32) {
 }
 
 @MainActor
-func updateMoveFromTabStrip(_ windowId: UInt32) {
+func updateMoveFromTabStrip(_ windowId: UInt32, containerIdentity: UInt64) {
     guard let window = Window.get(byId: windowId) else {
         clearPendingWindowDragIntent()
         cancelManipulatedWithMouseState()
@@ -18,7 +18,12 @@ func updateMoveFromTabStrip(_ windowId: UInt32) {
     if shouldDeferWindowTabStripGroupDragToDetachedTabDrag() {
         return
     }
-    startTabStripWindowMove(window: window, subject: .group, detachOrigin: .tabStrip)
+    guard dragSubjectNode(for: window, subject: .group(containerIdentity)) != nil else {
+        clearPendingWindowDragIntent()
+        cancelManipulatedWithMouseState()
+        return
+    }
+    startTabStripWindowMove(window: window, subject: .group(containerIdentity), detachOrigin: .tabStrip)
 }
 
 @MainActor

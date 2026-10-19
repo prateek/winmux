@@ -143,7 +143,7 @@ func resolvedDraggedWindowAnchorRect(for window: Window, subject: WindowDragSubj
         case .window:
             window.lastAppliedLayoutPhysicalRect ?? window.moveNode.lastAppliedLayoutPhysicalRect
         case .group:
-            window.moveNode.lastAppliedLayoutPhysicalRect ?? window.lastAppliedLayoutPhysicalRect
+            dragSubjectNode(for: window, subject: subject)?.lastAppliedLayoutPhysicalRect ?? window.lastAppliedLayoutPhysicalRect
     }
 }
 
@@ -173,22 +173,23 @@ func isWindowInDraggableTabGroup(_ window: Window) -> Bool {
 }
 
 @MainActor
-func shouldContinueCurrentGroupDrag(windowId: UInt32) -> Bool {
+func shouldContinueCurrentGroupDrag(windowId: UInt32, subject: WindowDragSubject) -> Bool {
     getCurrentMouseManipulationKind() == .move &&
         currentlyManipulatedWithMouseWindowId == windowId &&
-        getCurrentMouseDragSubject() == .group
+        subject.isGroup &&
+        getCurrentMouseDragSubject() == subject
 }
 
 @MainActor
 func resolvedMouseDragSubject(for window: Window) -> WindowDragSubject {
-    if shouldContinueCurrentGroupDrag(windowId: window.windowId) {
-        return .group
+    let current = getCurrentMouseDragSubject()
+    if shouldContinueCurrentGroupDrag(windowId: window.windowId, subject: current) {
+        return current
     }
     let isOptionPressed = currentSessionModifierFlags().contains(.maskAlternate)
-    return shouldPromoteWindowDragToTabGroupDrag(
-        isOptionPressed: isOptionPressed,
-        isTabbedWindow: isWindowInDraggableTabGroup(window),
-    ) ? .group : .window
+    guard shouldPromoteWindowDragToTabGroupDrag(isOptionPressed: isOptionPressed, isTabbedWindow: isWindowInDraggableTabGroup(window)),
+          let parent = window.parent as? TilingContainer else { return .window }
+    return .group(parent.stableId)
 }
 
 @MainActor
@@ -267,6 +268,12 @@ func suppressPostDragAxObserverEvents(for windowIds: some Sequence<UInt32>) {
 }
 
 @MainActor
+func resetPostDragAxObserverSuppressionForTests() {
+    suppressedPostDragAxObserverEventsByWindowId = [:]
+    suppressedPostDragAxObserverEventsUntil = nil
+}
+
+@MainActor
 func armGlobalPostDragAxObserverSuppression() {
     suppressedPostDragAxObserverEventsUntil = ContinuousClock.now + postDragAxObserverSuppressionDuration
 }
@@ -282,7 +289,7 @@ private func hasActiveGlobalPostDragAxObserverSuppression() -> Bool {
 }
 
 @MainActor
-private func hasActivePostDragAxObserverSuppression(for windowId: UInt32) -> Bool {
+func hasActivePostDragAxObserverSuppression(for windowId: UInt32) -> Bool {
     guard let suppressionDeadline = suppressedPostDragAxObserverEventsByWindowId[windowId] else { return false }
     if suppressionDeadline > ContinuousClock.now {
         return true
@@ -327,7 +334,7 @@ func shouldIgnoreMovedObsForManagedWindowDragSession(
           observedWindowId != nil,
           observedWindowId == currentWindowId
     else { return false }
-    return startedInSidebar || detachOrigin == .tabStrip || subject == .group
+    return startedInSidebar || detachOrigin == .tabStrip || subject.isGroup
 }
 
 func shouldIgnoreWindowTabStripMouseEventsDuringDrag(detachOrigin: TabDetachOrigin) -> Bool {

@@ -2,14 +2,14 @@ import AppKit
 import Common
 
 @MainActor
-func workspaceSidebarLiveContainer(_ identity: UInt64, workspaceName: String) -> TilingContainer? {
-    guard let workspace = Workspace.existing(byName: workspaceName) else { return nil }
+func workspaceSidebarLiveContainer(_ identity: UInt64, workspaceName: String? = nil) -> TilingContainer? {
     func find(_ node: TreeNode) -> TilingContainer? {
         if let container = node as? TilingContainer, container.stableId == identity { return container }
         for child in node.children { if let found = find(child) { return found } }
         return nil
     }
-    return find(workspace.rootTilingContainer)
+    let workspaces = workspaceName.map { Workspace.existing(byName: $0).map { [$0] } ?? [] } ?? Array(Workspace.all)
+    return workspaces.lazy.compactMap { find($0.rootTilingContainer) }.first
 }
 
 @MainActor

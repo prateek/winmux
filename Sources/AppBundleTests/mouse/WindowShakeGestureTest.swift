@@ -61,7 +61,7 @@ final class WindowShakeGestureTest: XCTestCase {
         ))
         XCTAssertFalse(shouldRecognizeWindowShake(
             kind: .move,
-            subject: .group,
+            subject: .group(0),
             detachOrigin: .window,
             startedInSidebar: false,
             isPointerInsideSidebar: false,

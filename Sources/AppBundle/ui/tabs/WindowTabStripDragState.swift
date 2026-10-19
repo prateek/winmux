@@ -12,7 +12,7 @@ func isWindowTabStripDragInProgress(
     startedInSidebar: Bool,
 ) -> Bool {
     guard kind == .move, !startedInSidebar else { return false }
-    return detachOrigin == .tabStrip || subject == .group
+    return detachOrigin == .tabStrip || subject.isGroup
 }
 
 @MainActor
@@ -30,7 +30,7 @@ func shouldShowCompositedGroupMovePreview(
     detachOrigin: TabDetachOrigin = .window,
     startedInSidebar: Bool,
 ) -> Bool {
-    subject == .group && detachOrigin != .tabStrip && !startedInSidebar
+    subject.isGroup && detachOrigin != .tabStrip && !startedInSidebar
 }
 
 func shouldShowCompositedGroupMovePreview(session: WindowMouseInteractionDriver.MoveSession) -> Bool {

@@ -19,7 +19,7 @@ func currentColumnDragDestination(sourceWindow: Window, workspace: Workspace, mo
     let slot = (1...columns.slotCount).min { left, right in
         return distance(left) < distance(right)
     }.orDie()
-    let incoming = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard let incoming = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
     guard workspace.columnSlot(containing: incoming) != slot else { return nil }
     let decision = ColumnDropDecisionCache.shared.preview(window: sourceWindow, workspace: workspace, slot: slot, incoming: incoming) {
         guard isLeftMouseButtonDown, currentlyManipulatedWithMouseWindowId == sourceWindow.windowId else { return }
@@ -54,6 +54,6 @@ func columnDragDestination(workspace: Workspace, slot: Int, decision: PlacementD
     }
     return WindowDragIntentDestination(kind: .column(workspaceName: workspace.name, slot: slot, decision: decision), previewRect: frame ?? rect,
         interactionRect: rect, title: title, subtitle: "Drop to place this item", previewStyle: .workspaceMove,
-        previewGeometry: .rounded, isGroup: subject == .group,
+        previewGeometry: .rounded, isGroup: subject.isGroup,
         dropIntentOverlay: frame.map { WindowDropIntentOverlayModel(targetFrame: $0, activeZone: nil, cornerRadius: nil, plainTarget: true) })
 }

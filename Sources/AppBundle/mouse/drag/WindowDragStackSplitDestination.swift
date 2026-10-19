@@ -12,7 +12,7 @@ func stackSplitDestination(
     if shouldSuppressSwapDestination(sourceWindow: sourceWindow, subject: subject) {
         return nil
     }
-    let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
     let targetNode = dragIntentTargetNode(
         sourceWindow: sourceWindow,
         targetWindow: targetWindow,
@@ -24,7 +24,7 @@ func stackSplitDestination(
           canOfferWindowStackSplit(sourceNode: sourceNode, targetNode: targetNode, position: position),
           let preview = resolvedWindowStackSplitPreview(targetNode: targetNode, position: position),
           let interactionRect = targetNode.stackSplitDropZoneRect(position: position)?
-          .expanded(left: subject == .group ? 4 : 10, right: subject == .group ? 4 : 10, top: 0, bottom: 0)
+          .expanded(left: subject.isGroup ? 4 : 10, right: subject.isGroup ? 4 : 10, top: 0, bottom: 0)
     else { return nil }
     guard mouseLocation.map(interactionRect.contains) ?? true else { return nil }
     return WindowDragIntentDestination(
@@ -35,6 +35,6 @@ func stackSplitDestination(
         subtitle: position.subtitle,
         previewStyle: .stackSplit,
         previewGeometry: preview.geometry,
-        isGroup: subject == .group,
+        isGroup: subject.isGroup,
     )
 }

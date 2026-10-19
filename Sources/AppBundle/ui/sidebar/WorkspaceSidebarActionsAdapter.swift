@@ -25,8 +25,13 @@ func makeWorkspaceSidebarActionsAdapter(
         windowDragEnded: { _, pointer in
             finishSidebarWindowDrag(pointer: pointer)
         },
-        tabGroupDragChanged: { windowId, pointer in
-            updateSidebarWindowDrag(windowId, subject: .group, pointer: pointer)
+        tabGroupDragChanged: { containerIdentity, pointer in
+            guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else {
+                clearStaleDragSubjectFeedback()
+                clearActiveWorkspaceSidebarDrag()
+                return
+            }
+            updateSidebarWindowDrag(window.windowId, subject: .group(containerIdentity), pointer: pointer)
         },
         tabGroupDragEnded: { _, pointer in
             finishSidebarWindowDrag(pointer: pointer)
@@ -98,16 +103,20 @@ func handleWorkspaceSidebarAction(
             }
         case .moveWindow(let windowId, let workspaceName):
             moveWindowFromSidebar(windowId, toWorkspace: workspaceName)
-        case .moveTabGroup(let windowId, let workspaceName):
-            moveTabGroupFromSidebar(windowId, toWorkspace: workspaceName)
+        case .moveTabGroup(let containerIdentity, let workspaceName):
+            moveTabGroupFromSidebar(containerIdentity, toWorkspace: workspaceName)
         case .moveWindowToNewWorkspace(let windowId, let projectId, let monitorScopeId):
             moveWindowToNewWorkspaceFromSidebar(windowId, projectId: projectId, monitorScopeId: monitorScopeId)
-        case .moveTabGroupToNewWorkspace(let windowId, let projectId, let monitorScopeId):
-            moveTabGroupToNewWorkspaceFromSidebar(windowId, projectId: projectId, monitorScopeId: monitorScopeId)
+        case .moveTabGroupToNewWorkspace(let containerIdentity, let projectId, let monitorScopeId):
+            moveTabGroupToNewWorkspaceFromSidebar(containerIdentity, projectId: projectId, monitorScopeId: monitorScopeId)
         case .previewWindowDrop(let windowId, let target):
             previewWorkspaceSidebarDrop(windowId, subject: .window, target: target)
-        case .previewTabGroupDrop(let windowId, let target):
-            previewWorkspaceSidebarDrop(windowId, subject: .group, target: target)
+        case .previewTabGroupDrop(let containerIdentity, let target):
+            guard let window = workspaceSidebarLiveContainer(containerIdentity)?.tabRepresentativeWindow else {
+                clearWorkspaceSidebarDropPreview()
+                return
+            }
+            previewWorkspaceSidebarDrop(window.windowId, subject: .group(containerIdentity), target: target)
         case .clearDropPreview:
             clearWorkspaceSidebarDropPreview()
     }

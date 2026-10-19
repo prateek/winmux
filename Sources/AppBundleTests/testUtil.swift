@@ -64,6 +64,7 @@ func setUpWorkspacesForTests() {
     setBlockingRefreshOverridesForTests()
     cancelManipulatedWithMouseState()
     clearPendingWindowDragIntent()
+    resetPostDragAxObserverSuppressionForTests()
     TestApp.shared.focusedWindow = nil
     TestApp.shared.windows = []
 }

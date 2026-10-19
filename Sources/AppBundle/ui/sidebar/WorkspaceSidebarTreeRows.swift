@@ -143,7 +143,7 @@ extension WorkspaceSidebarWorkspaceSection {
             .buttonStyle(.plain)
             .modifier(WorkspaceSidebarOptionalDragModifier(isEnabled: true, onChanged: { point in
                 if let container = workspaceSidebarLiveContainer(identity, workspaceName: workspace.name), let window = container.anyLeafWindowRecursive {
-                    updateSidebarWindowDrag(window.windowId, subject: .group, pointer: point, container: container, sidebarOnly: true)
+                    updateSidebarWindowDrag(window.windowId, subject: .group(container.stableId), pointer: point, sidebarOnly: true)
                 }
             }, onEnded: { point in finishSidebarWindowDrag(pointer: point) }))
         }

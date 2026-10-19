@@ -19,7 +19,7 @@ func swapDestination(
     if shouldSuppressSwapDestination(sourceWindow: sourceWindow, subject: subject) {
         return nil
     }
-    let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject)
+    guard let sourceNode = dragSubjectNode(for: sourceWindow, subject: subject) else { return nil }
     let targetNode = dragIntentTargetNode(
         sourceWindow: sourceWindow,
         targetWindow: targetWindow,
@@ -30,7 +30,7 @@ func swapDestination(
           !isInvalidGroupSelfTarget(sourceNode: sourceNode, targetNode: targetNode, subject: subject),
           let previewRect = targetNode.swapDropZoneRect
     else { return nil }
-    let interactionRect = if subject == .group {
+    let interactionRect = if subject.isGroup {
         previewRect.expanded(left: 4, right: 4, top: 4, bottom: 6)
     } else {
         previewRect.expanded(left: 10, right: 10, top: 10, bottom: 10)
@@ -45,6 +45,6 @@ func swapDestination(
         subtitle: isTabGroup ? "Drop in the body to move around the whole group" : "Drop in the body to swap these windows",
         previewStyle: .swap,
         previewGeometry: .rounded,
-        isGroup: subject == .group,
+        isGroup: subject.isGroup,
     )
 }
