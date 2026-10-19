@@ -50,11 +50,30 @@ this tree path and must preserve the ordinary sibling path, including hidden par
 
 ## Done when
 
-- [ ] On the rich desk in a guest, two windows dragged together in the sidebar become a side-by-side split, a stacked split and a tab group, one each, and `list-windows` and the screen show it.
-- [ ] A split row's menu turns it into a tab group and back, and **Ungroup** puts its windows back under its parent.
-- [ ] Clicking a split's glyph flips its direction on screen.
-- [ ] A plain drop on a window still makes a sibling, as the tree's draft says.
-- [ ] Tests cover each mapping from a sidebar gesture to a layout change at the tree's seam.
+- [x] On the rich desk in a guest, two windows dragged together in the sidebar become a side-by-side split, a stacked split and a tab group, one each, and `list-windows` and the screen show it.
+- [x] A split row's menu turns it into a tab group and back, and **Ungroup** puts its windows back under its parent.
+- [x] Clicking a split's glyph flips its direction on screen.
+- [x] A plain drop on a window still makes a sibling, as the tree's draft says.
+- [x] Tests cover each mapping from a sidebar gesture to a layout change at the tree's seam.
+
+### Checks for Prateek
+
+- [ ] Repeat the arrangements on an installed build with a real mouse or trackpad and keyboard.
+- [ ] Check a second display.
+- [ ] Check real sleep, wake and unlock.
+
+## Built and checked
+
+- Option alone enables arrangement zones. This settles **Drop zones on a window row offer the on-screen overlay's intents** without trying a no-modifier variant: the plain before/after halves remain available without Option. One event-fed modifier value serves preview and commit and clears with the drag; a stationary Option release restores the plain preview and sibling drop.
+- The row has six fixed segments, ordered tab, left, right, above, below and swap. Unoffered segments stay empty and resolve to the plain half. Window/tab rows alone offer zones. A window source can tab only with window tabs enabled; group sources cannot tab through a zone. Tabs offer only tab/swap for a window source, and sibling tabs in the source's own group offer none. Floating rows and structural rows keep their plain behavior.
+- Splits use the pointed window's direct parent, inserting beside it at half its weight when orientation matches and otherwise wrapping it. Direct Column children are wrapped in their existing slot; Column widths stay put. Tab and swap operate on the pointed window, including an individual tab, rather than the on-screen drag target's whole group. Floating sources record their size and become tiled. Self/descendant and missing-target refusals retain their hover reason.
+- `WorkspaceSidebarContainerActions.swift` changes containers by stable identity and workspace. The layout command shares its change body and retains nested containers. The sidebar's Tabs action flattens nested children to ordered leaf windows; this departs from **A container row's menu**, whose command analogy would retain them. A checked current item is a no-op. Ungroup inserts direct children in order with automatic weights, joins leaves into a tab parent, and leaves the emptied container for normalization. Root and direct Column-child refusals disable Ungroup with help. Tabs is disabled when window tabs are off.
+- Menu Split actions and the split glyph use the command's orientation cascade. The disclosure label keeps its drag gesture; the glyph is a separate button. Normalization restores a Columns root to horizontal tiles with its slots and widths intact.
+- **Refused** is narrowed by the build rulings: Column Policy has no prohibition on these groups, and a floating source may tile through a zone. No additional Column refusal was introduced. Undo remains out of scope. **A dragged tab group moves one window when its active tab is a nested container** and **A workspace section scrolled under the sidebar's chrome takes drops there** remain separate work.
+- Host and pinned-version guest `make check` pass: 1,712 Swift tests, 92 helper/Rust tests and 171 script tests. The guest skips the existing committed-hash check for its sync commit. Fifty-three sidebar tree tests cover all zone arrangements and eligibility, geometry, modifiers, floating/AX races, command behavior, menus, ungrouping, cascade and Column slots. Disabling zone/container application produces 35 failures in four selected tests; the restored implementation passes. An additional failing assertion established normalization's ownership of empty-container removal.
+- Rich-desk screenshots, AX snapshots, `list-windows` transcripts and `agent query` raw trees check splits, tabs, swap, floating tiling, a Column-child wrapper, every menu action and the glyph. The same script against the separately built base and feature trees produces identical plain-drop input, inventory, raw trees and Column readbacks; the layout command's vertical result also matches. Stationary Option-release evidence shows the preview and commit reverting together. Proof tools are in `.scratch/winmux-fork/proofs/sidebar-arrange/`; final-commit pull request demos belong to the demo pass. No Search was used.
+- Installed-build use, a second display and real sleep/wake/unlock remain Prateek's checks above. No new by-hand upgrade or permission step is needed. The builder publishes no release.
+- The proof driver uses `dm` for actual drag events and waits after its final release. Early plain takes that ended `cliclick` immediately after `du` sometimes left the button held and the preview open; an explicit later release committed that same drag. With the trailing wait and independent combined-session button-state checks, five base and five feature takes all make siblings. The input failures are retained as diagnostic evidence, with no app workaround.
 
 ## Sources
 

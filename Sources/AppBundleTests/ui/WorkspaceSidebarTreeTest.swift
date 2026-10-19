@@ -250,7 +250,12 @@ final class WorkspaceSidebarTreeTest: XCTestCase {
             XCTAssertEqual(split.orientation, .v)
             XCTAssertEqual(parent.orientation, .h)
             XCTAssertEqual(root.orientation, .v)
+            let expectedChildren: [LayoutDescription] = [
+                .h_tiles([.v_tiles([.window(601), .window(602)]), .window(603)]), .window(604),
+            ]
+            assertEquals(root.layoutDescription, .v_tiles(expectedChildren))
             workspace.normalizeContainers()
+            assertEquals(root.layoutDescription, column ? .h_tiles(expectedChildren) : .v_tiles(expectedChildren))
             XCTAssertEqual(root.orientation, column ? .h : .v)
             XCTAssertEqual(root.layout, .tiles)
             XCTAssertEqual(root.allLeafWindowsRecursive.map(\.windowId), [601, 602, 603, 604])
