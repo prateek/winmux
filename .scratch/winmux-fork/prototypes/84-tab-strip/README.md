@@ -158,7 +158,7 @@ background's drag is defined at
 [`WindowTabStripView.swift:54–85`](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripView.swift#L54)
 and attached at line 275, and the gutter's at 171–179. `tabChromeGroupDragGesture`
 (87–120) is attached nowhere. In an overflowing strip the scroll background has
-no empty area, so without the grip the gutter and Option-dragging a tab (`WindowTabStripGroupDragPolicy.swift:2–12`) are what is left.
+little empty area, so without the grip the gutter and Option-dragging a tab (`WindowTabStripGroupDragPolicy.swift:2–12`) are what is left.
 The old grip is a third target, and clicking it focuses the group
 ([SupportViews:46–86](https://github.com/prateek/winmux/blob/7c7c9648/Sources/AppBundle/ui/tabs/WindowTabStripSupportViews.swift#L46)).
 
