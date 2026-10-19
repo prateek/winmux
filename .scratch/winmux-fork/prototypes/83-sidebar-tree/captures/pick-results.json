@@ -142,17 +142,12 @@
       },
       {
         "changed": true,
-        "name": "Pick: a tab group dropped on a tab group joins as its windows, the last bound in front",
+        "name": "Pick: a tab group dropped on a tab group joins as its windows",
         "pass": true
       },
       {
         "changed": true,
         "name": "Pick: a tab group dropped on a tab joins as its windows at that index",
-        "pass": true
-      },
-      {
-        "changed": true,
-        "name": "Pick: a window joining a tab group comes to the front",
         "pass": true
       },
       {
