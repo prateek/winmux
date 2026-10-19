@@ -1,5 +1,5 @@
 enum WindowDragIntentKind: Equatable {
-    case column(workspaceName: String, slot: Int)
+    case column(workspaceName: String, slot: Int, decision: PlacementDecision)
     case tabStack(targetWindowId: UInt32)
     case reorderTab(windowId: UInt32, targetIndex: Int)
     case detachTab(windowId: UInt32)

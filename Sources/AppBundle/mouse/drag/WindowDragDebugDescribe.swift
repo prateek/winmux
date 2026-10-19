@@ -18,7 +18,7 @@ func debugDescribe(_ subject: WindowDragSubject) -> String {
 
 func debugDescribe(_ kind: WindowDragIntentKind) -> String {
     switch kind {
-        case .column(let workspace, let slot):
+        case .column(let workspace, let slot, _):
             "column(\(workspace), \(slot))"
         case .tabStack(let targetWindowId):
             "tabStack(target:\(targetWindowId))"

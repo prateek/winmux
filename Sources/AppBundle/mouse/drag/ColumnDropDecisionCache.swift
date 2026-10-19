@@ -29,8 +29,6 @@ final class ColumnDropDecisionCache {
     private var tasks: [Key: Request] = [:]
     private var answers: [Key: PlacementDecision] = [:]
     private var redraw: (() -> Void)?
-    /// A drop owns its answer from `beginDrop` to `endDrop`; drag lookups find no destination meanwhile.
-    private(set) var isDropping = false
     private let evaluate: @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision
 
     init(evaluate: @escaping @MainActor (Window, Workspace, Int, TreeNode) async -> PlacementDecision = {
@@ -84,38 +82,6 @@ final class ColumnDropDecisionCache {
             ?? PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
     }
 
-    /// The landed answer for the tree as it is now, if the preview already has one.
-    func answer(window: Window, workspace: Workspace, slot: Int) -> PlacementDecision? {
-        Self.context(window: window, workspace: workspace).flatMap { answers[Key(context: $0, slot: slot)] }
-    }
-
-    /// Ends the previews and hands the drop the request for this key, landed or still running.
-    func beginDrop(window: Window, workspace: Workspace, slot: Int) -> Task<PlacementDecision, Never>? {
-        let key = Self.context(window: window, workspace: workspace).map { Key(context: $0, slot: slot) }
-        let answer = key.flatMap { answers[$0] }
-        var request = key.flatMap { tasks.removeValue(forKey: $0) }
-        if request?.columns !== workspace.columns { request = nil }
-        clear()
-        isDropping = true
-        if let answer { return Task { answer } }
-        return request?.task
-    }
-
-    func endDrop() {
-        isDropping = false
-    }
-
-    func decision(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode) async -> PlacementDecision? {
-        let context = Self.context(window: window, workspace: workspace)
-        if self.context == nil { track(window: window, context: context) }
-        let requestGeneration = generation
-        let requestContext = self.context
-        let columns = workspace.columns
-        let answer = await request(window: window, workspace: workspace, context: context, slot: slot, incoming: incoming).value
-        guard generation == requestGeneration, self.context == requestContext, workspace.columns === columns else { return nil }
-        return answer
-    }
-
     private func request(window: Window, workspace: Workspace, context: Context?, slot: Int, incoming: TreeNode) -> Task<PlacementDecision, Never> {
         guard let columns = workspace.columns, let context else {
             return Task { PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil) }
@@ -127,9 +93,10 @@ final class ColumnDropDecisionCache {
         let task = Task { @MainActor [weak self] in
             let answer = await evaluate(window, workspace, slot, incoming)
             // Kept only for the tree it was asked about: the hook reads the records when it starts.
-            if let self, self.generation == requestGeneration, workspace.columns === columns,
-               Self.context(window: window, workspace: workspace) == key.context {
-                self.answers[key] = answer
+            if let self, self.generation == requestGeneration, workspace.columns === columns {
+                if Self.context(window: window, workspace: workspace) == key.context {
+                    self.answers[key] = answer
+                }
                 if self.context == key.context, self.pointedSlot == slot { self.redraw?() }
             }
             return answer

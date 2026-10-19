@@ -52,7 +52,7 @@ func columnDragDestination(workspace: Workspace, slot: Int, decision: PlacementD
                 title = "Column \(placement.slot)"
             }
     }
-    return WindowDragIntentDestination(kind: .column(workspaceName: workspace.name, slot: slot), previewRect: frame ?? rect,
+    return WindowDragIntentDestination(kind: .column(workspaceName: workspace.name, slot: slot, decision: decision), previewRect: frame ?? rect,
         interactionRect: rect, title: title, subtitle: "Drop to place this item", previewStyle: .workspaceMove,
         previewGeometry: .rounded, isGroup: subject == .group,
         dropIntentOverlay: frame.map { WindowDropIntentOverlayModel(targetFrame: $0, activeZone: nil, cornerRadius: nil, plainTarget: true) })

@@ -190,28 +190,11 @@ private func updateWindowTabReentryPreview(sourceWindowId: UInt32, destination: 
 func applyPendingWindowDragIntentWithPolicy() async throws -> Bool {
     let intent = pendingWindowDragIntent
     let source = intent.flatMap { Window.get(byId: $0.sourceWindowId) }
-    if let intent, case .column(let workspaceName, let slot) = intent.kind {
-        let cache = ColumnDropDecisionCache.shared
-        let target = Workspace.existing(byName: workspaceName)
-        let inside = intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point)
-        // The drop takes over the preview's request for this key, landed or not, so the hook is asked once.
-        // Until it ends, drag lookups find no destination, so a forced frame or a second mouse-up cannot start another.
-        let pending = source.flatMap { source in target.flatMap { cache.beginDrop(window: source, workspace: $0, slot: slot) } }
-        defer { cache.endDrop() }
+    if let intent, case .column(let workspaceName, _, let decision) = intent.kind {
         clearPendingWindowDragIntent()
-        guard let source, let workspace = target, let columns = workspace.columns, inside else { return false }
+        guard let source, let workspace = Workspace.existing(byName: workspaceName), workspace.columns != nil,
+              intent.interactionRect.contains(MousePointerTracker.shared.currentSample.point) else { return false }
         let incoming = dragSubjectNode(for: source, subject: intent.sourceSubject)
-        let location = ColumnPolicy.Location(source)
-        var occupancy = workspace.columnOccupancy
-        var decision: PlacementDecision
-        if let pending { decision = await pending.value }
-        else { decision = await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming) }
-        // A window that arrived or left while the hook ran changes what it answers: ask again.
-        for _ in 0..<3 where occupancy != workspace.columnOccupancy && location.contains(source) && workspace.columns === columns {
-            occupancy = workspace.columnOccupancy
-            decision = await ColumnPolicy.dropDecision(window: source, workspace: workspace, slot: slot, incoming: incoming)
-        }
-        guard location.contains(source), workspace.columns === columns, occupancy == workspace.columnOccupancy else { return false }
         syncClosedWindowsCacheToCurrentWorld()
         suppressPostDragAxObserverEvents(for: incoming.allLeafWindowsRecursive.map(\.windowId))
         // The whole subject binds once with that answer, as one node.

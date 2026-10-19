@@ -93,7 +93,7 @@ enum ColumnPolicy {
         if let value = result["column"]?.stringOrNil {
             target = value
             switch value {
-                case "focused": slot = focusedSlot ?? columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: incoming ?? window)
+                case "focused": slot = focusedSlot ?? columns.focusedSlot ?? workspace.columnSlot(containing: focus.windowOrNil) ?? workspace.mruColumnSlot(excluding: window)
                 case "mru": slot = workspace.mruColumnSlot(excluding: incoming ?? window)
                 case "nearest-empty": slot = builtIn.slot
                 case "last": slot = columns.count
@@ -130,8 +130,11 @@ enum ColumnPolicy {
     static func dropDecision(window: Window, workspace: Workspace, slot: Int, incoming: TreeNode? = nil,
                              supervisor: any PolicyHookHelper = PolicyHooks.current) async -> PlacementDecision {
         var pointed = PlacementDecision(slot: slot, target: String(slot), overflow: .tabGroup, hook: nil)
-        guard hook("place", on: workspace) != nil,
-              let records = try? await workspace.columnRecords(excluding: incoming ?? window) else { return pointed }
+        guard hook("place", on: workspace) != nil else { return pointed }
+        guard let records = try? await workspace.columnRecords(excluding: incoming ?? window) else {
+            pointed.failure = "Column records unavailable"
+            return pointed
+        }
         let answer = await decision(window: window, workspace: workspace, supervisor: supervisor, columnsSnapshot: records,
                                     focusedSlot: slot, excluding: incoming)
         guard let failure = answer.failure else { return answer }
