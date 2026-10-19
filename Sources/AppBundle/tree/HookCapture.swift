@@ -66,6 +66,11 @@ final class HookCaptureStore {
     func start() throws {
         let extending = isCapturing()
         stoppedItselfAt = nil
+        if !extending {
+            records = 0
+            error = nil
+            generation = UUID()
+        }
         do {
             // Extending keeps the records; a file removed meanwhile is created again, empty.
             if !extending || !FileManager.default.fileExists(atPath: path.path) {
@@ -77,11 +82,6 @@ final class HookCaptureStore {
         } catch {
             fail(error)
             throw error
-        }
-        if !extending {
-            records = 0
-            error = nil
-            generation = UUID()
         }
         until = now().addingTimeInterval(15 * 60)
     }

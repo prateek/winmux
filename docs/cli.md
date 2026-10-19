@@ -35,7 +35,7 @@ Run `winmux debug-hooks on`, reproduce the behavior, and read the printed
 `winmux debug-hooks off` stops capture and prints its path and record count.
 `winmux debug-hooks` (or `status`) prints whether it is on, its path, stop time
 and count. Each form accepts `--json`, with `capturing`, `path`, `until` and
-`records`, and `error`, which is null unless a write failed.
+`records` and `error`; `error` is null unless a write failed since the last fresh `on`.
 
 Capture is off on startup and survives config reloads. Turning it on from off
 truncates the file; another `on` while capturing keeps its records and restarts

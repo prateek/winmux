@@ -12,7 +12,8 @@ struct DebugHooksCommand: Command {
                 do { try store.start() }
                 catch {
                     let status = store.status()
-                    if args.json { io.out(String(decoding: try JSONEncoder.winMuxDefault.encode(status), as: UTF8.self)) }
+                    // The start failure is what to report, even if its status cannot be encoded.
+                    if args.json, let json = JSONEncoder.winMuxDefault.encodeToString(status) { io.out(json) }
                     return io.err(status.error.stringOrNil ?? error.localizedDescription)
                 }
             case .off: store.stop()

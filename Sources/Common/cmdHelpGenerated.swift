@@ -230,7 +230,8 @@ Capture Policy hook calls in hook-capture.jsonl in WinMux's state directory
 (hook-capture-debug.jsonl for a debug build).
 With no subcommand, print status. Capture is off at startup.
 On starts a fresh capture, or extends an active capture, for 15 minutes.
-Off prints the path and record count. Status also reports any write error.
+Off prints the path and record count. Every form reports a write error
+since the last fresh capture.
 
 OPTIONS:
   --json       Print capturing, path, until, records and error as JSON

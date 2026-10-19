@@ -297,9 +297,21 @@ final class HookCaptureTest: XCTestCase {
         XCTAssertFalse(store.status().capturing)
         try FileManager.default.removeItem(at: directory)
         try Data().write(to: directory)
-        _ = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        let failed = try await parseCommand("debug-hooks on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        XCTAssertNotEqual(failed.exitCode, 0)
         let status = try await parseCommand("debug-hooks").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertFalse(status.stdout.joined().contains("stopped itself"), status.stdout.joined())
         XCTAssertTrue(status.stdout.joined().contains("Error:"), status.stdout.joined())
+    }
+
+    func testAFailedFreshOnDoesNotReportThePreviousCapturesCount() async throws {
+        try store.start()
+        _ = await call("arrive")
+        store.stop()
+        try FileManager.default.removeItem(at: directory)
+        try Data().write(to: directory)
+        XCTAssertThrowsError(try store.start())
+        XCTAssertEqual(store.status().records, 0)
+        XCTAssertNotEqual(store.status().error, .null)
     }
 }
