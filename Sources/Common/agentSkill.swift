@@ -26,7 +26,7 @@ public let agentSkillText = """
     The person's config is one Nickel file: `~/.config/winmux/winmux.ncl`. Edit that file; when it does not exist, create it. The one exception: when `winmux config status` shows a `config-path` to another `.ncl` file of the person's, edit that one. Never edit `winmux/defaults.ncl`, `default-config.json` or anything inside `WinMux.app`: those are WinMux's shipped defaults, which `winmux config --config-path` prints when the person has no config.
     Never write a JSON config or edit JSON state WinMux writes, such as `~/.local/state/winmux/sidebar.json`. Never write TOML.
     To turn an old `winmux.toml` into Nickel when no `winmux.ncl` exists, write `winmux config convert`'s output, which goes to stdout, to a new file and move it into place only when the command succeeds:
-    `mkdir -p ~/.config/winmux && { winmux config convert > ~/.config/winmux/winmux.ncl.new && mv ~/.config/winmux/winmux.ncl.new ~/.config/winmux/winmux.ncl || rm -f ~/.config/winmux/winmux.ncl.new; }`
+    `mkdir -p ~/.config/winmux && { winmux config convert > ~/.config/winmux/winmux.ncl.new && mv ~/.config/winmux/winmux.ncl.new ~/.config/winmux/winmux.ncl || { rm -f ~/.config/winmux/winmux.ncl.new; false; }; }`
     To create a new config, create `~/.config/winmux/` and start with this import-only config to keep the defaults:
 
     ```nickel
@@ -36,8 +36,8 @@ public let agentSkillText = """
 
     After every edit:
     1. Run `winmux config check <file>` on the file you edited, fix its diagnostics, and repeat until it passes. Always name the file: with no argument it checks the default path, and when that file does not exist it checks the shipped defaults and passes. `config check` checks Nickel types and fields, not commands or key names.
-    2. With WinMux running, run `winmux reload-config --no-gui`. It loads the config WinMux uses, which also checks commands and key names. When it fails with a problem in the file you edited, fix the file and repeat. When it prints anything else, such as another file's path, a reload that replaced this one, or WinMux waiting for a permission, run it once more; if that also fails, report its output to the person as it is.
-    3. Run `winmux config status`. Its `config-path` should be the file you edited. When it is `null` or another file, WinMux is not reading your file: report that, with the path, instead of saying the change is live. `last-error` shows the most recent config or hook failure; report it if it is not `null`.
+    2. With WinMux running, run `winmux reload-config --no-gui`. It loads the config WinMux uses, which also checks commands and key names. When it exits non-zero with a Nickel or parse diagnostic for the file you edited, such as `Unrecognized subcommand` under a binding's path, fix the file and repeat. Otherwise show the person its output exactly as printed, whatever the exit status: warnings, another file's path, "A later reload replaced this one", a failure to apply, or WinMux waiting for a permission. Do not edit the file for those.
+    3. After `reload-config` exits 0, run `winmux config status`. Its `config-path` should be the file you edited. When it is `null` or another file, WinMux is not reading your file: report that, with the path, instead of saying the change is live. `config status` shows the last config that loaded, so it confirms nothing after a reload that did not exit 0. `last-error` shows the most recent config or hook failure; report it if it is not `null`.
     Run `winmux config schema` for record fields. The imports above are shipped library names resolved by the config helper; do not look for repository docs or replace them with local files.
 
     ## Recipes
