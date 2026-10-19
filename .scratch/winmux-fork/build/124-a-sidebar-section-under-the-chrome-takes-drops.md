@@ -18,9 +18,25 @@ Nothing.
 
 ## Done when
 
-- [ ] A test with a section frame running under the top and bottom chrome resolves a point over the chrome to no section, and a point on the section's visible part to the section.
-- [ ] In a guest, with a section scrolled half under the pager, a window released over the pager stays where it was, read back with `list-windows`.
-- [ ] Drops on fully visible sections, monitor chips and the new-workspace section behave as before.
+- [x] A test with a section frame running under the top and bottom chrome resolves a point over the chrome to no section, and a point on the section's visible part to the section.
+- [x] In a guest, with a section scrolled half under the pager, a window released over the pager stays where it was, read back with `list-windows`.
+- [x] Drops on fully visible sections, monitor chips and the new-workspace section behave as before.
+
+## Built and checked
+
+Every frame emitted inside a sidebar page's scroll view is intersected with the viewport by `workspaceSidebarVisibleTargets`. Fully hidden targets are removed. Only tree rows retain their whole row for halves and zones; section and New Workspace targets have no row frame. The optional viewport travels through the panel's screen conversion. `WorkspaceSidebarDropTarget.interactionRect(hitSlop:)` owns expansion and viewport intersection for both the resolver and title-bar intent. Monitor chips bypass clipping and retain their slop. The collapsed-panel centre filter, exact-control preference, smallest-area selection, actionable-target predicate and drop delegates are unchanged.
+
+Three new tests exercise clipping through resolution with zero slop and the title-bar path's 12-point slop, monitor-chip slop, a fully visible section's slop inside the viewport, visible controls and the actual title-bar destination's interaction rectangle. Only the permitted existing viewport test was edited, extending it to section and New Workspace frames. The new tests first failed on the base implementation after a completed build; independently removing only the slop bound fails six assertions. Host and Swift 6.4 guest `make check` pass: 1,738 Swift tests, 92 helper/Rust tests and 171 script tests. The guest skips the existing committed-hash script check for its synthetic sync commit.
+
+In the 1280 × 720 guest, fifteen owned stage windows span five workspaces. Scrolling places workspace 5 at y=514–631 with the viewport ending at y=573. Both sidebar-row and title-bar drops at y=580 keep the window on workspace 2 and restore its visible tile. Held screenshots show no workspace-5 highlight. The archived base build moves the window to workspace 5 and lights its section at the same pointer position. Both drag kinds still move to workspace 5's visible part and fully visible workspace 3; a title-bar drop on New Workspace creates workspace 6. The same script runs those five cases against both builds, with matching inputs and destinations. Screenshots were inspected alongside `list-windows` and agent-tree readbacks. Monitor chips and top chrome are tested without staging another display or opening Search. No Search or permission grant was used. Proof tools: `.scratch/winmux-fork/proofs/chrome-drops/`.
+
+No issue Decision or Default changed. No by-hand upgrade step is needed. The builder publishes no release.
+
+## Checks for an installed build or real hardware
+
+- [ ] Installed-build pointer use on the daily desktop.
+- [ ] A physical second display and monitor-chip drops.
+- [ ] Real sleep, wake and unlock.
 
 ## Sources
 
