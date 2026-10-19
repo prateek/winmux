@@ -1,0 +1,72 @@
+[
+  {
+    "app-name" : "Calculator",
+    "window-id" : 266,
+    "window-title" : "Calculator"
+  },
+  {
+    "app-name" : "Finder",
+    "window-id" : 256,
+    "window-title" : "desk"
+  },
+  {
+    "app-name" : "Ghostty",
+    "window-id" : 214,
+    "window-title" : "desk"
+  },
+  {
+    "app-name" : "Ghostty",
+    "window-id" : 222,
+    "window-title" : "desk"
+  },
+  {
+    "app-name" : "Notes",
+    "window-id" : 239,
+    "window-title" : "Notes – No notes"
+  },
+  {
+    "app-name" : "Preview",
+    "window-id" : 265,
+    "window-title" : "wallpaper.jpg"
+  },
+  {
+    "app-name" : "Safari",
+    "window-id" : 237,
+    "window-title" : "Fixed Columns"
+  },
+  {
+    "app-name" : "Safari",
+    "window-id" : 231,
+    "window-title" : "Lenses and Search"
+  },
+  {
+    "app-name" : "Safari",
+    "window-id" : 238,
+    "window-title" : "Subscription events"
+  },
+  {
+    "app-name" : "TextEdit",
+    "window-id" : 250,
+    "window-title" : "Grievances.rtf"
+  },
+  {
+    "app-name" : "TextEdit",
+    "window-id" : 251,
+    "window-title" : "Soft language.rtf"
+  },
+  {
+    "app-name" : "TextEdit",
+    "window-id" : 249,
+    "window-title" : "Things I will get to.rtf"
+  },
+  {
+    "app-name" : "Updater",
+    "window-id" : 287,
+    "window-title" : "A dialog that is not yours"
+  },
+  {
+    "app-name" : "Zed",
+    "window-id" : 204,
+    "window-title" : "winmux.ncl — winmux.ncl"
+  }
+]

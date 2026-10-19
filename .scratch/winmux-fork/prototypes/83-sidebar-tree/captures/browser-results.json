@@ -1,0 +1,487 @@
+[
+  {
+    "name": "embedded fixture equals desk.json",
+    "pass": true
+  },
+  {
+    "selftest": [
+      {
+        "name": "window → ordinary workspace: one move-node-to-workspace",
+        "pass": true
+      },
+      {
+        "name": "window → Columns workspace: focused Column, joins occupied tabs",
+        "pass": true
+      },
+      {
+        "name": "workspace drop prefers nearest empty Column before focused occupied Column",
+        "pass": true
+      },
+      {
+        "name": "window → Column row/mark: occupied target becomes tabs",
+        "pass": true
+      },
+      {
+        "name": "window → tab group: joins as tab",
+        "pass": true
+      },
+      {
+        "name": "window → split insertion: exact sibling index",
+        "pass": true
+      },
+      {
+        "name": "same-parent insertion adjusts removed source index",
+        "pass": true
+      },
+      {
+        "name": "tab group → ordinary parent: preserves one node",
+        "pass": true
+      },
+      {
+        "name": "split → ordinary parent: preserves one node",
+        "pass": true
+      },
+      {
+        "name": "group → empty Column: preserves one node",
+        "pass": true
+      },
+      {
+        "name": "group → occupied Column: merges leaf windows as bindToColumn does",
+        "pass": true
+      },
+      {
+        "name": "refuse self",
+        "pass": true
+      },
+      {
+        "name": "refuse descendant",
+        "pass": true
+      },
+      {
+        "name": "refuse a window as parent",
+        "pass": true
+      },
+      {
+        "name": "refuse dragging a Column",
+        "pass": true
+      },
+      {
+        "name": "refuse dragging a workspace",
+        "pass": true
+      },
+      {
+        "name": "refuse Column on Columns-off workspace: absent target",
+        "pass": true
+      },
+      {
+        "name": "refuse floating window into Column",
+        "pass": true
+      },
+      {
+        "name": "refuse floating window into tab group inside Column",
+        "pass": true
+      },
+      {
+        "name": "floating workspace move preserves floating state",
+        "pass": true
+      },
+      {
+        "name": "refused drop leaves fixture byte-for-byte intact",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: window upper/lower half 0 uses hidden real split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: window upper/lower half 1 uses hidden real split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: same-parent before/after adjusts source removal",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab index 0",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab index 1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: direct Column child sibling 0 forms vertical split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: direct Column child sibling 1 forms vertical split",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: same-workspace row drop changes nothing",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: an emptied root split takes the next drop at full size",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: a drop on one workspace keeps another workspace's root split",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: emptying a root split to one child keeps the root and its orientation",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: a tab group dropped on a tab group joins as its windows",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: a tab group dropped on a tab joins as its windows at that index",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab group onto window stays one sibling",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-1",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: floating stays floating on workspace row ws-2",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto col-2-1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto root-1-1",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto w214",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating tiles onto w237",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating remains floating on floating window",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: floating group accepts and floats tiled source",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: sole workspace window still gets a pointed sibling after cleanup",
+        "pass": true
+      },
+      {
+        "changed": true,
+        "name": "Pick: tab group floats as leaf windows on floating target",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation tabgroup-231 → tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation tabgroup-231 → w237",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation col-2-1 → ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: refusal without mutation ws-1 → ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule ws-4",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule ws-2",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule col-2-1",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule tabgroup-231",
+        "pass": true
+      },
+      {
+        "changed": false,
+        "name": "Pick: unchanged parent rule root-1-1",
+        "pass": true
+      }
+    ]
+  },
+  {
+    "name": "all drag table self-checks pass",
+    "pass": true
+  },
+  {
+    "name": "A disclosure collapses and search restores the saved state",
+    "pass": true
+  },
+  {
+    "name": "A hover expands an unpinned rail and leaving collapses it",
+    "pass": true
+  },
+  {
+    "name": "A an unpinned drag releases its expansion lock after moving off",
+    "pass": true
+  },
+  {
+    "name": "A native HTML drag moves a window and updates every tree and the miniature",
+    "pass": true
+  },
+  {
+    "name": "A refused window-parent drop preserves every node",
+    "pass": true
+  },
+  {
+    "name": "A a window joins a tab group through its row",
+    "pass": true
+  },
+  {
+    "name": "A a group moves intact to an ordinary workspace",
+    "pass": true
+  },
+  {
+    "name": "A a split can be one tab without counting its leaves as separate tabs",
+    "pass": true
+  },
+  {
+    "name": "A Column row, mark or divider accepts a group and merges occupied tabs",
+    "pass": true
+  },
+  {
+    "name": "A insertion line puts a window between split siblings",
+    "pass": true
+  },
+  {
+    "name": "A floating drop into a Column stays refused",
+    "pass": true
+  },
+  {
+    "name": "B disclosure collapses and search restores the saved state",
+    "pass": true
+  },
+  {
+    "name": "B hover expands an unpinned rail and leaving collapses it",
+    "pass": true
+  },
+  {
+    "name": "B an unpinned drag releases its expansion lock after moving off",
+    "pass": true
+  },
+  {
+    "name": "B native HTML drag moves a window and updates every tree and the miniature",
+    "pass": true
+  },
+  {
+    "name": "B refused window-parent drop preserves every node",
+    "pass": true
+  },
+  {
+    "name": "B a window joins a tab group through its row",
+    "pass": true
+  },
+  {
+    "name": "B a group moves intact to an ordinary workspace",
+    "pass": true
+  },
+  {
+    "name": "B a split can be one tab without counting its leaves as separate tabs",
+    "pass": true
+  },
+  {
+    "name": "B Column row, mark or divider accepts a group and merges occupied tabs",
+    "pass": true
+  },
+  {
+    "name": "B insertion line puts a window between split siblings",
+    "pass": true
+  },
+  {
+    "name": "B floating drop into a Column stays refused",
+    "pass": true
+  },
+  {
+    "name": "C disclosure collapses and search restores the saved state",
+    "pass": true
+  },
+  {
+    "name": "C hover expands an unpinned rail and leaving collapses it",
+    "pass": true
+  },
+  {
+    "name": "C an unpinned drag releases its expansion lock after moving off",
+    "pass": true
+  },
+  {
+    "name": "C native HTML drag moves a window and updates every tree and the miniature",
+    "pass": true
+  },
+  {
+    "name": "C refused window-parent drop preserves every node",
+    "pass": true
+  },
+  {
+    "name": "C a window joins a tab group through its row",
+    "pass": true
+  },
+  {
+    "name": "C a group moves intact to an ordinary workspace",
+    "pass": true
+  },
+  {
+    "name": "C a split can be one tab without counting its leaves as separate tabs",
+    "pass": true
+  },
+  {
+    "name": "C Column row, mark or divider accepts a group and merges occupied tabs",
+    "pass": true
+  },
+  {
+    "name": "C insertion line puts a window between split siblings",
+    "pass": true
+  },
+  {
+    "name": "C floating drop into a Column stays refused",
+    "pass": true
+  },
+  {
+    "name": "search Safari",
+    "pass": true
+  },
+  {
+    "query": "Safari",
+    "count": 3,
+    "ids": [
+      "w231",
+      "w237",
+      "w238"
+    ]
+  },
+  {
+    "name": "search Grievances",
+    "pass": true
+  },
+  {
+    "query": "Grievances",
+    "count": 1,
+    "ids": [
+      "w250"
+    ]
+  },
+  {
+    "name": "search qzxnomatch",
+    "pass": true
+  },
+  {
+    "query": "qzxnomatch",
+    "count": 0,
+    "ids": []
+  },
+  {
+    "metrics": {
+      "A": {
+        "byDepth": {
+          "0": 187,
+          "1": 210,
+          "2": 297,
+          "3": 275
+        },
+        "height": 817,
+        "needed": 297
+      },
+      "B": {
+        "byDepth": {
+          "0": 261,
+          "1": 265,
+          "2": 297,
+          "3": 187
+        },
+        "height": 697,
+        "needed": 297
+      },
+      "C": {
+        "byDepth": {
+          "0": 187,
+          "1": 247,
+          "2": 297,
+          "3": 187
+        },
+        "height": 847,
+        "needed": 297
+      }
+    }
+  },
+  {
+    "name": "A measured title width matches actual clipping",
+    "pass": true
+  },
+  {
+    "name": "B measured title width matches actual clipping",
+    "pass": true
+  },
+  {
+    "name": "C measured title width matches actual clipping",
+    "pass": true
+  },
+  {
+    "name": "no missing local images",
+    "pass": true
+  },
+  {
+    "name": "no browser JavaScript errors",
+    "pass": true
+  }
+]

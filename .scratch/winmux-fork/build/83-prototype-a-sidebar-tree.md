@@ -30,9 +30,23 @@ Nothing.
 
 ## Done when
 
-- [ ] A clickable page under `.scratch/winmux-fork/prototypes/` on the staged desk's layout, with two or three variants side by side, each in its collapsed and expanded states.
-- [ ] Captures of Tree Style Tab and Sidebery beside it.
-- [ ] A recommendation and a draft issue for the variant he picks.
+- [x] A clickable page under `.scratch/winmux-fork/prototypes/` on the staged desk's layout, with two or three variants side by side, each in its collapsed and expanded states.
+- [x] Captures of Tree Style Tab and Sidebery beside it.
+- [x] A recommendation and a draft issue for the variant he picks.
+
+## Built and checked
+
+Prateek picked on **2026-10-18**: workspace numbers only in the rail; a flat, shallow tree with width-proportional Column marks; independent per-workspace Splits and Columns toggles, Splits also showing the floating group; any row accepts window/tab-group drops, with a window target meaning sibling at the pointed index. `build/121-the-sidebar-as-a-tree.md` is the feature draft for his pick. Nothing waits on a product choice.
+
+`prototypes/83-sidebar-tree/index.html#pick` leads the page. Its own rail, hover, pin, disclosures, shared app/title search and drag targets work on the normalized fourteen-window desk. The config-shaped panel models proposed `sidebar.tree.splits` and `sidebar.tree.columns` defaults, both false. Defaults persist through reload; session overrides apply per workspace until that default changes. A/B/C remain side by side below, with the original interactions and drag rules.
+
+The first pass staged the desk at 1920 × 1080 before Firefox. Raw workspace/window/Column and agent-tree readbacks expose actual layouts and orientation; remembered workspace focus alone is derived from native highlights. The follow-up corrected centered baseline image crops from the full originals. The code and captures correct the premise above: multi-child tab groups already show as groups; splits flatten and Columns are omitted.
+
+The pick's 34 fixture checks supplement the original 21. Disabling the pick's drag branch makes the 20 changed-rule checks fail; restoring it makes them pass, while 14 unchanged checks stay green. Native Safari and headless Chromium cover hover/pin, levels, sibling halves, floating conversion, refusals and search. `Safari` finds 3 windows in workspace 2 / Column 2 / Safari tabs; `Grievances` finds 1 in workspace 3 / Column 1 / TextEdit tabs; `qzxnomatch` finds 0. Default flat and both-level pick widths measure 307 points; 320 is the chosen feature default.
+
+Workspace transfers still follow invariant placement, nearest empty Column before focused occupied. Occupied Columns merge incoming group leaves; empty ones preserve the group. The pick adds the window-target/index adapter and explicit tiling of floating arrivals; the README distinguishes these feature seams from existing commands. No named Default in this issue changed; its Decisions remain intact.
+
+The page compares guest-only Firefox extension captures; provenance, licences and exact search coverage are recorded in the README and capture index. Only displayed reference/baseline/icon images remain in the prototype; page evidence is retained by the driver. Host and pinned Swift 6.4 guest `make check` pass. Installed-build checks, a second display and real sleep/wake/unlock remain unticked in the feature draft and remain Prateek's. The builder publishes no release.
 
 ## Sources
 

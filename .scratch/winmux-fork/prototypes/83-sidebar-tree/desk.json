@@ -1,0 +1,354 @@
+{
+  "schema": 1,
+  "sourceCommit": "1fbbdc72",
+  "display": {
+    "width": 1920,
+    "height": 1080
+  },
+  "workspaces": [
+    {
+      "id": "ws-1",
+      "kind": "workspace",
+      "name": "1",
+      "focused": true,
+      "columns": false,
+      "rememberedFocus": "w204",
+      "focusedColumn": 1,
+      "children": [
+        {
+          "id": "root-1",
+          "kind": "split",
+          "layout": "tiles",
+          "orientation": "horizontal",
+          "children": [
+            {
+              "id": "w204",
+              "kind": "window",
+              "app": "Zed",
+              "title": "winmux.ncl — winmux.ncl",
+              "focused": true,
+              "floating": false,
+              "frame": {
+                "height": 1025,
+                "width": 919,
+                "x": 62,
+                "y": 42
+              },
+              "size": 0.5
+            },
+            {
+              "id": "root-1-1",
+              "kind": "split",
+              "layout": "tiles",
+              "orientation": "vertical",
+              "size": 0.5,
+              "children": [
+                {
+                  "id": "w214",
+                  "kind": "window",
+                  "app": "Ghostty",
+                  "title": "desk",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 509,
+                    "width": 919,
+                    "x": 989,
+                    "y": 42
+                  },
+                  "size": 0.5
+                },
+                {
+                  "id": "w222",
+                  "kind": "window",
+                  "app": "Ghostty",
+                  "title": "desk",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 509,
+                    "width": 919,
+                    "x": 989,
+                    "y": 559
+                  },
+                  "size": 0.5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "float-1",
+          "kind": "floating",
+          "children": [
+            {
+              "id": "w287",
+              "kind": "window",
+              "app": "Updater",
+              "title": "A dialog that is not yours",
+              "focused": false,
+              "floating": true,
+              "frame": {
+                "height": 202,
+                "width": 440,
+                "x": 420,
+                "y": 150
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ws-2",
+      "kind": "workspace",
+      "name": "2",
+      "focused": false,
+      "columns": true,
+      "rememberedFocus": "w239",
+      "focusedColumn": 1,
+      "children": [
+        {
+          "id": "col-2-1",
+          "kind": "column",
+          "index": 1,
+          "width": 0.28,
+          "children": [
+            {
+              "id": "w239",
+              "kind": "window",
+              "app": "Notes",
+              "title": "Notes – No notes",
+              "focused": false,
+              "floating": false,
+              "frame": {
+                "height": 1025,
+                "width": 709,
+                "x": 1919,
+                "y": 1048
+              },
+              "size": 0.27999999999999997
+            }
+          ]
+        },
+        {
+          "id": "col-2-2",
+          "kind": "column",
+          "index": 2,
+          "width": 0.44,
+          "children": [
+            {
+              "id": "tabgroup-231",
+              "kind": "tabs",
+              "layout": "tab-group",
+              "orientation": "vertical",
+              "active": "w238",
+              "size": 0.44,
+              "children": [
+                {
+                  "id": "w231",
+                  "kind": "window",
+                  "app": "Safari",
+                  "title": "Lenses and Search",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 1025,
+                    "width": 804,
+                    "x": 1919,
+                    "y": 1028
+                  }
+                },
+                {
+                  "id": "w237",
+                  "kind": "window",
+                  "app": "Safari",
+                  "title": "Fixed Columns",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 986,
+                    "width": 798,
+                    "x": 1919,
+                    "y": 1028
+                  }
+                },
+                {
+                  "id": "w238",
+                  "kind": "window",
+                  "app": "Safari",
+                  "title": "Subscription events",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 986,
+                    "width": 798,
+                    "x": 1919,
+                    "y": 1028
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "col-2-3",
+          "kind": "column",
+          "index": 3,
+          "width": 0.28,
+          "children": [
+            {
+              "id": "w249",
+              "kind": "window",
+              "app": "TextEdit",
+              "title": "Things I will get to.rtf",
+              "focused": false,
+              "floating": false,
+              "frame": {
+                "height": 1025,
+                "width": 513,
+                "x": 1919,
+                "y": 1048
+              },
+              "size": 0.27999999999999997
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ws-3",
+      "kind": "workspace",
+      "name": "3",
+      "focused": false,
+      "columns": true,
+      "rememberedFocus": "w250",
+      "focusedColumn": 1,
+      "children": [
+        {
+          "id": "col-3-1",
+          "kind": "column",
+          "index": 1,
+          "width": 0.6666666666666666,
+          "children": [
+            {
+              "id": "tabgroup-250",
+              "kind": "tabs",
+              "layout": "tab-group",
+              "orientation": "vertical",
+              "active": "w250",
+              "size": 0.6666666666666666,
+              "children": [
+                {
+                  "id": "w250",
+                  "kind": "window",
+                  "app": "TextEdit",
+                  "title": "Grievances.rtf",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 986,
+                    "width": 1221,
+                    "x": 1919,
+                    "y": 1048
+                  }
+                },
+                {
+                  "id": "w251",
+                  "kind": "window",
+                  "app": "TextEdit",
+                  "title": "Soft language.rtf",
+                  "focused": false,
+                  "floating": false,
+                  "frame": {
+                    "height": 986,
+                    "width": 1221,
+                    "x": 1919,
+                    "y": 1048
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "col-3-2",
+          "kind": "column",
+          "index": 2,
+          "width": 0.3333333333333333,
+          "children": [
+            {
+              "id": "w256",
+              "kind": "window",
+              "app": "Finder",
+              "title": "desk",
+              "focused": false,
+              "floating": false,
+              "frame": {
+                "height": 1025,
+                "width": 611,
+                "x": 1919,
+                "y": 1028
+              },
+              "size": 0.3333333333333333
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ws-4",
+      "kind": "workspace",
+      "name": "4",
+      "focused": false,
+      "columns": false,
+      "rememberedFocus": "w265",
+      "focusedColumn": 1,
+      "children": [
+        {
+          "id": "root-4",
+          "kind": "split",
+          "layout": "tiles",
+          "orientation": "horizontal",
+          "children": [
+            {
+              "id": "w265",
+              "kind": "window",
+              "app": "Preview",
+              "title": "wallpaper.jpg",
+              "focused": false,
+              "floating": false,
+              "frame": {
+                "height": 1025,
+                "width": 1846,
+                "x": 1919,
+                "y": 1028
+              },
+              "size": 1
+            }
+          ]
+        },
+        {
+          "id": "float-4",
+          "kind": "floating",
+          "children": [
+            {
+              "id": "w266",
+              "kind": "window",
+              "app": "Calculator",
+              "title": "Calculator",
+              "focused": false,
+              "floating": true,
+              "frame": {
+                "height": 408,
+                "width": 230,
+                "x": 1919,
+                "y": 1028
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

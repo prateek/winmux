@@ -1,0 +1,59 @@
+{
+  "retrieved": "2026-10-18",
+  "captureKind": "live-guest-only-Firefox-profile",
+  "liveExtensionInstall": "Firefox extension confirmations accepted; no macOS permission granted. Firefox notification permission banner dismissed.",
+  "tree": "Four workspace roots; fourteen window leaves, Column/tab-group parent tabs, a two-level branch and folded workspace 4. Sidebery additionally has a real Safari group page and a Writing panel.",
+  "tst": {
+    "name": "Tree Style Tab",
+    "version": "4.4.9",
+    "homepage": "https://addons.mozilla.org/en-US/firefox/addon/tree-style-tab/",
+    "license": "MPL-2.0 default; per-file MPL-1.1/MIT/PSF in project COPYING",
+    "licenseURL": "https://github.com/piroor/treestyletab/blob/master/COPYING.txt",
+    "images": [
+      {
+        "file": "tst-live-expanded.png",
+        "caption": "Live expanded branches"
+      },
+      {
+        "file": "tst-live-collapsed.png",
+        "caption": "Live collapsed branches"
+      },
+      {
+        "file": "tst-live-search.png",
+        "caption": "Live TST Tab Search helper: Grievances, 1 result under Workspace 3 / TextEdit tabs"
+      }
+    ],
+    "searchHelper": {
+      "name": "TST Tab Search",
+      "version": "0.0.7",
+      "author": "NiklasG",
+      "homepage": "https://addons.mozilla.org/en-US/firefox/addon/tst-search/",
+      "license": "MPL-2.0",
+      "note": "Tree Style Tab delegates search to helpers; this is not a built-in TST search field."
+    }
+  },
+  "sidebery": {
+    "name": "Sidebery",
+    "version": "5.6.1",
+    "homepage": "https://addons.mozilla.org/en-US/firefox/addon/sidebery/",
+    "license": "MIT",
+    "licenseURL": "https://github.com/mbnuqw/sidebery/blob/master/LICENSE",
+    "images": [
+      {
+        "file": "sidebery-live-expanded.png",
+        "caption": "Live expanded branches; two panels and Safari group page"
+      },
+      {
+        "file": "sidebery-live-collapsed.png",
+        "caption": "Live collapsed branches; two panels and Safari group page"
+      },
+      {
+        "file": "sidebery-live-search.png",
+        "caption": "Live built-in filter: Grievances, 1 result in the first panel"
+      }
+    ],
+    "search": "Search bar configured always shown in the guest profile."
+  },
+  "captureMethod": "Firefox opened real local fixture tabs with opener relationships through guest-only Marionette. Folding, group/panel creation, search and screenshots exercised the actual extension UI. Extensions were enabled one at a time to avoid their tab-order conflict.",
+  "implementation": "No extension code or asset implements the WinMux prototype."
+}
