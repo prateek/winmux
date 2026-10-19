@@ -61,7 +61,7 @@ final class ColumnDropTest: XCTestCase {
         _ = setPendingWindowDragIntent(sourceWindowId: a.windowId, sourceSubject: .window,
                                       detachOrigin: .window, destination: destination)
         config.columns = ColumnsConfig(.object(["count": .int(3)]), workspaces: nil)
-        try await applyConfig(config, url: configUrl)
+        try await applyConfig(config, url: configUrl, readSidebarState: { WorkspaceSidebarState() }, synchronizeLogin: {})
         XCTAssertNil(pendingWindowDragIntent)
         let applied = try await applyPendingWindowDragIntentWithPolicy()
         XCTAssertFalse(applied)
