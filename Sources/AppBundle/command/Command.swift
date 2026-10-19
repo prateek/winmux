@@ -36,6 +36,7 @@ extension Command {
                  is ConfigCommand,
                  is DebugWindowsCommand,
                  is DebugLensTraceCommand,
+                 is DebugHooksCommand,
                  is FlattenWorkspaceTreeCommand,
                  is FindFocusCommand,
                  is FocusBackAndForthCommand,

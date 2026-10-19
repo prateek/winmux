@@ -1,6 +1,6 @@
 # Subscription events
 
-`winmux subscribe --all` includes ten events: `focus-changed`, `focused-monitor-changed`, `focused-workspace-changed`, `mode-changed`, `window-detected`, `binding-triggered`, `config-reloaded`, `lens-opened`, `lens-closed` and `columns-changed`. Output is one JSON record per line, with `_event` naming the event. Select individual events by listing their names. `--no-send-initial` suppresses the existing focus/mode initial records. The four events added here have no synthetic initial records.
+`winmux subscribe --all` includes eleven events: `focus-changed`, `focused-monitor-changed`, `focused-workspace-changed`, `mode-changed`, `window-detected`, `binding-triggered`, `config-reloaded`, `lens-opened`, `lens-closed`, `columns-changed` and `hook-called`. Output is one JSON record per line, with `_event` naming the event. Select individual events by listing their names. `--no-send-initial` suppresses the existing focus/mode initial records. Config, Lens, Column and hook events have no synthetic initial records.
 
 ```sh
 winmux subscribe config-reloaded
@@ -15,6 +15,9 @@ winmux subscribe --all
 | `lens-opened`, `lens-closed`, named Lens | `lens`: String |
 | `lens-opened`, `lens-closed`, ad-hoc Lens | `lens`: null, `filter`: String |
 | `columns-changed` | `workspace`: String, `count`: Int, `widths`: array of fractions, `occupied`: array of one-based indices |
+| `hook-called` | `time`: UTC ISO 8601 with milliseconds, `hook`: resolved definition path, `kind`: `arrive`/`place`/`move-boundary`, `window-id`: Int, `args`: array or null, `result`: answer or null, `error`: String or null, `arguments-ms` and `duration-ms`: milliseconds |
+
+`hook-called` is sent only while `debug-hooks on` capture is active, after its record has been appended and flushed to the capture file. Its payload is that same record with `_event` added. With capture off it stays silent; file errors stop capture rather than falling back to the stream. `args` is the exact helper request array, including the boundary edge Bool. A rejected helper answer retains its raw result with an error; a helper or argument failure has a null result, and an argument failure also has null args. Errors applying an accepted answer later remain in `config status` and the log.
 
 A reload emits once after it reaches a result, whether a command, menu, Settings action or file save started it. Success has `ok: true` and `error: null`; a load or apply failure has `ok: false` and its diagnostic. `configPath` identifies the loaded config on success and the attempted editable path on load failure. A reload discarded because a newer load overtook it emits nothing. A dry run only checks the config and emits nothing. An ordinary reload requested from its own configuration application is refused before an attempt starts and emits nothing. A save ignored because the config was removed, the server is disabled or startup is not ready has not reached a reload result; a deferred startup save emits when it is subsequently loaded.
 

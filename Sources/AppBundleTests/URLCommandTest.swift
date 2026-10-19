@@ -106,7 +106,7 @@ final class URLCommandTest: XCTestCase {
     func testEveryKindHasAnExplicitURLPolicy() {
         let refused: Set<CmdKind> = [.subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors,
                                     .listModes, .listExecEnvVars, .listLenses, .listColumns, .debugWindows,
-                                    .debugLensTrace, .doctor, .config, .agent, .place, .execAndForget]
+                                    .debugLensTrace, .debugHooks, .doctor, .config, .agent, .place, .execAndForget]
         for kind in CmdKind.allCases {
             XCTAssertEqual(urlCommandRefusal(kind: kind, args: nil) != nil, refused.contains(kind), kind.rawValue)
         }

@@ -65,4 +65,5 @@ public enum ServerEventType: String, Codable, CaseIterable, Sendable {
     case lensOpened = "lens-opened"
     case lensClosed = "lens-closed"
     case columnsChanged = "columns-changed"
+    case hookCalled = "hook-called"
 }

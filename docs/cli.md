@@ -28,6 +28,22 @@ frame. The mark holds for 0.8 seconds, then fades over 0.4 seconds; any key or
 click ends it early. Press Option-semicolon, then `c`, to run it in the default
 windowing mode, which stays on.
 
+## Capture Policy hooks
+
+Run `winmux debug-hooks on`, reproduce the behavior, and read the printed
+`hook-capture.jsonl` path, or run `winmux subscribe hook-called` while capturing.
+`winmux debug-hooks off` stops capture and prints its path and record count.
+`winmux debug-hooks` (or `status`) prints whether it is on, its path, stop time
+and count. Each form accepts `--json`, with `capturing`, `path`, `until` and
+`records`; a file error also appears as `error` in status.
+
+Capture is off on startup and survives config reloads. Turning it on from off
+truncates the file; another `on` while capturing keeps its records and restarts
+the fixed 15 minutes. The file lives in WinMux's state directory
+(`$XDG_STATE_HOME/winmux`, or `~/.local/state/winmux`). A file write failure stops
+capture and logs the reason. See [the hook guide](columns.md) for record contents
+and preview behavior. This command is unavailable in config or command URLs.
+
 ## Who can drive WinMux
 
 Any process running as you, agents included, has the CLI's full reach: every

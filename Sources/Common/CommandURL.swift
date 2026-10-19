@@ -33,7 +33,7 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
     func readsStdin(_ form: String) -> String { "\(kind.rawValue) \(form) is refused in a URL: it reads stdin" }
     switch kind {
         case .subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors, .listModes,
-             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .doctor, .config, .agent, .place:
+             .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .debugHooks, .doctor, .config, .agent, .place:
             return prints
         case .execAndForget:
             return "exec-and-forget is refused in a URL: it runs a shell command"
