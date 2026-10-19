@@ -13,7 +13,7 @@ https://github.com/user-attachments/assets/51983568-a168-494f-8ae3-5f50ca1efce1
 
 This personal fork adds [Lenses](docs/lenses.md) and [fixed Columns](docs/columns.md).
 
-The [CLI guide](docs/cli.md) explains its private socket and who can drive WinMux, agents included.
+The [CLI guide](docs/cli.md) explains its private socket and agent access; `winmux agent skill` prints a skill for configuring and driving WinMux, even with the app stopped.
 
 With [Cmd-Tab opted in](docs/default-config.md#opt-in-to-cmd-tab), hold Cmd and tap Tab through every workspace; release to focus the selected window.
 

@@ -12,8 +12,15 @@ The app makes the socket again each time it starts; if the socket is removed
 while WinMux runs, restart WinMux.
 
 Run `winmux --help` for commands and `winmux <command> --help` for their options.
-`winmux agent skill` prints the bundled agent skill: an agent using it drives
-the same CLI through its query, edit and apply workflow.
+`winmux agent skill` prints one self-contained `SKILL.md` for configuring and
+driving WinMux, even when WinMux is not running. Install it for Claude or Codex:
+
+```sh
+mkdir -p ~/.claude/skills/winmux
+winmux agent skill > ~/.claude/skills/winmux/SKILL.md
+mkdir -p ~/.agents/skills/winmux
+winmux agent skill > ~/.agents/skills/winmux/SKILL.md
+```
 
 On a wide display, `winmux find-focus` makes the focused window easy to find:
 it dims every screen around the window and draws an accent border inside its

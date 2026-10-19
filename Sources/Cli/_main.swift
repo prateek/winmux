@@ -61,6 +61,10 @@ struct Main {
                 exit(parseFailureExitCode(args), err: e)
         }
 
+        if let agentArgs = parsedArgs as? AgentCmdArgs, agentArgs.subcommand.val == .skill {
+            exit(0, out: agentSkillText)
+        }
+
         if let configArgs = parsedArgs as? ConfigCmdArgs {
             switch configArgs.mode {
                 case .check(let file): execNickelHelper(.check, file: file)
