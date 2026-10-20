@@ -5,7 +5,7 @@ struct FocusBackCommand: Command {
     let shouldResetClosedWindowsCache = true
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
-        guard let window = mostRecentlyFocusedWindow(otherThan: windowInFront) else { return io.err("No previously focused window") }
+        guard let window = prevFocusedWindow else { return io.err("No previously focused window") }
         return try await focusLensWindow(window)
     }
 }
@@ -15,14 +15,8 @@ struct MarkCommand: Command {
     let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        let target: Window?
-        if env.windowId != nil || env.workspaceName != nil {
-            guard let focus = args.resolveTargetOrReportError(env, io) else { return false }
-            target = focus.windowOrNil
-        } else {
-            target = windowInFront
-        }
-        guard let window = target else { return io.err("No window is focused") }
+        guard let target = args.resolveTargetOrReportError(env, io) else { return false }
+        guard let window = target.windowOrNil else { return io.err("No window to mark") }
         if let register = args.register {
             WindowMarks.set(register, to: window)
             return true

@@ -10,24 +10,9 @@ import Foundation
 
 @MainActor private var workspaceProjectFocusHold: WorkspaceProjectFocusHold? = nil
 
-/// A window in macOS native fullscreen that a refresh read as macOS's focused window. `focus` never
-/// points at one, so this stands in for it until the next refresh or until `setFocus` moves focus.
-@MainActor private var nativeFullscreenInFrontId: UInt32? = nil
-
-/// The window the person is in: a window in macOS native fullscreen that macOS has focused, and
-/// otherwise `focus`'s window.
-@MainActor var windowInFront: Window? {
-    nativeFullscreenInFrontId.flatMap { Window.get(byId: $0) } ?? focus.windowOrNil
-}
-
-@MainActor func forgetNativeFullscreenInFront() {
-    nativeFullscreenInFrontId = nil
-}
-
 @MainActor
 func resetFocusCacheForTests() {
     lastKnownNativeFocusedWindowId = nil
-    nativeFullscreenInFrontId = nil
     workspaceProjectFocusHold = nil
 }
 
@@ -85,7 +70,6 @@ private func shouldIgnoreNativeFocusDuringProjectHold(_ nativeFocused: Window?) 
         _ = nativeFocused?.focusWindow()
         lastKnownNativeFocusedWindowId = nativeFocused?.windowId
     }
-    nativeFullscreenInFrontId = nativeFocused?.parent is MacosFullscreenWindowsContainer ? nativeFocused?.windowId : nil
     nativeFocused?.recordConfirmedFocus()
     (nativeFocused?.app as? MacApp)?.lastNativeFocusedWindowId = nativeFocused?.windowId
     debugFocusLog(

@@ -124,7 +124,6 @@ func replaceWorkspaceNameInFocusState(oldName: String, newName: String) {
     let oldFocus = focus
     let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
     guard status else { return false }
-    forgetNativeFullscreenInFront()
 
     FindFocusHighlight.shared.dismiss()
 
@@ -197,12 +196,10 @@ extension Workspace {
 ///
 /// It may be a window that `focus` never points at: a minimized one, or one in macOS native
 /// fullscreen, including while macOS has that window focused.
-@MainActor var prevFocusedWindow: Window? { mostRecentlyFocusedWindow(otherThan: focus.windowOrNil) }
-
-/// The window macOS most recently confirmed focused, other than `window`.
-@MainActor func mostRecentlyFocusedWindow(otherThan window: Window?) -> Window? {
-    Window.all.lazy
-        .filter { $0 != window && $0.lastFocusedSeq != 0 }
+@MainActor var prevFocusedWindow: Window? {
+    let focused = focus.windowOrNil
+    return Window.all.lazy
+        .filter { $0 != focused && $0.lastFocusedSeq != 0 }
         .max { $0.lastFocusedSeq < $1.lastFocusedSeq }
 }
 @MainActor private var _prevPrevFocus: FrozenFocus? = nil

@@ -32,11 +32,11 @@ windowing mode, which stays on.
 
 - `winmux focus-back` restores and focuses the previously confirmed focused window,
   switching workspace and project when needed. After macOS confirms focus, a second
-  call returns. From a window in macOS native fullscreen it returns to the window
-  you were in before. It exits 1 with `No previously focused window` when none exists.
-- `winmux mark a` assigns a window to register `a`: the window a Lens action or hook
-  runs it for, as `WINMUX_WINDOW_ID` names it, or else the focused window, one in
-  macOS native fullscreen included. Registers are exactly one lowercase letter `a`
+  call returns. It exits 1 with `No previously focused window` when none exists.
+- `winmux mark a` assigns a window to register `a`: the window the command runs for,
+  found as other window commands find it (`WINMUX_WINDOW_ID`, or the most recent
+  window of `WINMUX_WORKSPACE`, as a Lens action or hook sets them), or else the
+  focused window. Registers are exactly one lowercase letter `a`
   to `z`. Reassigning a register moves it to the new window; a window can hold
   several registers. Bare `winmux mark` prints that window's registers in letter
   order, separated by spaces, or nothing when it has none. Both forms exit 1 when
@@ -48,6 +48,10 @@ windowing mode, which stays on.
 - `winmux list-marks` prints `register | window-id | app | title` in register order,
   with padded columns. `--json` prints an array with `register`, `window-id`,
   `app-name` and `window-title`; it has no `--format` option.
+
+From a window in macOS native fullscreen, `focus-back` stays in it and `mark` marks
+the window you were in before it, because WinMux's focus never points at a window
+in native fullscreen.
 
 Marks live only for the WinMux process: restarting clears them. These are window
 marks, separate from the marks a Lens toggles with Tab.
