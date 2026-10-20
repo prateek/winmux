@@ -47,9 +47,9 @@ Nothing.
 
 ## Checks for Prateek
 
-- [ ] Use the new commands with the installed build and upgraded cask CLI.
-- [ ] Check focus and restoration across a second real display.
-- [ ] Check marks across real sleep, wake and screen lock/unlock. Object replacement and retained ids are covered in tests; the physical transitions are not guest checks.
+- [ ] After `brew upgrade --cask --greedy winmux` (Sparkle does not update the cask's `winmux`), run `winmux mark a` on a window, switch to another workspace and focus a window there, then run `winmux jump a`, then `winmux focus-back`. Pass: `jump a` shows the marked window on its own workspace, and `focus-back` returns to the window you jumped from.
+- [ ] With two displays, run `winmux mark a` on a window on one display, focus a window on the other, then run `winmux jump a`. Pass: focus lands on the marked window, and the other display keeps the workspace it showed.
+- [ ] Run `winmux mark a` on a window, lock the screen and unlock it, then run `winmux jump a`. Pass: it focuses the window you marked, and `winmux list-marks` still lists it.
 
 ## Sources
 

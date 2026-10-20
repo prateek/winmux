@@ -50,7 +50,6 @@ Marks live only for the WinMux process: restarting clears them. These are window
 marks, separate from the marks a Lens toggles with Tab.
 Unlike `focus-back`, upstream `focus-back-and-forth` also falls back to
 never-focused windows and empty workspaces.
-No default bindings are added here; the shipped keyboard work binds these commands.
 
 ## Capture Policy hooks
 

@@ -166,6 +166,11 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **A capture mode for hooks**
 - [ ] After `brew upgrade --cask --greedy winmux` (Sparkle does not update the cask's `winmux`), run `winmux debug-hooks on`, open a window on a workspace whose Columns have your own `place` hook, then `winmux debug-hooks off`. Pass: `on` prints a `hook-capture.jsonl` path under `~/.local/state/winmux`, the file has one record per hook that ran for that window with `args` and `result` you recognise from your config, and `off` prints that count.
 
+**focus-back, mark and jump**
+- [ ] After `brew upgrade --cask --greedy winmux` (Sparkle does not update the cask's `winmux`), run `winmux mark a` on a window, switch to another workspace and focus a window there, then run `winmux jump a`, then `winmux focus-back`. Pass: `jump a` shows the marked window on its own workspace, and `focus-back` returns to the window you jumped from.
+- [ ] With two displays, run `winmux mark a` on a window on one display, focus a window on the other, then run `winmux jump a`. Pass: focus lands on the marked window, and the other display keeps the workspace it showed.
+- [ ] Run `winmux mark a` on a window, lock the screen and unlock it, then run `winmux jump a`. Pass: it focuses the window you marked, and `winmux list-marks` still lists it.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).
