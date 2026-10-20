@@ -21,6 +21,10 @@ struct LensCommand: Command {
             return true
         }
         let name = args.name ?? "<ad-hoc>"
+        if let configured = args.name {
+            guard let lens = config.lenses[configured] else { io.failureExitCode = 2; return io.err("No Lens named '\(configured)'") }
+            guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(configured)' is disabled") }
+        }
         var settings = args.name.flatMap { config.lenses[$0] } ?? LensConfig()
         if let presentation = args.presentation { settings.presentation = presentation }
         if let sections = args.sections {
@@ -51,10 +55,6 @@ struct LensCommand: Command {
             return true
         }
         defer { panel.cancelLensOpening(ticket: ticket) }
-        if let configured = args.name {
-            guard let lens = config.lenses[configured] else { io.failureExitCode = 2; return io.err("No Lens named '\(configured)'") }
-            guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(configured)' is disabled") }
-        }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
         trace.advance("windows collected")
@@ -82,7 +82,7 @@ struct LensCommand: Command {
         let panel = SwitcherPalettePanel.shared
         guard let model = panel.session else { return io.err("No Lens is open") }
         switch verb {
-            case "close": panel.dismiss(); try await activateMode(mainModeId)
+            case "close": panel.dismiss()
             case "step": model.step(args.operands[0])
             case "peek": model.send(.peekToggled)
             case "mark": model.toggleMark()
@@ -97,7 +97,6 @@ struct LensCommand: Command {
                 if raw == ["focus"] {
                     let ids = model.targets(forCommand: "focus")
                     panel.dismiss()
-                    try await activateMode(mainModeId)
                     guard let id = ids.first, let window = Window.get(byId: id) else { return io.err("No selected window") }
                     return try await focusLensWindow(window)
                 }
@@ -109,7 +108,7 @@ struct LensCommand: Command {
                 let keepOpen = raw[0] == "close" || raw[0] == "move-node-to-workspace"
                 // The command acts on what was selected and marked when it ran, not after the Lens closed.
                 let targets = model.targets(forCommand: raw.joinArgs())
-                if !keepOpen { panel.dismiss(); try await activateMode(mainModeId) }
+                if !keepOpen { panel.dismiss() }
                 return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env, targets: targets)
             default: return io.err("Unknown Lens verb '\(verb)'")
         }

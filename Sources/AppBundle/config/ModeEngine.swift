@@ -5,6 +5,11 @@ import Common
 final class ModeEngine {
     static let shared = ModeEngine(closeLens: { SwitcherPalettePanel.shared.dismiss() })
     @TaskLocal private static var inputAction: Int?
+    private struct LensEntry: Sendable {
+        let engine: ObjectIdentifier
+        let generation: Int
+    }
+    @TaskLocal private static var lensEntry: LensEntry?
     private(set) var current: String? = mainModeId
     private(set) var properties: Mode = .zero
     private(set) var entryModifiers: NSEvent.ModifierFlags = []
@@ -19,7 +24,7 @@ final class ModeEngine {
     var revision: Int { generation + configurationRevision }
     private var opening = false
     private var lensIsOpen = false
-    private var cancelledOpening = false
+    private var lensOwner: Int?
     private var entering = false
     private var readyAction: (@MainActor () async -> Void)?
     private var released = false
@@ -27,6 +32,7 @@ final class ModeEngine {
     private var draw: (() -> Void)?
     private var queued: [() async -> Void] = []
     private var inputTask: Task<Void, Never>?
+    private var headTask: Task<Void, Never>?
     private var inputEpoch = 0
     private var inputCount = 0
     private var nextInputAction = 0
@@ -39,7 +45,7 @@ final class ModeEngine {
     private var readinessGeneration = 0
     private var delayTask: Task<Void, Never>?
     private let clock: any Clock<Duration>
-    private let liveModifiers: () -> NSEvent.ModifierFlags
+    var liveModifiers: () -> NSEvent.ModifierFlags
     private let closeLens: () -> Void
     var changed: () -> Void = {}
     var modeChanged: () -> Void = {}
@@ -50,16 +56,22 @@ final class ModeEngine {
         self.clock = clock; self.liveModifiers = liveModifiers; self.closeLens = closeLens
     }
 
-    func enter(_ name: String?, mode: Mode, invocation: ModeInvocation? = nil, cli: Bool = false) async throws {
+    func enter(_ name: String?, mode: Mode, invocation: ModeInvocation? = nil, cli: Bool = false, preservingLens: Bool = false) async throws {
+        if name == mainModeId, lensIsOpen, !preservingLens {
+            lensOwner = nil
+            closeLens()
+        }
         let previous = current
         replace(name, mode: mode, invocation: invocation, cli: cli)
         let ticket = generation
         entering = true
-        if LensCommandList(mode.onEnter).containsOpener { opening = true }
+        if mode.opensLens { opening = true; lensOwner = ticket }
         var failure: (any Error)?
         do {
             if previous != name { try await didEnter(previous, name) }
-            try await perform(mode.onEnter, generation: ticket)
+            try await Self.$lensEntry.withValue(LensEntry(engine: ObjectIdentifier(self), generation: ticket)) {
+                try await perform(mode.onEnter, generation: ticket)
+            }
         } catch { failure = error }
         if generation == ticket {
             entering = false
@@ -85,6 +97,7 @@ final class ModeEngine {
         let previous = current ?? mainModeId
         generation += 1
         let ticket = generation
+        lensOwner = lensIsOpen && mode.requiresLens ? ticket : nil
         delayTask?.cancel()
         delayTask = nil
         draw = nil
@@ -117,7 +130,11 @@ final class ModeEngine {
         modeChanged()
     }
 
-    func lensOpening() { opening = true; lensIsOpen = true }
+    func lensOpening() {
+        opening = true; lensIsOpen = true
+        let entry = Self.lensEntry
+        lensOwner = entry?.engine == ObjectIdentifier(self) && entry?.generation == generation ? generation : nil
+    }
     func reconfigure(_ mode: Mode) {
         configurationRevision += 1
         properties = mode
@@ -139,7 +156,9 @@ final class ModeEngine {
     }
     @discardableResult
     private func enqueueHeadInput(_ action: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
-        enqueueInput(after: nil, epoch: nil, action)
+        let next = enqueueInput(after: headTask, epoch: nil, action)
+        headTask = next
+        return next
     }
     private func enqueueInput(after previous: Task<Void, Never>?, epoch: Int?, _ action: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         inputCount += 1
@@ -162,21 +181,19 @@ final class ModeEngine {
         inputEpoch += 1
         enqueueHeadInput(action)
     }
-    func returnToMainAfterLensCloses() {
-        guard current != mainModeId, properties.requiresLens else { return }
-        let ticket = generation
+    private func returnToMainAfterLensCloses(owner ticket: Int?) {
+        guard let ticket, ticket == generation, current != mainModeId else { return }
         let tail = inputTask
         let head = enqueueHeadInput { [self] in
-            guard generation == ticket else { return }
-            await leaveLensDependentMode()
+            guard generation == ticket, lensOwner != ticket else { return }
+            await enterMain(reason: "Lens close")
         }
         // Input queued before the dismiss still runs, so later input waits for it as well as for the return.
         inputTask = Task { await tail?.value; await head.value }
     }
-    private func leaveLensDependentMode() async {
-        guard !lensIsOpen, current != mainModeId, properties.requiresLens else { return }
-        do { try await enter(mainModeId, mode: config.modes[mainModeId] ?? .zero) }
-        catch { lensLog.error("Mode after Lens close: \(error.localizedDescription, privacy: .public)") }
+    private func enterMain(reason: String) async {
+        do { try await enter(mainModeId, mode: config.modes[mainModeId] ?? .zero, preservingLens: true) }
+        catch { lensLog.error("Mode \(reason, privacy: .public): \(error.localizedDescription, privacy: .public)") }
     }
     func presentLens(show: @escaping () -> Void, flags: NSEvent.ModifierFlags? = nil, readModifiers: (() -> NSEvent.ModifierFlags)? = nil) {
         let read = readModifiers ?? { flags ?? self.liveModifiers() }
@@ -209,50 +226,48 @@ final class ModeEngine {
         guard lensIsOpen, readinessGeneration == ticket, !Task.isCancelled else { return }
         if deadlinePassed { show() } else { draw = show }
     }
-    private func finishReady(flags: NSEvent.ModifierFlags? = nil, actions: [() async -> Void]? = nil) async {
+    private func finishReady(flags: NSEvent.ModifierFlags? = nil, actions: [() async -> Void]? = nil, cancelledOwner: Int? = nil) async {
         let epoch = inputEpoch
-        let flags = flags ?? (entryModifiers.isEmpty ? textModifiers : liveModifiers())
-        let cancelledOpening = self.cancelledOpening
-        self.cancelledOpening = false
-        opening = false
-        let queued = actions ?? self.queued; self.queued = []
+        let eventFlags = flags ?? (entryModifiers.isEmpty ? textModifiers : liveModifiers())
+        let failedOwner = cancelledOwner ?? (actions == nil && opening && !lensIsOpen ? lensOwner : nil)
+        let queued: [() async -> Void]
+        if let actions { queued = actions }
+        else {
+            queued = self.queued; self.queued = []; opening = false
+        }
         for action in queued {
             guard inputEpoch == epoch, !Task.isCancelled else { return }
             await action()
         }
         guard inputEpoch == epoch, !Task.isCancelled else { return }
-        await observeModifiers(flags)
+        await observeModifiers(queued.isEmpty ? eventFlags : liveModifiers())
         guard inputEpoch == epoch, !Task.isCancelled else { return }
-        if cancelledOpening { await leaveLensDependentMode() }
+        if let failedOwner, generation == failedOwner, !lensIsOpen {
+            await enterMain(reason: "cancelled Lens opening")
+        }
     }
     func whenLensReady(_ action: @escaping @MainActor () async -> Void) {
         if opening { queued.append(action) } else { enqueueInput(action) }
     }
-    func lensClosed(cancelMode: Bool = true, preserveOpeningInput: Bool = false) {
+    func lensClosed(preserveOpeningInput: Bool = false) {
+        let owner = lensOwner
+        lensOwner = nil
         lensIsOpen = false; draw = nil; readyAction = nil
-        cancelledOpening = preserveOpeningInput
-        if !preserveOpeningInput { opening = false; queued = [] }
         readinessGeneration += 1
         readinessTask = nil
-        if cancelMode {
-            delayTask?.cancel(); delayTask = nil
-            entryModifiers = []; released = false
+        if !preserveOpeningInput {
+            opening = false; queued = []
+            returnToMainAfterLensCloses(owner: owner)
+            return
         }
-        if preserveOpeningInput && !entering {
-            // The parked work leaves with this drain; later keys queue behind it in arrival order.
-            let parked = queued
-            queued = []; opening = false
-            enqueueInput { [weak self] in
-                guard let self else { return }
-                if self.lensIsOpen {
-                    // A newer Lens owns the keyboard now and reads the release at its own ready point.
-                    self.released = false
-                    self.cancelledOpening = false
-                    return
-                }
-                await self.finishReady(actions: parked)
-            }
+        let parked = queued
+        queued = []; opening = false
+        let drain: @MainActor () async -> Void = { [weak self] in
+            guard let self, !self.lensIsOpen else { return }
+            await self.finishReady(actions: parked, cancelledOwner: owner)
         }
+        if entering { readyAction = drain }
+        else { enqueueInput(drain) }
     }
 
     func noteModifiers(_ flags: NSEvent.ModifierFlags) {
@@ -291,9 +306,11 @@ final class ModeEngine {
             try await execute(properties.onRelease.compactMap { if case .cmd(let command) = parseCommand($0) { command } else { nil } })
         } catch { lensLog.error("Mode release: \(error.localizedDescription, privacy: .public)") }
         if generation == ticket {
-            closeLens()
-            do { try await enter(mainModeId, mode: config.modes[mainModeId] ?? .zero) }
-            catch { lensLog.error("Mode release return: \(error.localizedDescription, privacy: .public)") }
+            if lensOwner == ticket {
+                lensOwner = nil
+                closeLens()
+            }
+            await enterMain(reason: "release return")
         }
     }
 

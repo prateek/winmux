@@ -89,6 +89,9 @@ final class LensPeekTest: XCTestCase {
     }
 
     func testEscapeQueuedAfterPeekDoesNotCancelOpeningHold() async {
+        let liveModifiers = ModeEngine.shared.liveModifiers
+        ModeEngine.shared.liveModifiers = { .command }
+        defer { ModeEngine.shared.liveModifiers = liveModifiers }
         config.modes["cmd-tab"] = defaultConfig.modes["cmd-tab"]
         config.modes["cmd-tab"]?.drawDelay = 0
         enterModeForTests("cmd-tab", gesture: .init(keyCode: 48, invoking: .command))

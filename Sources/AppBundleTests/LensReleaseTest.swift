@@ -14,7 +14,10 @@ final class LensReleaseTest: SerialClockTestCase {
     }
     func testHeldReleaseRunsOnReleaseOnceAndReturnsMain() async throws {
         let engine = ModeEngine(liveModifiers: { .command }); var commands: [String] = []
-        engine.execute = { commands += $0.map { $0.args.description } }
+        engine.execute = {
+            commands += $0.map { $0.args.description }
+            if $0.contains(where: { $0.args.description == "lens recent" }) { engine.lensOpening() }
+        }
         try await engine.enter("cmd-tab", mode: held(delay: 0), invocation: .init(keyCode: 48, invoking: .command))
         await engine.lensReady(show: {}, flags: .command)
         await engine.observeModifiers([.command, .shift]); XCTAssertEqual(commands, ["lens recent"])
@@ -52,7 +55,7 @@ final class LensReleaseTest: SerialClockTestCase {
     }
     func testDrawDelayUsesInjectedClockAndReplacementCancelsOldDeadline() async throws {
         let clock = TestClock(); let engine = ModeEngine(clock: clock, liveModifiers: { .command })
-        engine.execute = { _ in }
+        engine.execute = { _ in engine.lensOpening() }
         var shown = 0
         try await engine.enter("held", mode: held(), invocation: .init(keyCode: 48, invoking: .command))
         engine.lensOpening()
@@ -63,7 +66,10 @@ final class LensReleaseTest: SerialClockTestCase {
     }
     func testStayingReleaseAndCLIEntryHaveNoCommittingDelay() async throws {
         let engine = ModeEngine(liveModifiers: { .option }); var commands: [String] = []
-        engine.execute = { commands += $0.map { $0.args.description } }
+        engine.execute = {
+            commands += $0.map { $0.args.description }
+            if $0.contains(where: { $0.args.description == "lens recent" }) { engine.lensOpening() }
+        }
         var mode = held(delay: 0); mode.onRelease = ["mode search"]
         try await engine.enter("search-hold", mode: mode, invocation: .init(keyCode: 44, invoking: .option))
         await engine.lensReady(show: {}, flags: .option)

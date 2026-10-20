@@ -132,7 +132,7 @@ final class LensLifecycle {
             trace?.cancel()
             return nil
         }
-        dismiss(returnToMain: false)
+        dismiss()
         self.trace = trace
         self.identity = identity
         state = .opening(Opening(name: name, presentation: settings?.presentation ?? "list"))
@@ -281,10 +281,10 @@ final class LensLifecycle {
 
     func cancelOpening(ticket: Int) {
         guard ticket == generation, case .opening = state else { return }
-        dismiss(returnToMain: false, preserveOpeningInput: true)
+        dismiss(preserveOpeningInput: true)
     }
 
-    func dismiss(returnToMain: Bool = true, preserveOpeningInput: Bool = false) {
+    func dismiss(preserveOpeningInput: Bool = false) {
         if case .closed = state { return }
         let model = session
         trace?.statistics.stop()
@@ -298,8 +298,7 @@ final class LensLifecycle {
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         state = .closed
-        modeEngine.lensClosed(cancelMode: returnToMain, preserveOpeningInput: preserveOpeningInput)
-        if returnToMain { modeEngine.returnToMainAfterLensCloses() }
+        modeEngine.lensClosed(preserveOpeningInput: preserveOpeningInput)
         if Self.columnsObserver === self { Self.columnsObserver = nil }
         generation += 1
         inlineSearch.cancel()

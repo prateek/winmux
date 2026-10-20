@@ -101,6 +101,7 @@ final class LensHoldTest: XCTestCase {
         await panel.openLens(name: "demo", settings: LensConfig(), entries: [], search: "", banner: nil, context: .null, ticket: ticket)
         enterModeForTests("browse")
         let result = try await parseCommand("lens close").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await ModeEngine.shared.waitForInput()
         XCTAssertEqual(result.exitCode, 0)
         XCTAssertEqual(activeMode, "main")
         XCTAssertNil(panel.session)

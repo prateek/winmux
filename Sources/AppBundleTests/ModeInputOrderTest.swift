@@ -76,9 +76,9 @@ import XCTest
     func testCancelledOpeningEndsOnlyTheModeThatOpenedTheLens() async throws {
         config = try parsed(#"{"mode":{"main":{},"opener":{"on-enter":["lens recent"]},"resize":{}}}"#)
         for (mode, expected) in [("opener", mainModeId), ("resize", "resize")] {
-            enterModeForTests(mode)
             let owner = testLensLifecycle()
             let ticket = try XCTUnwrap(owner.begin("recent", toggle: false))
+            enterModeForTests(mode)
             owner.cancelOpening(ticket: ticket)
             await ModeEngine.shared.waitForInput()
             XCTAssertEqual(activeMode, expected, mode)
@@ -131,7 +131,7 @@ import XCTest
     }
 
     func testAFailedReleaseStillReconcilesRegistration() async throws {
-        var held = Mode.zero; held.lifetime = .held; held.onRelease = ["lens focus"]
+        var held = Mode.zero; held.lifetime = .held; held.unbound = .consume; held.onRelease = ["lens focus"]
         config.modes["held"] = held
         let panel = SwitcherPalettePanel.shared
         panel.dismiss()
@@ -206,19 +206,23 @@ import XCTest
         XCTAssertEqual(engine.current, "resize")
     }
 
-    func testRejectedNamedLensClosesBrowseAndReturnsToMain() async throws {
+    func testRejectedNamedLensKeepsBrowseAndItsLens() async throws {
         let panel = SwitcherPalettePanel.shared
         defer { panel.dismiss() }
         var disabled = LensConfig(); disabled.enabled = false
         config.lenses["disabled"] = disabled
+        var browse = Mode.zero; browse.unbound = .consume
+        config.modes["browse"] = browse
         for name in ["nonexistent", "disabled"] {
-            enterModeForTests("browse")
+            panel.dismiss()
+            await ModeEngine.shared.waitForInput()
             await panel.openLens(name: "demo", settings: LensConfig(), entries: [], search: "", banner: nil, context: .null, ticket: panel.beginLens("demo", toggle: false)!)
+            enterModeForTests("browse")
             let result = try await parseCommand("lens \(name)").cmdOrDie.run(.defaultEnv, .emptyStdin)
             await ModeEngine.shared.waitForInput()
             XCTAssertEqual(result.exitCode, 2)
-            XCTAssertFalse(panel.isLensOpen)
-            XCTAssertEqual(activeMode, mainModeId)
+            XCTAssertTrue(panel.isLensOpen)
+            XCTAssertEqual(activeMode, "browse")
         }
     }
 
@@ -228,8 +232,8 @@ import XCTest
             engine.execute = { _ in }
             let owner = testLensLifecycle(modeEngine: engine)
             var mode = Mode.zero; mode.unbound = policy
-            engine.replace("lens-only", mode: mode)
             let ticket = try XCTUnwrap(owner.begin("windows", toggle: false))
+            engine.replace("lens-only", mode: mode)
             var seen: String?
             engine.whenLensReady { seen = engine.current }
             owner.cancelOpening(ticket: ticket)
@@ -239,13 +243,29 @@ import XCTest
         }
     }
 
+    func testUnownedCancelledOpeningKeepsTheLensDependentMode() async throws {
+        for policy in [Mode.Unbound.consume, .type, .latch] {
+            let engine = ModeEngine(liveModifiers: { [] })
+            let owner = testLensLifecycle(modeEngine: engine)
+            var mode = Mode.zero; mode.unbound = policy
+            engine.replace("lens-only", mode: mode)
+            let ticket = try XCTUnwrap(owner.begin("windows", toggle: false))
+            var seen: String?
+            engine.whenLensReady { seen = engine.current }
+            owner.cancelOpening(ticket: ticket)
+            await engine.waitForInput()
+            XCTAssertEqual(seen, "lens-only")
+            XCTAssertEqual(engine.current, "lens-only", "\(policy)")
+        }
+    }
+
     func testCancelledCLICmdTabOpeningDrainsBeforeReturningToMain() async throws {
         let engine = ModeEngine(liveModifiers: { [] })
         engine.execute = { _ in }
         let owner = testLensLifecycle(modeEngine: engine)
         var mode = Mode.zero; mode.lifetime = .held; mode.onEnter = ["lens recent"]
-        engine.replace("cmd-tab", mode: mode, cli: true)
         let ticket = try XCTUnwrap(owner.begin("other", toggle: false))
+        engine.replace("cmd-tab", mode: mode, cli: true)
         var seen: String?
         engine.whenLensReady { seen = engine.current }
         owner.cancelOpening(ticket: ticket)
@@ -254,7 +274,7 @@ import XCTest
         XCTAssertEqual(engine.current, mainModeId)
     }
 
-    func testCancelledHeldOpeningDrainsReleaseThenLeavesSearch() async throws {
+    func testCancelledHeldOpeningDrainsReleaseThenKeepsNewSearchMode() async throws {
         let engine = ModeEngine(liveModifiers: { [] })
         let owner = testLensLifecycle(modeEngine: engine)
         var held = Mode.zero; held.lifetime = .held; held.onRelease = ["mode search"]
@@ -273,7 +293,7 @@ import XCTest
         owner.cancelOpening(ticket: ticket)
         await engine.waitForInput()
         XCTAssertEqual(seen, ["key", "release"])
-        XCTAssertEqual(engine.current, mainModeId)
+        XCTAssertEqual(engine.current, "search")
     }
 
     func testCancelledOpeningDrainsReleaseIntoTheCurrentHeldMode() async throws {
@@ -320,8 +340,8 @@ import XCTest
         engine.execute = { _ in }
         let owner = testLensLifecycle(modeEngine: engine)
         var browse = Mode.zero; browse.unbound = .consume
-        engine.replace("browse", mode: browse)
         _ = owner.begin("windows", toggle: false)
+        engine.replace("browse", mode: browse)
         let started = expectation(description: "slow input started")
         var resume: CheckedContinuation<Void, Never>?
         let slow = engine.enqueueInput {
@@ -361,8 +381,8 @@ import XCTest
         engine.execute = { _ in }
         let owner = testLensLifecycle(modeEngine: engine)
         var browse = Mode.zero; browse.unbound = .consume
-        engine.replace("browse", mode: browse)
         _ = owner.begin("windows", toggle: false)
+        engine.replace("browse", mode: browse)
         let started = expectation(description: "slow input in flight")
         var resume: CheckedContinuation<Void, Never>?
         engine.enqueueInput {
@@ -384,9 +404,9 @@ import XCTest
     func testDismissDoesNotEndANewerMode() async throws {
         let engine = ModeEngine.shared
         var browse = Mode.zero; browse.unbound = .consume
-        engine.replace("browse", mode: browse)
         let owner = testLensLifecycle()
         _ = owner.begin("windows", toggle: false)
+        engine.replace("browse", mode: browse)
         owner.dismiss()
         engine.replace("window", mode: .zero)
         await engine.waitForInput()

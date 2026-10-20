@@ -131,8 +131,8 @@ import XCTest
         let first = TestWindow.new(id: 1, parent: root)
         TestWindow.new(id: 2, parent: root); TestWindow.new(id: 3, parent: root)
         XCTAssertTrue(first.focusWindow())
-        enterModeForTests("browse")
         await panel.openLens(name: "demo", settings: LensConfig(), entries: try await lensWindows(popups: [:]), search: "", banner: nil, context: .null, ticket: panel.beginLens("demo", toggle: false)!)
+        enterModeForTests("browse")
         defer { panel.dismiss() }
         let model = try XCTUnwrap(panel.session)
         for id: UInt32 in [3, 2] {
@@ -150,6 +150,7 @@ import XCTest
         XCTAssertEqual(current.stdout, ["browse"])
         model.hover(1)
         let focused = try await parseCommand("lens focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        await ModeEngine.shared.waitForInput()
         XCTAssertEqual(focused.exitCode, 0)
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
         XCTAssertEqual(activeMode, "main")

@@ -6,8 +6,16 @@ struct Mode: ConvenienceCopyable, Equatable, Sendable {
     enum Lifetime: String, Sendable { case latched, held, transient }
     enum Unbound: String, Sendable { case pass, consume, type, latch }
     var lifetime: Lifetime = .latched
-    var unbound: Unbound = .pass
-    var onEnter: [String] = []
+    var unbound: Unbound = .pass {
+        didSet { updateLensRequirement() }
+    }
+    var onEnter: [String] = [] {
+        didSet {
+            opensLens = LensCommandList(onEnter).containsOpener
+            updateLensRequirement()
+        }
+    }
+    private(set) var opensLens = false
     var onRelease: [String] = []
     var latchTo = "browse"
     var drawDelay = 0
@@ -17,7 +25,11 @@ struct Mode: ConvenienceCopyable, Equatable, Sendable {
     var tapBindings: [String: TapBinding]
     var sequenceBindings: [String: SequenceBinding]
 
-    var requiresLens: Bool { unbound != .pass || LensCommandList(onEnter).containsOpener }
+    private(set) var requiresLens = false
+
+    private mutating func updateLensRequirement() {
+        requiresLens = unbound != .pass || opensLens
+    }
 
     init(
         bindings: [String: HotkeyBinding],
@@ -86,7 +98,7 @@ func parseMode(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors
                 errors += [unknownKeyError(backtrace)]
         }
     }
-    if !rawTable.contains(key: "unbound"), LensCommandList(result.onEnter).containsOpener { result.unbound = .consume }
+    if !rawTable.contains(key: "unbound"), result.opensLens { result.unbound = .consume }
     if !rawTable.contains(key: "draw-delay"), result.lifetime == .held, LensCommandList(result.onRelease).containsFocus { result.drawDelay = 100 }
     return result
 }
