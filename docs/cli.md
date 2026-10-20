@@ -32,8 +32,10 @@ windowing mode, which stays on.
 
 - `winmux focus-back` restores and focuses the previously confirmed focused window,
   switching workspace and project when needed. After macOS confirms focus, a second
-  call returns. It exits 1 with `No previously focused window` when none exists.
-- `winmux mark a` assigns the focused window to register `a`; registers are exactly
+  call returns. From a window in macOS native fullscreen it returns to the window
+  you were in before. It exits 1 with `No previously focused window` when none exists.
+- `winmux mark a` assigns the focused window to register `a`, or the window a Lens
+  action or hook runs it for; registers are exactly
   one lowercase letter `a` to `z`. Reassigning a register moves it to the new window;
   a window can hold several registers. Bare `winmux mark` prints the focused window's
   registers in letter order, separated by spaces, or nothing when it has none.

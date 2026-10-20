@@ -7,9 +7,48 @@ import XCTest
 final class WindowMarksTest: XCTestCase {
     override func setUp() async throws { setUpWorkspacesForTests() }
 
-    private func run(_ text: String) async throws -> CmdResult {
+    private func run(_ text: String, env: CmdEnv = .defaultEnv) async throws -> CmdResult {
         let command = try XCTUnwrap(parseCommand(text).cmdOrNil, text)
-        return try await command.run(.defaultEnv, .emptyStdin)
+        return try await command.run(env, .emptyStdin)
+    }
+
+    func testFocusBackFromANativeFullscreenWindowReturnsToTheWindowBefore() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        try await refreshWithMacOsFocus(on: tiled)
+        try await refreshWithMacOsFocus(on: fullscreen)
+        let result = try await run("focus-back")
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(TestApp.shared.focusedWindow === tiled)
+    }
+
+    func testMarkInANativeFullscreenWindowMarksThatWindow() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        try await refreshWithMacOsFocus(on: tiled)
+        try await refreshWithMacOsFocus(on: fullscreen)
+        let marked = try await run("mark a")
+        XCTAssertEqual(marked.exitCode, 0)
+        let registers = try await run("mark")
+        XCTAssertEqual(registers.stdout, ["a"])
+        XCTAssertTrue(WindowMarks.window(for: "a") === fullscreen)
+    }
+
+    func testMarkActsOnTheCommandsTargetWindow() async throws {
+        let workspace = focus.workspace
+        let focused = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let target = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        _ = focused.focusWindow()
+        let env = CmdEnv.defaultEnv.copy(\.windowId, 2)
+        let marked = try await run("mark a", env: env)
+        XCTAssertEqual(marked.exitCode, 0)
+        XCTAssertTrue(WindowMarks.window(for: "a") === target)
+        let registers = try await run("mark", env: env)
+        XCTAssertEqual(registers.stdout, ["a"])
+        let gone = try await run("mark a", env: CmdEnv.defaultEnv.copy(\.windowId, 9))
+        XCTAssertEqual(gone.exitCode, 1)
     }
 
     func testFocusBackAgreesWithFilterAndReturnsAfterConfirmedFocusAcrossProjects() async throws {
@@ -163,7 +202,7 @@ final class WindowMarksTest: XCTestCase {
         _ = window.focusWindow()
         _ = try await run("mark a")
         window.unbindFromParent()
-        WindowMarks.forget(except: [1])
+        forgetWindowsExcept([1])
         let missing = try await run("jump a")
         XCTAssertEqual(missing.exitCode, 1)
         let absent = try await run("list-marks")
@@ -175,7 +214,7 @@ final class WindowMarksTest: XCTestCase {
         let jump = try await run("jump a")
         XCTAssertEqual(jump.exitCode, 0)
         XCTAssertTrue(TestApp.shared.focusedWindow === replacement)
-        WindowMarks.forget(except: [])
+        forgetWindowsExcept([])
         let forgotten = try await run("mark")
         XCTAssertEqual(forgotten.stdout, [])
         let empty = try await run("jump a")
@@ -201,14 +240,6 @@ final class WindowMarksTest: XCTestCase {
         XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
         XCTAssertTrue(TestApp.shared.focusedWindow === popup)
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
-    }
-
-    func testResetClearsMarksForTheNextProcess() async throws {
-        _ = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer).focusWindow()
-        _ = try await run("mark a")
-        WindowMarks.resetForTests()
-        let result = try await run("jump a")
-        XCTAssertEqual(result.exitCode, 1)
     }
 
     func testUrlGateDistinguishesMarkQueryFromMutation() throws {

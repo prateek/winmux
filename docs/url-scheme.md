@@ -18,7 +18,7 @@ The scheme and `run` host are case-insensitive. User names, passwords, ports, qu
 
 A URL has no stdin or terminal to print into. WinMux refuses:
 
-- Help (`--help` or `-h`), `subscribe`, every `list-*` command, `debug-windows`, `debug-lens-trace`, `debug-hooks`, `doctor`, `config`, `place` (it only explains a placement), `reload-config --dry-run` and every `agent` subcommand.
+- Help (`--help` or `-h`), `subscribe`, every `list-*` command, `mark` with no register, `debug-windows`, `debug-lens-trace`, `debug-hooks`, `doctor`, `config`, `place` (it only explains a placement), `reload-config --dry-run` and every `agent` subcommand.
 - `workspace --stdin`, `move-node-to-workspace --stdin` and `lens --filter -`.
 - `exec-and-forget`, which runs a shell command. The CLI refuses it too.
 - `trigger-binding` for a binding that runs any command in this list, or another `trigger-binding`. WinMux checks the binding again when it runs, so a config reload in between cannot change what a URL runs.

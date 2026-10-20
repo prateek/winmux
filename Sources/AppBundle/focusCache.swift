@@ -10,6 +10,15 @@ import Foundation
 
 @MainActor private var workspaceProjectFocusHold: WorkspaceProjectFocusHold? = nil
 
+/// The window the person is in: the one macOS has focused when `focus` cannot point at it, as with
+/// a window in macOS native fullscreen, and otherwise `focus`'s window.
+@MainActor var windowInFront: Window? {
+    if let native = lastKnownNativeFocusedWindowId.flatMap({ Window.get(byId: $0) }), !native.participatesInWorkspaceFocus {
+        return native
+    }
+    return focus.windowOrNil
+}
+
 @MainActor
 func resetFocusCacheForTests() {
     lastKnownNativeFocusedWindowId = nil
