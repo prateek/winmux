@@ -154,12 +154,32 @@ invalidates old entry work, and a foreign global chord interrupts opening.
 Held release uses event modifiers; readiness and the draw deadline alone sample
 live flags. Native Search preserves caret, selection, clipboard and composition.
 
-Every serial input action carries an epoch. Interrupting opening advances it,
+Ordinary queued input carries an epoch. Interrupting opening advances it,
 drops all unstarted old actions and queues the global action ahead of later
 input. Readiness follows `on-enter`, including failed or cancelled Lens
 preparation and modes that open no Lens. Parked keys and release keep their
 arrival order. CLI readiness owns the queue too. Editor pass-through is decided
 synchronously only when that queue is idle.
+
+Cancelled openings drain parked keys and releases into the current mode, even
+when it changed during the opening. A newer Lens drops that parked work. One
+readiness drain keeps typing modifiers and stops on cancellation. After draining,
+a mode whose `on-enter` opens a Lens or whose `unbound` is consume, type or latch
+returns to `main` when no Lens remains; pass modes without openers stay. Unknown
+and disabled named Lenses follow the same cancelled-opening path. Dismissal uses
+a mode-generation guard and runs ahead of an in-flight input action, surviving
+reloads and input-epoch changes. A failed `on-release` closes the Lens and enters
+`main` through the successful release's cleanup. Held latch redispatch strips
+entry modifiers without replaying the original modified event; unmodified
+composition keeps native replay.
+
+The final cancellation/release check passes on the host and pinned-version
+guest: 1,799 Swift, 94 Rust/helper and 171 script tests (one existing guest-only
+script skip). All 25 ordering tests pass. Fourteen new regressions and the
+strengthened failed-release test were observed failing without their fixes.
+The guest run checks selected-window focus on held Cmd-Tab release, Escape
+returning typing to the prior app, and a missing named Lens from browse ending
+in `main` with the next letter reaching that app.
 
 Showing with entry modifiers and latching from that visible Lens take key focus
 without activating WinMux.
