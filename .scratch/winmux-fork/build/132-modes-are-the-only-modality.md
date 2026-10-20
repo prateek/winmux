@@ -29,7 +29,7 @@ Make modes the only modal concept. A mode gains a lifetime, a policy for unbound
 
 ## The shipped modes
 
-`defaults.ncl` defines these; the records are built from `winmux/keys.ncl` once **The shipped keyboard: a minimal main and a full window mode** lands, and are written out in full here, each mode complete and no record merged over another, so that this issue stands alone and the block evaluates as written. The shipped `main` binds the three Option openers it has today; **The shipped keyboard** changes them later. The Cmd-Tab and Cmd-backtick modes ship, but nothing binds them: the opt-in stays the user's three lines, now in mode form.
+`defaults.ncl` defines these; the records are built from `winmux/keys.ncl` once **The shipped keyboard: a minimal main and a full window mode** lands, and are written out in full here, each mode complete and no record merged over another, so that this issue stands alone and the block can be loaded as it stands; loading it under `config check` is the first Done-when item, since no Nickel evaluator checked it when it was written. The shipped `main` binds the three Option openers it has today; **The shipped keyboard** changes them later. The Cmd-Tab and Cmd-backtick modes ship, but nothing binds them: the opt-in stays the user's three lines, now in mode form.
 
 ```nickel
 mode.main.binding = {
