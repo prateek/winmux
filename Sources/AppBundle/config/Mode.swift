@@ -17,6 +17,8 @@ struct Mode: ConvenienceCopyable, Equatable, Sendable {
     var tapBindings: [String: TapBinding]
     var sequenceBindings: [String: SequenceBinding]
 
+    var requiresLens: Bool { unbound != .pass || LensCommandList(onEnter).containsOpener }
+
     init(
         bindings: [String: HotkeyBinding],
         tapBindings: [String: TapBinding],

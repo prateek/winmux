@@ -155,11 +155,11 @@ private func isTextKey(code: UInt16, characters: String) -> Bool {
                 guard let target = result.target, let mode = config.modes[target], mode.unbound != .latch else { return }
                 try await activateMode(target)
                 guard engine.properties.unbound != .latch else { return }
-                await dispatchModeKey(code: code, flags: flags.subtracting(entry), characters: characters, carbon: carbon, origin: origin, composing: composing, replay: replay)
+                await dispatchModeKey(code: code, flags: flags.subtracting(entry), characters: characters, carbon: carbon, origin: origin, composing: composing, replay: entry.isEmpty ? replay : nil)
             case .global:
                 panel.dismiss()
                 try await activateMode(mainModeId)
-                let global = resolveModeKey(keymap: resolvedModeKeymap(), context: currentKeyContext(), mode: config.modes[mainModeId] ?? .zero, chord: chord, characters: characters)
+                let global = resolveModeKey(keymap: keymap, context: currentKeyContext(), mode: config.modes[mainModeId] ?? .zero, chord: chord, characters: characters)
                 if global.kind == .run { try await runTriggeredBinding(global.bindingName ?? "key", global.commands, invocation: .init(keyCode: code, invoking: flags), origin: origin) }
             case .type: panel.typeModeKey(code: code, characters: characters)
             case .pass: break

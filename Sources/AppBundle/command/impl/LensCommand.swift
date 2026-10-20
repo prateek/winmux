@@ -21,12 +21,7 @@ struct LensCommand: Command {
             return true
         }
         let name = args.name ?? "<ad-hoc>"
-        var settings: LensConfig
-        if let configured = args.name {
-            guard let lens = config.lenses[configured] else { io.failureExitCode = 2; return io.err("No Lens named '\(configured)'") }
-            guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(configured)' is disabled") }
-            settings = lens
-        } else { settings = LensConfig() }
+        var settings = args.name.flatMap { config.lenses[$0] } ?? LensConfig()
         if let presentation = args.presentation { settings.presentation = presentation }
         if let sections = args.sections {
             guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--sections is not allowed with miniatures") }
@@ -56,6 +51,10 @@ struct LensCommand: Command {
             return true
         }
         defer { panel.cancelLensOpening(ticket: ticket) }
+        if let configured = args.name {
+            guard let lens = config.lenses[configured] else { io.failureExitCode = 2; return io.err("No Lens named '\(configured)'") }
+            guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(configured)' is disabled") }
+        }
         let entries = try await lensWindows(popups: settings.popups)
         let context = try await filterContextRecord(windowRecords: Dictionary(uniqueKeysWithValues: entries.map { ($0.window.windowId, $0.record) }))
         trace.advance("windows collected")
