@@ -31,7 +31,7 @@ final class SectionsCommandTest: XCTestCase {
     func testConfigResolvesArrangementAndDefaultBinding() {
         let settings = LensConfig(.object(["grid": .object(["sections-arrangement": .string("rows")]), "when": .object(["default": .object(["grid": .object(["sections-arrangement": .string("columns")])])])]))
         XCTAssertEqual(settings.json["grid"]?["sections-arrangement"], .string("columns"))
-        XCTAssertEqual(settings.keys["cmd-g"], ["sections next"])
+        XCTAssertEqual(defaultConfig.modes["browse"]?.bindings["cmd-g"]?.commands.map { $0.args.description }, ["lens sections next"])
         XCTAssertTrue(parseConfig(.object(["lenses": .object(["demo": settings.json])])).errors.isEmpty)
     }
 }

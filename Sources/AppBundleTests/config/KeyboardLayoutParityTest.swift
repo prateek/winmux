@@ -1,5 +1,6 @@
 import Foundation
 import HotKey
+import Common
 import XCTest
 @testable import AppBundle
 

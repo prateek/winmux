@@ -301,6 +301,7 @@ func refreshModel() {
     Workspace.reconcileWorkspaceState()
     checkOnFocusChangedCallbacks()
     normalizeContainers()
+    if !isUnitTest { refreshModeContextIfNeeded() }
     if let event = columnsEventTracker.event(for: focus.workspace) { broadcastEvent(event) }
 }
 

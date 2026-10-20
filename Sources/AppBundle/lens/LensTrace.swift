@@ -22,6 +22,37 @@ struct LensTraceOrigin: Sendable {
 }
 @TaskLocal var lensTraceOrigin: LensTraceOrigin?
 
+@MainActor struct LensModeKeyTrace {
+    private let trace: LensOpeningTrace?
+    private let model: LensSession?
+    private let code: UInt16
+    private let flags: NSEvent.ModifierFlags
+    private let characters: String
+    private let origin: LensTraceOrigin
+    private let mode: String
+    private let held: Bool
+    private let editor: Bool
+    private let presentation: String
+
+    init(code: UInt16, flags: NSEvent.ModifierFlags, characters: String, origin: LensTraceOrigin?) {
+        let panel = SwitcherPalettePanel.shared
+        trace = panel.inputTrace; model = panel.session
+        self.code = code; self.flags = flags; self.characters = characters
+        self.origin = origin ?? .internalNow()
+        mode = activeMode ?? mainModeId
+        held = !ModeEngine.shared.entryModifiers.isEmpty
+        editor = panel.firstResponder is NSTextView
+        presentation = panel.openPresentation ?? "list"
+    }
+
+    func finish(_ destination: String) {
+        trace?.key(code: code, characters: characters, flags: flags, timestamp: origin.start,
+                   presentation: presentation, state: mode, hold: held, path: origin.source,
+                   destination: destination, search: model?.query ?? "", selectedId: model?.selectedId,
+                   fieldEditor: editor, receivedAt: origin.received)
+    }
+}
+
 struct LensTraceStage: Codable, Equatable {
     let name: String
     let startMs: Double
@@ -35,7 +66,7 @@ struct LensKeyRecord: Codable, Equatable {
     let receivedAt: Double
     let recordedAt: Double
     let presentation: String
-    let state: LensInputState
+    let state: String
     let hold: Bool
     let path: String
     let destination: String
@@ -45,7 +76,7 @@ struct LensKeyRecord: Codable, Equatable {
 }
 struct LensSessionRecord: Codable, Equatable {
     let presentation: String
-    let state: LensInputState
+    let state: String
     let hold: Bool
     let search: String
     let selectedId: UInt32?
@@ -126,13 +157,13 @@ final class LensTraceStore {
                 stage.name.padding(toLength: 34, withPad: " ", startingAt: 0) + String(format: " %10.3f %12.3f", stage.startMs, stage.durationMs)
             }.joined(separator: "\n")
             let keys = trace.keys.map { key -> String in
-                "\(key.keyCode) \(key.characters.debugDescription) \(key.modifiers) \(key.timestamp) \(key.receivedAt) \(key.recordedAt) \(key.presentation) \(key.state.rawValue) \(key.hold) \(key.path) \(key.destination) \(key.search.debugDescription) \(String(describing: key.selectedId)) \(key.fieldEditor)"
+                "\(key.keyCode) \(key.characters.debugDescription) \(key.modifiers) \(key.timestamp) \(key.receivedAt) \(key.recordedAt) \(key.presentation) \(key.state) \(key.hold) \(key.path) \(key.destination) \(key.search.debugDescription) \(String(describing: key.selectedId)) \(key.fieldEditor)"
             }.joined(separator: "\n")
             let opening = "Opening \(trace.id)  \(trace.presentation)  \(trace.source)  total \(String(format: "%.3f", trace.totalMs)) ms  signal \(trace.signal ?? "pending")"
             var lines = [opening, "Stage                                Start ms  Duration ms", stages,
                          "Keys: code text flags boot-seconds received-seconds recorded-seconds Presentation state Hold path destination Search selection field-editor", keys]
             if let session = trace.session {
-                lines.append("Session: \(session.presentation) state=\(session.state.rawValue) hints=\(session.hints) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") peek=\(session.peek.map(String.init) ?? "none")\(session.peekCaptureMs.map { String(format: " peek-capture=%.3fms", $0) } ?? "") active=\(session.active)")
+                lines.append("Session: \(session.presentation) state=\(session.state) hints=\(session.hints) Hold=\(session.hold) Search=\(session.search.debugDescription) selection=\(String(describing: session.selectedId)) hovered=\(session.hoveredTileId.map(String.init) ?? "none") peek=\(session.peek.map(String.init) ?? "none")\(session.peekCaptureMs.map { String(format: " peek-capture=%.3fms", $0) } ?? "") active=\(session.active)")
                 lines.append("Captures: captures-requested=\(session.capturesRequested) captures-completed=\(session.capturesCompleted) presented=\(String(format: "%.3f", session.presentedMs))ms")
                 if let dropped = session.droppedFrames, let longest = session.longestFrameIntervalMs {
                     lines.append("Frames: dropped=\(dropped) longest-interval=\(String(format: "%.3f", longest))ms")
@@ -218,11 +249,11 @@ final class LensOpeningTrace {
         sessionRecord = active ? nil : Self.record(model, active: false)
     }
     private static func record(_ model: LensSession, active: Bool) -> LensSessionRecord {
-        LensSessionRecord(presentation: model.settings.presentation, state: model.inputState, hold: model.hold != nil,
+        LensSessionRecord(presentation: model.settings.presentation, state: activeMode ?? mainModeId, hold: model.isHeld,
                           search: model.query, selectedId: model.selectedId, active: active, hoveredTileId: model.hoveredTileId, hints: model.hintsShown ? "shown" : "hidden", peek: model.peekedId, peekCaptureMs: model.peekCaptureMs)
     }
     func key(code: UInt16, characters: String, flags: NSEvent.ModifierFlags, timestamp: Double,
-             presentation: String, state: LensInputState, hold: Bool, path: String, destination: String,
+             presentation: String, state: String, hold: Bool, path: String, destination: String,
              search: String, selectedId: UInt32?, fieldEditor: Bool, receivedAt: Double? = nil) {
         let recordedAt = stamp()
         keys.append(LensKeyRecord(keyCode: code, characters: characters, modifiers: flags.rawValue,

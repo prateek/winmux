@@ -112,7 +112,7 @@ impl Engine {
                 // Only a read of the modes record: any other record missing a `lens` field is not the rename.
                 EvalErrorKind::FieldMissing { id, field_names, .. }
                     if id.label() == "lens" && ["main", "window"].iter().all(|mode| field_names.iter().any(|f| f.label() == *mode)) =>
-                    "The default binding mode lens was renamed to window; use defaults.mode.window.binding.\n\n".to_owned(),
+                    "The default binding mode lens was renamed to window; use defaults.keymap.window.bindings.\n\n".to_owned(),
                 _ => String::new(),
             },
             _ => String::new(),

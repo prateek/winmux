@@ -4,11 +4,11 @@ import XCTest
 
 @MainActor
 final class LensConfigTest: XCTestCase {
-    func testReservedNavigationKeysAreRejectedIncludingModifiers() throws {
+    func testRemovedLensKeysNameModeBindingsIncludingFormerReservedKeys() throws {
         for key in ["esc", "tab", "up", "down", "left", "right", "cmd-tab", "shift-down"] {
             let settings = try JSONDecoder().decode(JSONValue.self, from: Data("{\"lenses\":{\"demo\":{\"keys\":{\"\(key)\":\"close\"}}}}".utf8))
             let errors = parseConfig(settings).errors
-            XCTAssertTrue(errors.contains { String(describing: $0).contains("reserved") }, "\(key): \(errors)")
+            XCTAssertTrue(errors.contains { String(describing: $0).contains("mode bindings") }, "\(key): \(errors)")
         }
     }
 
@@ -30,15 +30,14 @@ final class LensConfigTest: XCTestCase {
 
     func testDefaultProfileResolvesAndOtherProfilesNeverApply() throws {
         let settings = try JSONDecoder().decode(JSONValue.self, from: Data("""
-        {"lenses":{"demo":{"presentation":"list","keys":{"cmd-x":"close"},"when":{"default":{"enabled":false,"sort":["title"]},"travel":{"presentation":"strip"}}}}}
+        {"lenses":{"demo":{"presentation":"list","when":{"default":{"enabled":false,"sort":["title"]},"travel":{"presentation":"strip"}}}}}
         """.utf8))
         let parsed = parseConfig(settings)
         XCTAssertTrue(parsed.errors.isEmpty)
         XCTAssertEqual(parsed.config.lenses["demo"]?.sort, ["title"])
         XCTAssertEqual(parsed.config.lenses["demo"]?.presentation, "list")
         XCTAssertEqual(parsed.config.lenses["demo"]?.enabled, false)
-        XCTAssertEqual(parsed.config.lenses["demo"]?.keys["enter"], ["focus"])
-        XCTAssertEqual(parsed.config.lenses["demo"]?.keys["cmd-x"], ["close"])
+        XCTAssertNil(parsed.config.lenses["demo"]?.json["keys"])
     }
 }
 
@@ -66,7 +65,7 @@ final class MiniaturesConfigTest: XCTestCase {
         let overview = try XCTUnwrap(parsed.config.lenses["overview"])
         XCTAssertEqual(overview.presentation, "miniatures")
         XCTAssertEqual(overview.miniatures, MiniaturesConfig())
-        XCTAssertEqual(overview.popups, [])
+        XCTAssertEqual(overview.popups, [:])
         XCTAssertEqual(overview.summonHints, ["label", "landing-spot"])
     }
 }
@@ -94,22 +93,20 @@ final class LensReleaseConfigTest: XCTestCase {
         var settings = LensConfig()
         for presentation in ["strip", "grid", "list", "miniatures"] {
             settings.presentation = presentation
-            XCTAssertNil(settings.onRelease)
             XCTAssertNil(settings.appearance)
-            XCTAssertEqual(settings.json["on-release"], .string(presentation == "strip" ? "commit" : "stay"))
+            XCTAssertNil(settings.json["on-release"])
             XCTAssertEqual(settings.json["appearance"], .string("auto"))
         }
     }
 
     func testFieldsMergeFromDefaultProfileWithoutResolvingMissingValuesEarly() throws {
         let json = try JSONDecoder().decode(JSONValue.self, from: Data("""
-        {"presentation":"strip","on-release":"commit","appearance":"dark","when":{"default":{"on-release":"stay","appearance":"light"},"travel":{"on-release":"commit","appearance":"auto"}}}
+        {"presentation":"strip","appearance":"dark","when":{"default":{"appearance":"light"},"travel":{"appearance":"auto"}}}
         """.utf8))
         var settings = LensConfig(json)
-        XCTAssertEqual(settings.onRelease, "stay")
         XCTAssertEqual(settings.appearance, "light")
         settings.presentation = "grid"
-        XCTAssertEqual(settings.json["on-release"], .string("stay"))
+        XCTAssertNil(settings.json["on-release"])
         XCTAssertEqual(settings.json["appearance"], .string("light"))
     }
 }

@@ -90,9 +90,10 @@ final class DefaultEventsTest: XCTestCase {
     }
 
     func testPanelDismissalRoutesEachEmitExactlyOnePair() async throws {
-        setUpWorkspacesForTests()
+        setUpWorkspacesForTests(); enterModeForTests("browse")
         _ = NSApplication.shared
         for route in ["Escape", "click", "release", "global binding", "closeLens", "handoff"] {
+            enterModeForTests("browse")
             var events: [ServerEvent] = []
             let panel = SwitcherPalettePanel(emit: { events.append($0) })
             defer { panel.dismiss() }
@@ -111,11 +112,11 @@ final class DefaultEventsTest: XCTestCase {
                         windowNumber: panel.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1))
                     panel.session?.onAction?(try XCTUnwrap(panel.session?.key(for: click, click: true)))
                 case "release":
-                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command))
-                    panel.stripFlagsChanged([])
+                    panel.session?.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .command))
+                    panel.modifiersChanged([])
                 case "global binding":
-                    panel.session?.beginStrip(StripGesture(keyCode: 48, invoking: .command))
-                    XCTAssertFalse(panel.handleStripHotkey(keyCode: 37, modifiers: [.command, .control], characters: "l"))
+                    panel.session?.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .command))
+                    XCTAssertEqual(panel.session?.resolutionForTests(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .control], timestamp: 0, windowNumber: 0, context: nil, characters: "l", charactersIgnoringModifiers: "l", isARepeat: false, keyCode: 37)!).kind, .global)
                 case "handoff":
                     panel.changePresentationToList()
                     panel.session?.send(.searchChanged("Demo"))
@@ -123,6 +124,7 @@ final class DefaultEventsTest: XCTestCase {
                     panel.dismiss()
                 default: panel.dismiss()
             }
+            await ModeEngine.shared.waitForInput()
             panel.dismiss()
             XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed], route)
             XCTAssertNil(panel.session, route)
@@ -240,20 +242,26 @@ final class DefaultEventsTest: XCTestCase {
         XCTAssertNil(configReloadEvent(dryRun: true, error: "bad", configPath: "/demo/dry.ncl"))
     }
 
-    func testStripReleasedBeforeDelayEmitsNeitherEvent() async throws {
+    func testHeldReleaseBeforeReadinessEmitsNeitherLensEvent() async throws {
         setUpWorkspacesForTests()
-        _ = NSApplication.shared
+        let engine = ModeEngine(liveModifiers: { [] })
         var events: [ServerEvent] = []
-        let panel = SwitcherPalettePanel(emit: { events.append($0) })
+        var owner: LensLifecycle!
+        owner = LensLifecycle(modeEngine: engine, dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { [] }), emit: { events.append($0) }, show: { _ in XCTFail("a quick release must not draw") }, hide: {})
+        engine.execute = { commands in
+            if commands.contains(where: { $0.args.description == "lens focus" }) { owner.dismiss() }
+        }
+        var mode = Mode.zero; mode.lifetime = .held; mode.drawDelay = 100; mode.onRelease = ["lens focus", "mode main"]
+        engine.replace("held", mode: mode, invocation: .init(keyCode: 48, invoking: .command))
+        let ticket = owner.begin("recent", toggle: false)!
+        await engine.observeModifiers([])
         var settings = LensConfig(); settings.presentation = "strip"
-        let invocation = StripGesture(keyCode: 48, invoking: .command)
-        let ticket = try XCTUnwrap(panel.beginLens("recent", toggle: false, strip: invocation))
-        panel.stripFlagsChanged([])
-        await panel.openLens(name: "recent", settings: settings, entries: [], search: nil, banner: nil, context: .null, ticket: ticket, invocation: invocation)
-        XCTAssertNil(panel.session)
-        XCTAssertFalse(panel.isVisible)
+        owner.complete(LensSession(name: "recent", settings: settings, items: [], search: ""), ticket: ticket)
+        await engine.waitForReadiness()
+        XCTAssertNil(owner.session)
         XCTAssertTrue(events.isEmpty)
-        panel.dismiss()
+        owner.dismiss()
         XCTAssertTrue(events.isEmpty)
     }
+
 }

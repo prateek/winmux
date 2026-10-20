@@ -13,7 +13,7 @@ final class LensTraceTest: SerialClockTestCase {
         let model = LensSession(name: "peek", settings: LensConfig(), items: [item], search: "")
         trace.session(model)
         XCTAssertTrue(store.text(last: 1).contains("peek=none"))
-        model.perform(.command("space")); model.peekCaptureMs = 12.5
+        model.send(.peekToggled); model.peekCaptureMs = 12.5
         XCTAssertTrue(store.text(last: 1).contains("peek=9 peek-capture=12.500ms"))
         let decoded = try JSONDecoder().decode([LensTraceSnapshot].self, from: Data(store.json(last: 1).utf8))
         XCTAssertEqual(decoded[0].session?.peek, 9)
@@ -43,16 +43,16 @@ final class LensTraceTest: SerialClockTestCase {
         let store = LensTraceStore(stamp: { 10 })
         let trace = store.begin(presentation: "list", origin: .init(start: 10, received: 10, source: "test"))
         let owner = testLensLifecycle()
-        let gesture = StripGesture(keyCode: 15, invoking: .command)
+        let gesture = ModeInvocation(keyCode: 15, invoking: .command)
         let model = LensSession(name: "direct", settings: LensConfig(), items: [], search: "")
-        let ticket = owner.begin("direct", toggle: false, strip: gesture, trace: trace)!
+        let ticket = owner.begin("direct", toggle: false, trace: trace)!
         owner.complete(model, ticket: ticket)
-        model.perform(.endHold(5, "g"))
-        model.perform(.text("h"))
+        model.enterSearchForTests(); model.typeKey(code: 5, characters: "g")
+        model.typeKey(code: 0, characters: "h")
         XCTAssertEqual(trace.snapshot.session?.search, "gh")
         XCTAssertEqual(trace.snapshot.session?.hold, false)
-        XCTAssertEqual(trace.snapshot.session?.state, .search)
-        owner.stripFlagsChanged([], from: model)
+        XCTAssertEqual(trace.snapshot.session?.state, "search")
+        owner.modifiersChanged([], from: model)
         XCTAssertEqual(trace.snapshot.session?.hold, false)
         XCTAssertEqual(trace.snapshot.session?.active, true)
         model.send(.searchChanged("gha"))
@@ -106,7 +106,7 @@ final class LensTraceTest: SerialClockTestCase {
         now = 11
         for _ in 0..<300 {
             trace.key(code: 4, characters: "h", flags: .command, timestamp: 10.9,
-                      presentation: "list", state: .hold, hold: true, path: "sendEvent", destination: "Search",
+                      presentation: "list", state: "cmd-tab", hold: true, path: "sendEvent", destination: "Search",
                       search: "gh", selectedId: 7, fieldEditor: false)
         }
         XCTAssertEqual(trace.snapshot.stages, before.stages)
@@ -114,7 +114,7 @@ final class LensTraceTest: SerialClockTestCase {
         XCTAssertEqual(trace.snapshot.keys.count, 256)
         XCTAssertEqual(trace.snapshot.keys.last?.receivedAt, 11)
         XCTAssertEqual(trace.snapshot.keys.last?.search, "gh")
-        XCTAssertEqual(trace.snapshot.keys.last?.state, .hold)
+        XCTAssertEqual(trace.snapshot.keys.last?.state, "cmd-tab")
         XCTAssertTrue(store.text(last: 1).contains("sendEvent Search"))
     }
 
@@ -160,17 +160,24 @@ final class LensTraceTest: SerialClockTestCase {
                 trace.advance("first layout")
                 trace.advance("first-frame thumbnails ready")
             }
-            let owner = testLensLifecycle(clock: clock, show: { model in
-                if presentation != "strip" { prepareView(model) }
+            let engine = ModeEngine(clock: clock, liveModifiers: { .command })
+            engine.execute = { _ in }
+            if presentation == "strip" {
+                var held = defaultConfig.modes["cmd-tab"]!; held.onEnter = []
+                try await engine.enter("cmd-tab", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+            }
+            let owner = testLensLifecycle(clock: clock, modeEngine: engine, show: { model in
+
                 trace.advance("panel ordered front")
             })
             owner.prepare = prepareView
-            let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-            let ticket = owner.begin("demo", toggle: false, strip: presentation == "strip" ? gesture : nil, trace: trace)!
+            let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+            let ticket = owner.begin("demo", toggle: false, trace: trace)!
             var settings = LensConfig(); settings.presentation = presentation
             let model = LensSession(name: "demo", settings: settings, items: [], search: "")
             await clock.advance(by: .milliseconds(1))
             XCTAssertTrue(owner.complete(model, ticket: ticket))
+            await engine.waitForReadiness()
             if presentation == "strip" { await clock.advance(by: .milliseconds(99)) }
             await clock.advance(by: .milliseconds(16))
             trace.finish(signal: "controlled presentation")

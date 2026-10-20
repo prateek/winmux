@@ -409,6 +409,7 @@ final class LandingPlacementEdgeCasesTest: SerialClockTestCase {
     }
 
     func testConfigSaveReevaluatesLandingWithSameSelectionAndHeldModifier() async throws {
+        enterModeForTests("browse")
         let clock = TestClock<Duration>()
         let workspace = focus.workspace
         let source = Workspace.get(byName: "Source")

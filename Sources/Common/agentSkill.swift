@@ -35,7 +35,7 @@ public let agentSkillText = """
     ```
 
     After every edit:
-    1. Run `winmux config check <file>` on the file you edited, fix its diagnostics, and repeat until it passes. Always name the file: with no argument it checks the default path, and when that file does not exist it checks the shipped defaults and passes. `config check` checks Nickel types and fields, not commands or key names.
+    1. Run `winmux config check <file>` on the file you edited, fix its diagnostics, and repeat until it passes. Always name the file: with no argument it checks the default path, and when that file does not exist it checks the shipped defaults and passes. `config check` checks Nickel types and fields, mode/keymap commands, context expressions, chord syntax and conflicts.
     2. With WinMux running, run `winmux reload-config --no-gui`. It loads the config WinMux uses, which also checks commands and key names. When it exits non-zero with a Nickel or parse diagnostic for the file you edited, such as `Unrecognized subcommand` under a binding's path, fix the file and repeat. Otherwise show the person its output exactly as printed, whatever the exit status: warnings, another file's path, "A later reload replaced this one", a failure to apply, or WinMux waiting for a permission. Do not edit the file for those.
     3. After `reload-config` exits 0, run `winmux config status`. Its `config-path` should be the file you edited. When it is `null` or another file, WinMux is not reading your file: report that, with the path, instead of saying the change is live. `config status` shows the last config that loaded, so it confirms nothing after a reload that did not exit 0. `last-error` shows the most recent config or hook failure; report it if it is not `null`.
     Run `winmux config schema` for record fields. The imports above are shipped library names resolved by the config helper; do not look for repository docs or replace them with local files.
@@ -54,9 +54,9 @@ public let agentSkillText = """
     }) | W.Config
     ```
 
-    Only when the person asks to free a shipped chord, set it to an empty command list so the key reaches the focused app: `mode.main.binding.alt-slash = []` frees Option-/, which opens Search.
+    Only when the person asks to free a shipped chord, use a keymap pass binding: `keymap.free-search = W.when "mode == main" { alt-slash = 'pass }`. An empty command list consumes a key.
 
-    Define a Filter as `fun w ctx => ...` under `filters.<name>`. A Lens combines that Filter with a Presentation and sort order; its binding is the Trigger:
+    Define a Filter as `fun w ctx => ...` under `filters.<name>`. A Lens combines that Filter with a Presentation and sort order; open it with a mode or W.open pair:
 
     ```nickel
     let W = import "winmux/winmux.ncl" in
@@ -65,10 +65,9 @@ public let agentSkillText = """
       lenses.editors = {
         filter = filters.editors,
         presentation = 'list,
-        starts-in = 'normal,
         sort = ['mru, 'title],
       },
-      mode.main.binding.alt-shift-e = "lens editors",
+      mode.main.binding.alt-shift-e = W.open "editors" 'browse,
     }) | W.Config
     ```
 

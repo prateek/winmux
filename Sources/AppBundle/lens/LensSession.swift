@@ -26,10 +26,8 @@ final class LensSession: ObservableObject {
     var listRowRects: [UInt32: CGRect] = [:]
     var followsPeek: Bool { settings.followsPeek(presentation: settings.presentation) }
     var zoomPeeking: Bool { !followsPeek && peekedId != nil }
-    var peekKeys: Set<String> { settings.peekKeys }
 
     @Published private(set) var hintsShown = false
-    private var ignoredTriggerModifiers: NSEvent.ModifierFlags = []
     private var currentModifiers: NSEvent.ModifierFlags = []
     @Published private(set) var miniatureLanding: CGRect?
     @Published var miniaturePage = 0
@@ -46,6 +44,8 @@ final class LensSession: ObservableObject {
     @Published var listPanelHeight: CGFloat = 0
     var tilesFrameInWindow = CGRect.zero
     var hintSnapshots: [Bool: LensHintSnapshot] = [:]
+    var hintContext: KeyContext?
+    var hintRevision = -1
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?
@@ -53,7 +53,7 @@ final class LensSession: ObservableObject {
     enum Event {
         case peekToggled
         case searchChanged(String)
-        case inputStateChanged(LensInputState)
+        case modeChanged
         case selectionChanged(Int)
         case pointerSelectionChanged(Int)
         case modifiersChanged(NSEvent.ModifierFlags)
@@ -83,11 +83,10 @@ final class LensSession: ObservableObject {
                 if !followsPeek, peekZoom || !closedPeekIds.contains(targets(forCommand: "focus").first ?? 0) { peekZoom.toggle() }
                 // A Tile hovered before the zoom is under the picture now.
                 if peekZoom { hoveredTileId = nil }
-            case .inputStateChanged(let state):
-                inputState = state
+            case .modeChanged:
                 let held = shouldShowHints(currentModifiers)
                 if held != hintsShown { hintsShown = held }
-                if state == .search, !searchEdited, !rememberedSearch.isEmpty {
+                if isTyping, !searchEdited, !rememberedSearch.isEmpty {
                     let selected = selectedId
                     if query != rememberedSearch { query = rememberedSearch }
                     keepSelectionOrSelectBest(selected)
@@ -107,7 +106,6 @@ final class LensSession: ObservableObject {
                 selection = index
             case .pointerSelectionChanged(let index): selection = index
             case .modifiersChanged(let flags):
-                ignoredTriggerModifiers.formIntersection(flags)
                 currentModifiers = flags
                 let held = shouldShowHints(flags)
                 if held != hintsShown { hintsShown = held }
@@ -117,12 +115,11 @@ final class LensSession: ObservableObject {
                 if settings.followsPeek(presentation: presentation) { peekZoom = false }
                 let selected = selectedId
                 let leftStrip = settings.presentation == "strip" && presentation != "strip"
-                if presentation == "list" { commitsOnRelease = false }
                 settings.presentation = presentation
                 let shown = shouldShowHints(currentModifiers)
                 if shown != hintsShown { hintsShown = shown }
                 // A strip never shows a remembered Search; the Presentation it becomes does.
-                if leftStrip, inputState == .search, !searchEdited, query.isEmpty, !rememberedSearch.isEmpty {
+                if leftStrip, isTyping, !searchEdited, query.isEmpty, !rememberedSearch.isEmpty {
                     query = rememberedSearch
                     keepSelectionOrSelectBest(selected)
                 } else if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
@@ -151,7 +148,7 @@ final class LensSession: ObservableObject {
                 endPeekOnDismiss()
         }
         switch event {
-            case .searchChanged, .inputStateChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
+            case .searchChanged, .modeChanged, .itemsRemoved, .excludedChanged, .presentationChanged:
                 if let hoveredTileId, !results.contains(where: { $0.id == hoveredTileId }) { self.hoveredTileId = nil }
             default: break
         }
@@ -160,42 +157,32 @@ final class LensSession: ObservableObject {
     private var pointerMotion: LensPointerMotion
     private let pointerLocation: () -> CGPoint
     private var inlineIds: Set<UInt32>?
-    let keyBindings: [LensKeyBinding]
-    private let sectionsOnlyKeys: Set<String>
-    /// The key the grouping control shows: the first one bound to `sections next`.
-    let sectionsKey: String?
-    @Published private(set) var inputState: LensInputState
-    private(set) var hold: StripGesture?
-    private(set) var holdEndedByKey = false
-    private(set) var invokingGesture: StripGesture?
-    private let startingState: LensInputState
+    var isTyping: Bool { ModeEngine.shared.properties.unbound == .type }
+    var isHeld: Bool { !ModeEngine.shared.entryModifiers.isEmpty }
     private var rememberedSearch: String
-    /// A Search the caller asked for is applied in every state; a recalled one waits for Search.
     private let searchIsExplicit: Bool
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
-    func enterSearch() {
-        clearHoldByKey()
-        send(.inputStateChanged(.search))
-        if settings.presentation == "strip" { changePresentation("list") }
+    func enterSearch() { Task { try await activateMode("search") } }
+    func leaveSearch() { Task { try await activateMode("browse") } }
+    func modeChanged() { send(.modeChanged); hintSnapshots = [:]; objectWillChange.send() }
+
+    var bindingContext: KeyContext {
+        var context = currentKeyContext()
+        context.lensOpen = true; context.lens = name == "<ad-hoc>" ? nil : name; context.presentation = settings.presentation
+        return context
     }
-
-    func leaveSearch() { send(.inputStateChanged(.normal)) }
-
-    private func clearHoldByKey() {
-        guard inputState == .hold else { return }
-        holdEndedByKey = true
-        hold = nil
-    }
-
-    func endHoldByKey() {
-        guard inputState == .hold else { return }
-        if startingState == .search { enterSearch() }
-        else {
-            clearHoldByKey()
-            send(.inputStateChanged(.normal))
+    var modeCommandStrings: [String: [String]] {
+        let context = bindingContext
+        var result: [String: [String]] = [:]
+        for binding in winningKeyBindings(resolvedModeKeymap(), context: context, prefix: []) where binding.chords.count == 1 {
+            guard result[binding.name] == nil else { continue }
+            result[binding.name] = binding.commands?.map { $0.args.description } ?? []
         }
+        return result
     }
+    var keyBindings: [LensKeyBinding] { LensKeyBinding.resolve(modeCommandStrings) }
+    var sectionsKey: String? { keyBindings.first { modeCommandStrings[$0.name] == ["lens sections next"] }?.name }
 
     private func keepSelectionOrSelectBest(_ selected: UInt32?) {
         if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
@@ -204,33 +191,13 @@ final class LensSession: ObservableObject {
 
     /// Untouched recalled Search is selected; its first edit replaces it.
     private(set) var searchEdited = false
-    private var holdInitialized = false
-    private(set) var commitsOnRelease = false
-    func noteSearchEdit() {
-        if inputState == .search { searchEdited = true }
+    func noteSearchEdit() { if isTyping { searchEdited = true } }
+    func typeKey(code: UInt16, characters: String) {
+        let edited = searchEdited
+        searchEdited = true
+        if code == 51 { send(.searchChanged(edited ? String(query.dropLast()) : "")) }
+        else if !characters.isEmpty { send(.searchChanged(edited ? query + characters : characters)) }
     }
-
-
-    func startHold(_ gesture: StripGesture?) {
-        guard !holdInitialized else { return }
-        holdInitialized = true
-        invokingGesture = gesture
-        currentModifiers = gesture?.invoking ?? []
-        hold = gesture?.keyCode != nil && gesture?.holdModifiers.isEmpty == false ? gesture : nil
-        commitsOnRelease = settings.commitsOnRelease(for: gesture)
-        ignoredTriggerModifiers = hold != nil ? [] : currentModifiers
-        if hold != nil { inputState = .hold }
-        let shown = shouldShowHints(currentModifiers)
-        if shown != hintsShown { hintsShown = shown }
-    }
-    func endHold(flags: NSEvent.ModifierFlags, committing: Bool = false) {
-        if hold?.holdEnded(flags: flags) == true {
-            hold = nil
-            currentModifiers = flags
-            send(.inputStateChanged(committing ? .normal : startingState))
-        }
-    }
-    var stripGesture: StripGesture?
     private(set) var removedIds: Set<UInt32> = []
     var onAction: ((String) -> Void)?
     var onControl: ((TileWindowControl, UInt32) -> Void)?
@@ -263,20 +230,12 @@ final class LensSession: ObservableObject {
                 return snapshot
             }
         } else { self.items = items }
-        keyBindings = LensKeyBinding.resolve(settings.keys)
-        sectionsOnlyKeys = Set(settings.keys.filter { Self.sectionsOnly($0.value) }.keys)
-        sectionsKey = keyBindings.first { binding in
-            (settings.keys[binding.name] ?? []).contains {
-                if case .cmd(let command) = parseCommand($0), let args = command.args as? SectionsCmdArgs { return args.value.val == "next" }
-                return false
-            }
-        }?.name
-        startingState = settings.startingInputState
-        inputState = startingState
         rememberedSearch = search
         self.searchIsExplicit = searchIsExplicit
         // A strip has no Search row to show a recalled Search in: it waits for the list. A Search the caller asked for applies.
-        query = (startingState == .search && settings.presentation != "strip") || searchIsExplicit ? search : ""
+        let mode = ModeEngine.shared.properties
+        let typing = mode.unbound == .type || (mode.unbound == .latch && config.modes[mode.latchTo]?.unbound == .type)
+        query = (typing && settings.presentation != "strip") || searchIsExplicit ? search : ""
         selection = 0
         selection = initialSelection()
         hintsShown = shouldShowHints([])
@@ -288,6 +247,7 @@ final class LensSession: ObservableObject {
     func initialSelection() -> Int {
         let ranked = rankedResults
         let results = results
+        if ModeEngine.shared.properties.onEnter.contains("lens step prev"), let focused = results.firstIndex(where: \.isFocused) { return focused }
         guard settings.presentation == "miniatures", query.isEmpty else {
             let index = ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0
             guard ranked.indices.contains(index) else { return 0 }
@@ -319,25 +279,12 @@ final class LensSession: ObservableObject {
     /// A list's panel keeps its width while it is open, so it leaves room for a grouping set from outside the cycle.
     var listControlMinimumWidth: CGFloat { Self.sectionControlWidth(segments: sectionCycle.count + 1) * tileMetrics.scale }
     private static func sectionControlWidth(segments: Int) -> CGFloat { CGFloat(440 + segments * 68) }
-    var activeKeyBindings: [LensKeyBinding] { drawsSections ? keyBindings : keyBindings.filter { !isSectionsOnly($0.name) } }
-    func isSectionsOnly(_ key: String) -> Bool { sectionsOnlyKeys.contains(key) }
-    static func sectionsOnly(_ commands: [String]) -> Bool {
-        !commands.isEmpty && commands.allSatisfy {
-            if case .cmd(let command) = parseCommand($0) { return command.args is SectionsCmdArgs }
-            return false
-        }
-    }
-    static func openingBindings(_ settings: LensConfig) -> [LensKeyBinding] {
-        LensKeyBinding.resolve(settings.keys.filter { _, commands in
-            settings.presentation == "list" || settings.presentation == "grid" || !sectionsOnly(commands)
-        })
-    }
+    var activeKeyBindings: [LensKeyBinding] { keyBindings }
+    func isSectionsOnly(_ key: String) -> Bool { modeCommandStrings[key] == ["lens sections next"] }
     @discardableResult
     func performSectionsAction(_ key: String) -> Bool {
         guard isSectionsOnly(key) else { return false }
-        for raw in commands(for: key) {
-            if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs { changeSections(args.value.val) }
-        }
+        changeSections("next")
         return true
     }
 
@@ -370,7 +317,7 @@ final class LensSession: ObservableObject {
 
     @discardableResult
     func performPeekAction(_ key: String) -> Bool {
-        guard commands(for: key) == ["peek"] else { return false }
+        guard commands(for: key) == ["lens peek"] else { return false }
         if !followsPeek { send(.peekToggled) }
         return true
     }
@@ -429,26 +376,19 @@ final class LensSession: ObservableObject {
         return keyBindings.first { $0.code == code && $0.modifiers == modifiers }?.name
     }
 
-    func enterKey(modifiers: NSEvent.ModifierFlags) -> String? {
-        keyBindings.first { $0.code == 36 && $0.modifiers == modifiers }?.name
-    }
-
     func updateHintModifiers(_ modifiers: NSEvent.ModifierFlags) { send(.modifiersChanged(modifiers)) }
 
     private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
-        if let hold, commitsOnRelease { return hold.releaseModifiers(modifiers) }
-        if let hold { return modifiers.intersection([.control, .option, .shift, .command]).subtracting(hold.invoking) }
-        if commitsOnRelease, !holdEndedByKey { return stripGesture?.releaseModifiers(modifiers) ?? [] }
-        return modifiers.intersection([.control, .option, .shift, .command])
+        let engine = ModeEngine.shared
+        if isHeld, engine.properties.onRelease.contains("lens focus") {
+            return modifiers.intersection([.control, .option, .command]).subtracting(engine.entryModifiers)
+        }
+        return modifiers.intersection([.control, .option, .shift, .command]).subtracting(engine.entryModifiers)
     }
 
     private func shouldShowHints(_ modifiers: NSEvent.ModifierFlags) -> Bool {
         if settings.hints == "always" { return true }
-        // The strip's invoking hints key is deliberately visible from its first frame.
-        let counted: NSEvent.ModifierFlags
-        if settings.presentation == "strip" { counted = modifiers }
-        else if let hold { counted = modifiers.subtracting(hold.invoking) }
-        else { counted = modifiers.subtracting(ignoredTriggerModifiers) }
+        let counted = modifiers.subtracting(ModeEngine.shared.entryModifiers)
         return counted.contains(hintsModifier)
     }
 
@@ -459,12 +399,6 @@ final class LensSession: ObservableObject {
             case "shift": .shift
             default: .option
         }
-    }
-
-    func performKeyAction(_ event: NSEvent) -> Bool {
-        guard let key = key(for: event) else { return false }
-        if !performPeekAction(key) { onAction?(key) }
-        return true
     }
 
     func moveSelection(_ delta: Int) { send(.selectionChanged(min(max(selection + delta, 0), max(results.count - 1, 0)))) }
@@ -491,13 +425,10 @@ final class LensSession: ObservableObject {
         guard let id = selectedId else { return }
         if let index = marks.firstIndex(of: id) { marks.remove(at: index) } else { marks.append(id) }
     }
-    func keepsOpen(after key: String) -> Bool {
-        (inputState == .hold || commitsOnRelease) && !key.hasSuffix("enter") &&
-            !commands(for: key).contains { $0 == "focus" || $0.hasPrefix("focus ") || $0 == "summon" || $0.hasPrefix("summon ") }
-    }
-    func commands(for key: String) -> [String] { settings.keys[key] ?? [] }
+    func commands(for key: String) -> [String] { modeCommandStrings[key] ?? [] }
     func targets(for key: String) -> [UInt32] {
-        targets(forCommand: commands(for: key).first ?? "")
+        let command = commands(for: key).first ?? ""
+        return targets(forCommand: command == "lens focus" ? "focus" : command)
     }
     func targets(forCommand command: String) -> [UInt32] {
         let focusesSelection = command == "focus" || command.hasPrefix("focus ")

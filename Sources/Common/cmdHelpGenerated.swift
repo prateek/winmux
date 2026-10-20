@@ -198,11 +198,15 @@ let lens_help_generated = """
            lens --filter <name|body|-> [--sort mru,title,...] [--presentation ...]
            lens --presentation list
 
-    Toggle a named Lens, open an ad-hoc Lens, or change the open Presentation.
-    Lists start in Search; strips, grids and miniatures start in normal mode unless
-    starts-in overrides it. In normal mode hjkl/arrows move and / enters Search.
-    Escape leaves Search keeping matches; another Escape dismisses.
-    A first unbound letter ends the Trigger's Hold; its later release never commits.
+           lens step (next|prev|left|right|up|down)
+           lens focus|summon|peek|close|close-window|mark
+           lens sections next | lens pane next
+           lens presentation (list|grid|strip|miniatures) | lens caret (left|right)
+           lens run <command...>
+
+    Open a named or ad-hoc Lens without changing mode, or operate the open Lens.
+    Use a mode or W.open pair for keyboard operation. Verbs exit 1 without an open Lens.
+    pane next exits 1 while the Presentation has no panes.
     Inline Filters bind w and ctx. Quote enum tags with double quotes:
       lens --filter "w.class == 'floating"
     --filter - reads a body from stdin.

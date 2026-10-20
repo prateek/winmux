@@ -155,8 +155,8 @@ final class LensWindowControlsTest: XCTestCase {
                 var pointer = CGPoint.zero
                 let session = session(presentation, pointer: { pointer })
                 let owner = testLensLifecycle(); defer { owner.dismiss() }
-                let gesture = StripGesture(keyCode: 48, invoking: .command)
-                let ticket = owner.begin(session.name, toggle: false, invocation: gesture, settings: session.settings)!
+                let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+                let ticket = owner.begin(session.name, toggle: false, settings: session.settings)!
                 owner.complete(session, ticket: ticket)
                 let layout = layout(session)
                 pointer.x = 2

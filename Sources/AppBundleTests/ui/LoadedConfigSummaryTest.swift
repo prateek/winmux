@@ -195,8 +195,8 @@ final class LoadedConfigSummaryTest: XCTestCase {
         guard case .cmd(let command) = parseCommand("lens search") else { return XCTFail("parse") }
         config.modes["custom"] = Mode(bindings: ["cmd-o": HotkeyBinding(.command, .o, [command], descriptionWithKeyNotation: "cmd-o")], tapBindings: [:])
         let summary = LoadedConfigSummary.build(config, load: .init(), workspaceNames: [])
-        XCTAssertEqual(summary.search("cmd").map(\.notation), ["cmd-o"])
-        XCTAssertEqual(summary.search("⌘").map(\.notation), ["cmd-o"])
+        XCTAssertTrue(summary.search("cmd").contains { $0.notation == "cmd-o" })
+        XCTAssertTrue(summary.search("⌘").contains { $0.notation == "cmd-o" })
         XCTAssertEqual(summary.search("CUSTOM").map(\.notation), ["cmd-o"])
         XCTAssertTrue(summary.search("LeNs").contains { $0.notation == "alt-slash" })
         XCTAssertTrue(summary.search("⌥⇧").contains { $0.notation == "alt-shift-o" })

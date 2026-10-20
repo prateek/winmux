@@ -2,6 +2,7 @@ import AppKit
 import Common
 
 @MainActor func urlCommandRefusal(_ command: any Command) -> String? {
+    guard let command = unwrappedLensRun(command) else { return "lens run is refused in a URL: invalid command" }
     guard let trigger = command as? TriggerBindingCommand else {
         return urlCommandRefusal(kind: command.info.kind, args: command.args)
     }
@@ -10,11 +11,20 @@ import Common
     return urlBindingRefusal(trigger.args.binding.val, trigger.bindingCommands ?? [])
 }
 
+private func unwrappedLensRun(_ command: any Command) -> (any Command)? {
+    var command = command
+    while let lens = command as? LensCommand, lens.args.verb == "run" {
+        guard case .cmd(let inner) = parseCommand(lens.args.operands) else { return nil }
+        command = inner
+    }
+    return command
+}
+
 /// A binding's commands run past the runner's gate, so a URL may trigger only a binding whose every
 /// command a URL could run directly. TriggerBindingCommand.run checks again with the commands it runs.
 func urlBindingRefusal(_ binding: String, _ commands: [any Command]) -> String? {
     for inner in commands {
-        let reason = inner is TriggerBindingCommand
+        let reason = unwrappedLensRun(inner) is TriggerBindingCommand
             ? "its binding runs another binding"
             : urlCommandRefusal(kind: inner.info.kind, args: inner.args).map { refusal in
                 let parts = refusal.components(separatedBy: " is refused in a URL: ")

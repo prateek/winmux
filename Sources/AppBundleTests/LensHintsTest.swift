@@ -6,6 +6,7 @@ import SwiftUI
 
 @MainActor
 final class LensHintsTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
     private func session(_ presentation: String, hints: String = "held", key: String = "alt") -> LensSession {
         var settings = LensConfig(); settings.presentation = presentation
         settings.hints = hints; settings.hintsKey = key
@@ -15,44 +16,25 @@ final class LensHintsTest: XCTestCase {
     func testSummonChordExcludesInvokingModifiersUntilLetterEndsHold() {
         for (modifier, expected): (NSEvent.ModifierFlags, String) in [(.option, "⇧↩ Summon to 1"), (.command, "⌥↩ Summon to 1")] {
             let model = session("strip")
-            model.startHold(StripGesture(keyCode: 48, invoking: modifier))
+            model.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: modifier))
             model.updateHintModifiers(modifier.union(.option))
             XCTAssertEqual(model.summonHint(destination: "1"), expected)
-            XCTAssertTrue(model.summonHintsShown)
+            XCTAssertEqual(model.summonHintsShown, modifier == .command)
             XCTAssertEqual(model.hintLegend.first { $0.phrase == "summon here" }?.chords, ["⌥↩", "⇧↩"])
-            model.endHoldByKey()
+            model.enterBrowseForTests()
             XCTAssertEqual(model.summonHint(destination: "1"), "⌥↩ Summon to 1")
         }
-        var settings = LensConfig(); settings.presentation = "strip"; settings.keys = ["alt-enter": ["summon"]]
+        var settings = LensConfig(); settings.presentation = "strip"; testModeBindings = ["alt-enter": ["summon"]]
         let model = LensSession(name: "only-option", settings: settings, items: [], search: "")
-        model.startHold(StripGesture(keyCode: 48, invoking: .option))
-        XCTAssertTrue(model.hintsShown)
+        model.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .option))
+        XCTAssertFalse(model.hintsShown)
         XCTAssertFalse(model.summonHintsShown)
         XCTAssertNil(model.summonHint(destination: "1"))
-        model.endHoldByKey()
+        model.enterBrowseForTests()
         XCTAssertTrue(model.summonHintsShown)
         XCTAssertEqual(model.summonHint(destination: "1"), "⌥↩ Summon to 1")
     }
 
-    func testReleasedTriggerDuringOpeningAllowsFirstHintsPress() {
-        for presentation in ["list", "grid", "miniatures"] {
-            for liveFlags: NSEvent.ModifierFlags in [[], .option] {
-                let model = session(presentation)
-                let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { liveFlags })
-                let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
-                defer { owner.dismiss() }
-                let gesture = StripGesture(keyCode: nil, invoking: .option)
-                let ticket = owner.begin("test", toggle: false, invocation: gesture)!
-                owner.complete(model, ticket: ticket)
-                XCTAssertFalse(model.hintsShown)
-                model.updateHintModifiers(.option)
-                XCTAssertEqual(model.hintsShown, liveFlags.isEmpty, presentation)
-                model.updateHintModifiers([])
-                model.updateHintModifiers(.option)
-                XCTAssertTrue(model.hintsShown)
-            }
-        }
-    }
 
     func testLiveFlagsWinOverAHoldReleaseRecordedWhileOpening() {
         for presentation in ["list", "grid", "miniatures"] {
@@ -60,10 +42,10 @@ final class LensHintsTest: XCTestCase {
             let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { .option })
             let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
             defer { owner.dismiss() }
-            let ticket = owner.begin("test", toggle: false, invocation: StripGesture(keyCode: 48, invoking: .command))!
-            owner.openingFlagsChanged([])
+            let ticket = owner.begin("test", toggle: false)!
+            owner.openingModifiersChanged([])
             owner.complete(model, ticket: ticket)
-            XCTAssertNil(model.hold, presentation)
+            XCTAssertFalse(model.isHeld, presentation)
             XCTAssertTrue(model.hintsShown, "Option went down after Cmd was released: \(presentation)")
         }
     }
@@ -150,26 +132,21 @@ final class LensHintsTest: XCTestCase {
         }
     }
 
-    func testEnterAndModifiedClicksKeepTheirCommandsWithAndWithoutHoldInEveryPresentation() {
+    func testEnterAndClicksUseModeModifiersInEveryPresentation() {
         for presentation in ["list", "grid", "strip", "miniatures"] {
             for held in [false, true] {
-                let model = session(presentation)
-                let gesture = StripGesture(keyCode: 48, invoking: .command)
-                if held { model.startHold(gesture); if presentation == "strip" { model.stripGesture = gesture } }
-                else if presentation == "strip" { model.startHold(gesture); model.endHoldByKey() }
                 for (extra, command): (NSEvent.ModifierFlags, String) in [([], "focus"), (.option, "summon"), (.shift, "summon")] {
+                    let model = session(presentation)
+                    if held { model.enterHeldModeForTests(.init(keyCode: 48, invoking: .command)) }
+                    else { model.enterBrowseForTests() }
                     let flags = held ? extra.union(.command) : extra
-                    let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
-                                                windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+                    let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36)!
+                    let click = model.key(for: event, click: true).flatMap { model.actionCommandsForTests(for: $0).first }
+                    XCTAssertEqual(click, held && extra == .shift ? "focus" : command)
                     var action: String?
-                    model.onAction = { action = model.commands(for: $0).first }
-                    model.perform(model.meaning(for: event))
-                    XCTAssertEqual(action, command, "\(presentation), hold=\(held), \(extra)")
-                    XCTAssertEqual(model.key(for: event, click: true).flatMap { model.commands(for: $0).first }, held && presentation == "strip" && extra == .shift ? "focus" : command, "\(presentation), hold=\(held), click \(extra)")
-                }
-                if held && presentation == "strip" {
-                    XCTAssertEqual(model.stripReleaseKey(flags: []).flatMap { model.commands(for: $0).first }, "focus")
-                    XCTAssertEqual(model.stripReleaseKey(flags: .option).flatMap { model.commands(for: $0).first }, "summon")
+                    model.onAction = { action = model.actionCommandsForTests(for: $0).first }
+                    model.pressForTests(event)
+                    XCTAssertEqual(action, command, "\(presentation), \(held), \(extra)")
                 }
             }
         }
@@ -195,23 +172,6 @@ final class LensHintsTest: XCTestCase {
         }
     }
 
-    func testReleaseAndNonHoldTriggerCountEachModifierAtTheRightTime() {
-        for presentation in ["list", "grid", "strip", "miniatures"] {
-            let held = session(presentation, key: "shift")
-            held.startHold(StripGesture(keyCode: 31, invoking: [.option, .shift]))
-            XCTAssertEqual(held.hintsShown, presentation == "strip")
-            held.endHold(flags: .shift)
-            XCTAssertTrue(held.hintsShown, "After Option releases, still-held Shift counts")
-            held.updateHintModifiers([])
-            XCTAssertFalse(held.hintsShown)
-            let trigger = session(presentation, key: "shift")
-            trigger.startHold(StripGesture(keyCode: nil, invoking: [.option, .shift]))
-            trigger.updateHintModifiers(.option)
-            XCTAssertFalse(trigger.hintsShown)
-            trigger.updateHintModifiers([.option, .shift])
-            XCTAssertTrue(trigger.hintsShown, "Repressed Shift counts even before the Trigger's Option releases")
-        }
-    }
 
     func testReadinessSamplesPhysicalModifiersInEveryPresentation() {
         for presentation in ["strip", "list", "grid", "miniatures"] {
@@ -219,34 +179,14 @@ final class LensHintsTest: XCTestCase {
             let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { [.command, .option] })
             let owner = LensLifecycle(dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
             defer { owner.dismiss() }
-            let gesture = StripGesture(keyCode: 48, invoking: .command)
-            let ticket = owner.begin("test", toggle: false, strip: presentation == "strip" ? gesture : nil, invocation: gesture)!
+            let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+            let ticket = owner.begin("test", toggle: false)!
             owner.complete(model, ticket: ticket)
             XCTAssertTrue(model.hintsShown, "Readiness reads physical Option; the live Command Hold still subtracts only Command")
         }
     }
 
-    func testPresentationConversionReevaluatesStripExceptionWithoutChangingActions() {
-        let model = session("strip")
-        model.startHold(StripGesture(keyCode: 48, invoking: .option))
-        XCTAssertTrue(model.hintsShown)
-        model.changePresentation("grid")
-        XCTAssertFalse(model.hintsShown)
-        model.endHoldByKey()
-        XCTAssertTrue(model.hintsShown)
-    }
 
-    func testTriggerModifiersAreIgnoredUntilEachReleasedExceptStrip() {
-        for presentation in ["list", "grid", "miniatures", "strip"] {
-            let model = session(presentation)
-            model.startHold(StripGesture(keyCode: nil, invoking: [.option, .shift]))
-            XCTAssertEqual(model.hintsShown, presentation == "strip")
-            model.updateHintModifiers(.option)
-            XCTAssertEqual(model.hintsShown, presentation == "strip")
-            model.updateHintModifiers([]); XCTAssertFalse(model.hintsShown)
-            model.updateHintModifiers(.option); XCTAssertTrue(model.hintsShown)
-        }
-    }
 
     func testHintSnapshotsAreReusedAcrossSectionAndPresentationChanges() {
         let model = session("grid")
@@ -260,39 +200,42 @@ final class LensHintsTest: XCTestCase {
         XCTAssertFalse(ungrouped.legend.contains { $0.phrase == "group" })
         XCTAssertTrue(model.hintSnapshot === ungrouped)
         model.changePresentation("list")
-        XCTAssertTrue(model.hintSnapshot === grouped)
+        XCTAssertFalse(model.hintSnapshot === grouped)
         XCTAssertTrue(model.hintLegend.contains { $0.phrase == "group" })
     }
 
-    func testLegendUsesActiveSnapshotAndAnotherLensOwnKeys() {
-        var settings = LensConfig()
-        let original = LensSession(name: "old", settings: settings, items: [], search: "")
-        settings.keys["cmd-w"] = []; settings.keys["cmd-d"] = ["close"]
-        let changed = LensSession(name: "new", settings: settings, items: [], search: "")
-        XCTAssertEqual(changed.hintLegend.first { $0.phrase == "close" }?.chords, ["⌘D"])
+    func testLegendReadsCurrentModeBindingsForEveryLens() {
+        let original = session("grid")
         XCTAssertEqual(original.hintLegend.first { $0.phrase == "close" }?.chords, ["⌘W"])
-        let other = session("strip")
-        XCTAssertFalse(other.hintLegend.contains { $0.phrase == "group" })
-        XCTAssertEqual(other.hintLegend.first { $0.phrase == "close" }?.chords, ["⌘W"])
+        testModeBindings["cmd-w"] = []; testModeBindings["cmd-d"] = ["close"]
+        let changed = session("grid")
+        for model in [original, changed, session("strip")] {
+            XCTAssertEqual(model.hintLegend.first { $0.phrase == "close" }?.chords, ["⌘D"])
+        }
+        XCTAssertFalse(session("strip").hintLegend.contains { $0.phrase == "group" })
+    }
+
+    func testShippedModeLegendKeepsTheSixActionGroupsAndOmitsViewControls() {
+        for mode in ["browse", "search"] {
+            enterModeForTests(mode)
+            XCTAssertEqual(session("grid").hintLegend.map(\.phrase), ["focus", "summon here", "send to workspace", "close", "peek", "group"], mode)
+        }
     }
 
     func testLegendGroupsCommandsAndDigitsWithoutInventingKeys() {
-        var settings = LensConfig()
-        func legend() -> [LensHintEntry] { lensHintLegend(keys: LensKeyBinding.resolve(settings.keys), commands: settings.keys) }
+        var commands: [String: [String]] = ["enter": ["focus"], "alt-enter": ["summon"], "shift-enter": ["summon"], "cmd-w": ["close"], "space": ["peek"], "cmd-y": ["peek"], "cmd-g": ["sections next"]]
+        for n in 1...9 { commands["cmd-\(n)"] = ["move-node-to-workspace \(n)"] }
+        func legend() -> [LensHintEntry] { lensHintLegend(keys: LensKeyBinding.resolve(commands), commands: commands) }
         XCTAssertEqual(legend().map(\.phrase), ["focus", "summon here", "send to workspace", "close", "peek", "group"])
         XCTAssertEqual(legend().first { $0.phrase == "summon here" }?.chords, ["⌥↩", "⇧↩"])
         XCTAssertEqual(legend().first { $0.phrase == "send to workspace" }?.chords, ["⌘1–9"])
-        var stripSettings = settings; stripSettings.presentation = "strip"
-        let strip = LensSession(name: "no-sections", settings: stripSettings, items: [], search: "")
-        XCTAssertFalse(lensHintLegend(keys: strip.activeKeyBindings, commands: stripSettings.keys).contains { $0.phrase == "group" })
-        settings.keys["cmd-w"] = []; settings.keys["cmd-d"] = ["close"]
+        XCTAssertFalse(session("strip").hintLegend.contains { $0.phrase == "group" })
+        commands["cmd-w"] = []; commands["cmd-d"] = ["close"]
         XCTAssertEqual(legend().first { $0.phrase == "close" }?.chords, ["⌘D"])
-        settings.keys["cmd-3"] = []; settings.keys["cmd-5"] = []; settings.keys["cmd-6"] = []
-        settings.keys["cmd-7"] = []; settings.keys["cmd-8"] = []; settings.keys["cmd-9"] = []
+        for n in [3,5,6,7,8,9] { commands["cmd-\(n)"] = [] }
         XCTAssertEqual(legend().first { $0.phrase == "send to workspace" }?.chords, ["⌘1", "⌘2", "⌘4"])
-        settings.keys["ctrl-x"] = ["workspace 2", "focus left"]
+        commands["ctrl-x"] = ["workspace 2", "focus left"]; commands["ctrl-y"] = commands["ctrl-x"]
         XCTAssertEqual(legend().last?.phrase, "workspace 2; focus left")
-        settings.keys["ctrl-y"] = settings.keys["ctrl-x"]
         XCTAssertEqual(legend().last?.chords, ["⌃X", "⌃Y"])
     }
 
@@ -309,11 +252,11 @@ final class LensHintsTest: XCTestCase {
         XCTAssertEqual(model.workspaceHint(workspace: "2"), "⌘2")
         XCTAssertNil(model.workspaceHint(workspace: "elsewhere"))
         XCTAssertEqual(model.summonHint(destination: "1"), "⌥↩ Summon to 1")
-        var settings = LensConfig(); settings.keys = ["ctrl-s": ["summon"], "cmd-2": ["move-node-to-workspace 2", "focus"]]
+        var settings = LensConfig(); testModeBindings = ["ctrl-s": ["summon"], "cmd-2": ["move-node-to-workspace 2", "focus"]]
         let custom = LensSession(name: "custom", settings: settings, items: [], search: "")
         XCTAssertNil(custom.workspaceHint(workspace: "2"))
         XCTAssertEqual(custom.summonHint(destination: "3"), "⌃S Summon to 3")
-        settings.keys["a"] = ["summon", "focus"]
+        testModeBindings["a"] = ["summon", "focus"]
         let ordered = LensSession(name: "legend-order", settings: settings, items: [], search: "")
         XCTAssertEqual(ordered.summonHint(destination: "3"), "⌃S Summon to 3", "The dedicated Summon entry precedes custom command lists in the legend")
     }

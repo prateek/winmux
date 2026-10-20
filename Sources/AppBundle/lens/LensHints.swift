@@ -100,14 +100,29 @@ extension LensSession {
     }
     var panelGlassOpacity: Double { hintsShown && settings.presentation != "miniatures" ? 0.55 : 1 }
     var hintSnapshot: LensHintSnapshot {
-        if let snapshot = hintSnapshots[drawsSections] { return snapshot }
-        let snapshot = LensHintSnapshot(keys: activeKeyBindings, commands: settings.keys)
+        let context = bindingContext
+        let revision = ModeEngine.shared.revision
+        if hintContext == context, hintRevision == revision, let snapshot = hintSnapshots[drawsSections] { return snapshot }
+        hintContext = context; hintRevision = revision; hintSnapshots = [:]
+        let commands = modeCommandStrings.mapValues { commands in
+            commands.filter { command in
+                !command.hasPrefix("mode ") && !command.hasPrefix("lens step ") &&
+                    !command.hasPrefix("lens caret ") && !command.hasPrefix("lens presentation ") &&
+                    command != "lens close" && command != "lens mark"
+            }.map { command in
+                if command.hasPrefix("lens run ") { return String(command.dropFirst(9)) }
+                if command == "lens close-window" { return "close" }
+                return command.hasPrefix("lens ") ? String(command.dropFirst(5)) : command
+            }
+        }
+        let keys = activeKeyBindings.filter { drawsSections || commands[$0.name] != ["sections next"] }
+        let snapshot = LensHintSnapshot(keys: keys, commands: commands)
         hintSnapshots[drawsSections] = snapshot
         return snapshot
     }
     var hintLegend: [LensHintEntry] { hintSnapshot.legend }
     var summonBindings: [LensKeyBinding] {
-        let invoking = inputState == .hold ? hold?.invoking ?? [] : []
+        let invoking = ModeEngine.shared.entryModifiers
         return hintSnapshot.summonBindings.filter { $0.modifiers.intersection(invoking).isEmpty }
     }
     var summonHintsShown: Bool { hintsShown && !summonBindings.isEmpty }

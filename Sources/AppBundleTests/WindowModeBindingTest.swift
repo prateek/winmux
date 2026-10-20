@@ -6,7 +6,7 @@ import XCTest
 final class WindowModeBindingTest: XCTestCase {
     override func setUp() async throws {
         setUpWorkspacesForTests()
-        activeMode = mainModeId
+        ModeEngine.shared.replace(mainModeId, mode: config.modes[mainModeId] ?? .zero)
     }
 
     func testExistingMainDispatchUnknownModeAndUnboundChord() async throws {
@@ -77,7 +77,7 @@ final class WindowModeBindingTest: XCTestCase {
         var disabled = LensConfig(); disabled.enabled = false
         config.lenses = ["overview": disabled]
         _ = try await activeHotkeyBinding("o", mode: activeMode, modes: modes)!.commands.runCmdSeq(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(activeMode, "main")
+        XCTAssertEqual(activeMode, "browse")
     }
 
     private func press(_ chord: String, modes: [String: Mode]) async throws {

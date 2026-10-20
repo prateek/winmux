@@ -3,18 +3,15 @@ import Common
 struct LensConfig: Equatable, Sendable {
     var filter: String?
     var presentation = "list"
-    var startsIn: String?
     var tile: String?
     var badges = true
     var entries = "window"
     var sections = "workspace"
     var sort = ["mru"]
-    var popups: [String] = []
+    var popups: [String: Bool] = [:]
     var frozenThumbnail = "dimmed"
     var accessoryWindow = "enlarged"
-    var onRelease: String?
     var appearance: String?
-    var resolvedOnRelease: String { onRelease ?? (presentation == "strip" ? "commit" : "stay") }
     var peek = "zoom"
     var hints = "held"
     var hintsKey = "alt"
@@ -22,12 +19,6 @@ struct LensConfig: Equatable, Sendable {
     var miniatures = MiniaturesConfig()
     var grid = GridConfig()
     var enabled = true
-    var keys: [String: [String]] = {
-        var keys = ["enter": ["focus"], "shift-enter": ["summon"], "alt-enter": ["summon"], "cmd-w": ["close"], "cmd-g": ["sections next"], "space": ["peek"], "cmd-y": ["peek"]]
-        for n in 1 ... 9 { keys["cmd-\(n)"] = ["move-node-to-workspace \(n)"] }
-        return keys
-    }()
-
     init() {}
 
     init(_ value: JSONValue) {
@@ -39,16 +30,14 @@ struct LensConfig: Equatable, Sendable {
     private mutating func apply(_ value: JSONValue) {
         filter = value["filter"]?.stringOrNil ?? filter
         presentation = value["presentation"]?.stringOrNil ?? presentation
-        startsIn = value["starts-in"]?.stringOrNil ?? startsIn
         tile = value["tile"]?.stringOrNil ?? tile
         if case .bool(let badges) = value["badges"] { self.badges = badges }
         entries = value["entries"]?.stringOrNil ?? entries
         sections = value["sections"]?.stringOrNil ?? sections
         sort = value["sort"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? sort
-        popups = value["popups"]?.arrayOrNil?.compactMap(\.stringOrNil) ?? popups
+        if case .object(let values) = value["popups"] { for (key, value) in values { if case .bool(let enabled) = value { popups[key] = enabled } } }
         frozenThumbnail = value["frozen-thumbnail"]?.stringOrNil ?? frozenThumbnail
         accessoryWindow = value["accessory-window"]?.stringOrNil ?? accessoryWindow
-        onRelease = value["on-release"]?.stringOrNil ?? onRelease
         appearance = value["appearance"]?.stringOrNil ?? appearance
         peek = value["peek"]?.stringOrNil ?? peek
         hints = value["hints"]?.stringOrNil ?? hints
@@ -57,26 +46,20 @@ struct LensConfig: Equatable, Sendable {
         if let miniatureSettings = value["miniatures"] { miniatures.apply(miniatureSettings) }
         if let gridSettings = value["grid"] { grid.apply(gridSettings) }
         if case .bool(let enabled) = value["enabled"] { self.enabled = enabled }
-        if case .object(let keys) = value["keys"] {
-            for (key, command) in keys {
-                self.keys[key] = command.stringOrNil.map { [$0] } ?? command.arrayOrNil?.compactMap(\.stringOrNil) ?? []
-            }
-        }
+
     }
 
     var json: JSONValue {
         .object([
             "tile": .string(TileKind.resolve(configured: tile, presentation: presentation).rawValue), "badges": .bool(badges),
             "filter": filter.map(JSONValue.string) ?? .null,
-            "starts-in": startsIn.map(JSONValue.string) ?? .null,
             "presentation": .string(presentation), "entries": .string(entries), "sections": .string(sections),
-            "sort": .array(sort.map(JSONValue.string)), "popups": .array(popups.map(JSONValue.string)),
+            "sort": .array(sort.map(JSONValue.string)), "popups": .object(popups.mapValues(JSONValue.bool)),
             "frozen-thumbnail": .string(frozenThumbnail), "accessory-window": .string(accessoryWindow),
-            "on-release": .string(resolvedOnRelease), "appearance": .string(appearance ?? "auto"),
+            "appearance": .string(appearance ?? "auto"),
             "peek": .string(peek), "hints": .string(hints), "hints-key": .string(hintsKey),
             "summon-hints": .array(summonHints.map(JSONValue.string)), "enabled": .bool(enabled),
             "miniatures": miniatures.json, "grid": grid.json,
-            "keys": .object(keys.mapValues { $0.count == 1 ? .string($0[0]) : .array($0.map(JSONValue.string)) }),
         ])
     }
 }

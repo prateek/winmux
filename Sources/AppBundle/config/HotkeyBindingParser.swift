@@ -17,29 +17,20 @@ func parseBindings(
     var seqResult: [String: SequenceBinding] = [:]
     for (binding, rawCommand): (String, TOMLValueConvertible) in rawTable {
         let backtrace = backtrace + .key(binding)
+        if rawCommand.string == "pass" { continue }
         if parseSequenceBindingIfPresent(binding, rawCommand, backtrace, mapping, errors: &errors, result: &seqResult) {
             continue
         }
         parseChordBinding(binding, rawCommand, backtrace, mapping, errors: &errors, result: &chordResult)
     }
-    // A binding with no commands is not registered, so its key reaches the focused app.
-    return (chordResult.filter { !$0.value.commands.isEmpty }, seqResult.filter { !$0.value.commands.isEmpty })
+    return (chordResult, seqResult)
 }
 
 func parseBinding(_ raw: String, _ backtrace: TomlBacktrace, _ mapping: [String: Key]) -> ParsedToml<(NSEvent.ModifierFlags, Key)> {
-    let rawKeys = raw.split(separator: "-")
-    let modifiers: ParsedToml<NSEvent.ModifierFlags> = rawKeys.dropLast()
-        .mapAllOrFailure {
-            modifiersMap[String($0)].orFailure(.semantic(backtrace, "Can't parse modifiers in '\(raw)' binding"))
-        }
-        .map { NSEvent.ModifierFlags($0) }
-    let key: ParsedToml<Key> = rawKeys.last.flatMap { mapping[String($0)] }
-        .orFailure(.semantic(backtrace, "Can't parse the key in '\(raw)' binding"))
-    return modifiers.flatMap { modifiers -> ParsedToml<(NSEvent.ModifierFlags, Key)> in
-        key.flatMap { key -> ParsedToml<(NSEvent.ModifierFlags, Key)> in
-            .success((modifiers, key))
-        }
-    }
+    do {
+        let chord = try parseModeChord(raw, mapping: mapping)
+        return .success((chord.modifiers, mapping[String(raw.split(separator: "-").last!)]!))
+    } catch { return .failure(.semantic(backtrace, String(describing: error))) }
 }
 
 private func parseSequenceBindingIfPresent(
@@ -52,10 +43,9 @@ private func parseSequenceBindingIfPresent(
 ) -> Bool {
     guard looksLikeSequenceBinding(binding, mapping) else { return false }
     let parsedPrefix = tryParseSequenceBinding(binding, backtrace, mapping)
-    guard parsedPrefix.isSuccess else { return false }
-    let seqBindingResult: ParsedToml<SequenceBinding> = parsedPrefix.flatMap { prefix, key in
+    let seqBindingResult: ParsedToml<SequenceBinding> = parsedPrefix.flatMap { chords in
         parseCommandOrCommands(rawCommand).toParsedToml(backtrace).map { cmds in
-            SequenceBinding(prefix: prefix, key: key, commands: cmds, descriptionWithKeyNotation: binding)
+            SequenceBinding(chords: chords, commands: cmds, descriptionWithKeyNotation: binding)
         }
     }
     guard let seqBinding = seqBindingResult.getOrNil(appendErrorTo: &errors) else { return true }
@@ -88,6 +78,7 @@ private func parseChordBinding(
 }
 
 private func looksLikeSequenceBinding(_ raw: String, _ mapping: [String: Key]) -> Bool {
+    if raw.split(whereSeparator: \.isWhitespace).count > 1 { return true }
     let rawKeys = raw.split(separator: "-")
     guard rawKeys.count == 2 else { return false }
     let first = String(rawKeys[0])

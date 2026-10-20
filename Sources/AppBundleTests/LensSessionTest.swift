@@ -4,6 +4,7 @@ import AppKit
 
 @MainActor
 final class LensSessionTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("search") }
     private func item(_ id: UInt32, focused: Bool = false) -> SwitcherPaletteItem {
         SwitcherPaletteItem(id: id, title: "Window \(id)", appName: "Demo", icon: nil, workspaceName: "1", isFocused: focused)
     }
@@ -14,16 +15,16 @@ final class LensSessionTest: XCTestCase {
                 var settings = LensConfig(); settings.presentation = presentation
                 settings.hintsKey = "ctrl"
                 let session = LensSession(name: "demo", settings: settings, items: [item(1)], search: "")
-                let gesture = StripGesture(keyCode: 31, invoking: invoking)
-                session.startHold(gesture)
-                if presentation == "strip" { session.stripGesture = gesture }
+                let gesture = ModeInvocation(keyCode: 31, invoking: invoking)
+                session.enterHeldModeForTests(gesture)
+                if presentation == "strip" {  }
                 for flags in [invoking, NSEvent.ModifierFlags.option] {
                     session.updateHintModifiers(flags)
                     XCTAssertFalse(session.hintsShown, "\(presentation), \(invoking), \(flags)")
                 }
                 session.updateHintModifiers(invoking.union(.control))
                 XCTAssertTrue(session.hintsShown, "Control is an additional Summon modifier outside the Hold")
-                session.endHold(flags: [])
+                session.releaseModeForTests(flags: [])
                 session.updateHintModifiers(.control)
                 XCTAssertTrue(session.hintsShown)
             }
@@ -34,10 +35,10 @@ final class LensSessionTest: XCTestCase {
         for presentation in ["list", "grid", "miniatures", "strip"] {
             var settings = LensConfig(); settings.presentation = presentation
             let session = LensSession(name: "hints", settings: settings, items: [item(1)], search: "")
-            session.startHold(StripGesture(keyCode: 44, invoking: .option))
+            session.enterHeldModeForTests(ModeInvocation(keyCode: 44, invoking: .option))
             session.updateHintModifiers(.option)
-            XCTAssertEqual(session.hintsShown, presentation == "strip")
-            session.endHoldByKey()
+            XCTAssertFalse(session.hintsShown)
+            session.enterBrowseForTests()
             XCTAssertTrue(session.hintsShown)
             session.updateHintModifiers([])
             XCTAssertFalse(session.hintsShown)
@@ -83,12 +84,12 @@ final class LensSessionTest: XCTestCase {
 
     func testCommandKeyEquivalentRunsLensActionOnSelectionBeforeFieldEditing() throws {
         var settings = LensConfig()
-        settings.keys["cmd-x"] = ["move-node-to-workspace 2"]
+        testModeBindings["cmd-x"] = ["move-node-to-workspace 2"]
         let session = LensSession(name: "demo", settings: settings, items: [item(1), item(2)], search: "Window 2")
         var actions: [(String, [UInt32])] = []
         session.onAction = { key in actions.append((key, session.targets(for: key))) }
         let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command], timestamp: 0, windowNumber: 0, context: nil, characters: "x", charactersIgnoringModifiers: "x", isARepeat: false, keyCode: 7))
-        XCTAssertTrue(session.performKeyAction(event))
+        XCTAssertTrue(session.pressForTests(event))
         XCTAssertEqual(actions.map { $0.0 }, ["cmd-x"])
         XCTAssertEqual(actions.first?.1, [2])
         XCTAssertEqual(session.query, "Window 2")
@@ -96,8 +97,8 @@ final class LensSessionTest: XCTestCase {
 
     func testCustomKeyModifierOrderAndSpecialKeysUseConfigNotation() throws {
         var settings = LensConfig()
-        settings.keys["cmd-shift-enter"] = ["close"]
-        settings.keys["ctrl-space"] = ["summon"]
+        testModeBindings["cmd-shift-enter"] = ["close"]
+        testModeBindings["ctrl-space"] = ["summon"]
         let session = LensSession(name: "demo", settings: settings, items: [item(1)], search: "")
         let enter = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0, windowNumber: 0, context: nil, characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36))
         let space = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [.control], timestamp: 0, windowNumber: 0, context: nil, characters: " ", charactersIgnoringModifiers: " ", isARepeat: false, keyCode: 49))
@@ -116,7 +117,7 @@ final class LensSessionTest: XCTestCase {
         session.toggleMark()
         XCTAssertEqual(session.targets(for: "shift-enter"), [2, 3, 1])
         XCTAssertEqual(session.targets(for: "enter"), [1])
-        XCTAssertEqual(session.commands(for: "cmd-1"), ["move-node-to-workspace 1"])
+        XCTAssertEqual(session.actionCommandsForTests(for: "cmd-1"), ["move-node-to-workspace 1"])
         session.toggleMark()
         XCTAssertEqual(session.targets(for: "shift-enter"), [2, 3])
     }
@@ -157,7 +158,7 @@ final class LensSessionTest: XCTestCase {
 
 @MainActor
 final class LensActionTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("search") }
 
     func testMarkOrderSummonFocusAndCustomActionUseRealCommands() async throws {
         let current = Workspace.get(byName: "1")
@@ -170,7 +171,7 @@ final class LensActionTest: XCTestCase {
         session.hover(1); session.toggleMark()
         session.hover(2); session.toggleMark()
         let io = CmdIo(stdin: .emptyStdin)
-        _ = try await runLensAction(session.commands(for: "shift-enter"), session: session, io: io)
+        _ = try await runLensAction(session.actionCommandsForTests(for: "shift-enter"), session: session, io: io)
         XCTAssertEqual(current.rootTilingContainer.allLeafWindowsRecursive.map(\.windowId), [10, 3, 1, 2])
         session.hover(1)
         _ = try await runLensAction(["focus"], session: session, io: io)
@@ -227,13 +228,13 @@ final class LensActionTest: XCTestCase {
         _ = TestWindow.new(id: 10, parent: current.rootTilingContainer).focusWindow()
         let window = TestWindow.new(id: 1, parent: other.rootTilingContainer)
         var settings = LensConfig()
-        settings.keys["cmd-x"] = ["close"]
+        testModeBindings["cmd-x"] = ["close"]
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "2", isFocused: false)
         let session = LensSession(name: "demo", settings: settings, items: [item], search: "")
         let io = CmdIo(stdin: .emptyStdin)
-        _ = try await runLensAction(session.commands(for: "cmd-1"), session: session, io: io)
+        _ = try await runLensAction(session.actionCommandsForTests(for: "cmd-1"), session: session, io: io)
         XCTAssertEqual(window.nodeWorkspace, scopedAutomaticDisplayWorkspaces(current: other).first)
-        _ = try await runLensAction(session.commands(for: "cmd-x"), session: session, io: io)
+        _ = try await runLensAction(session.actionCommandsForTests(for: "cmd-x"), session: session, io: io)
         XCTAssertFalse(window.isBound)
     }
 }

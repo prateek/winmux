@@ -15,97 +15,19 @@ private struct CancellationInsensitiveClock: Clock {
 
 @MainActor
 final class LensEffectLifetimeTest: SerialClockTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
 
     private func model(_ name: String = "recent", presentation: String = "strip", id: UInt32 = 1, search: String = "") -> LensSession {
         var settings = LensConfig(); settings.presentation = presentation
-        if !search.isEmpty { settings.startsIn = "search" }
+        if !search.isEmpty { enterModeForTests("search") }
         let window = TestWindow.new(id: id, parent: focus.workspace.rootTilingContainer)
         let item = SwitcherPaletteItem(id: id, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false,
             miniature: MiniatureWindow(workspace: "1", frame: .zero, tray: false, frozen: false, accessory: false, floating: false, window: window))
         return LensSession(name: name, settings: settings, items: [item], search: search)
     }
 
-    func testStripReadyIsSilentUntilExactGestureDeadlineAndQuickTapIsSilent() async throws {
-        let clock = TestClock()
-        var events: [ServerEvent] = []
-        var shown = 0
-        let owner = testLensLifecycle(clock: clock, emit: { events.append($0) }, show: { _ in shown += 1 })
-        let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-        let ticket = owner.begin("recent", toggle: false, strip: gesture)!
-        // Readiness uses up most of the delay; it does not restart it.
-        await clock.advance(by: .milliseconds(80))
-        owner.complete(model(), ticket: ticket)
-        guard case .ready = owner.state else { return XCTFail("Expected ready") }
-        XCTAssertTrue(events.isEmpty)
-        await clock.advance(by: .milliseconds(20) - .nanoseconds(1))
-        XCTAssertEqual(shown, 0)
-        await clock.advance(by: .nanoseconds(1))
-        XCTAssertEqual(shown, 1)
-        XCTAssertEqual(events.map(\.eventType), [.lensOpened])
-        owner.dismiss()
-        XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
-        events = []; shown = 0
-        let quick = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
-        owner.complete(model(), ticket: quick)
-        owner.stripFlagsChanged([], from: owner.session!)
-        await clock.advance(by: .seconds(2))
-        XCTAssertEqual(shown, 0)
-        XCTAssertTrue(events.isEmpty)
-        XCTAssertTrue(owner.ownedEffects.isEmpty)
-        try await clock.checkSuspension()
-    }
 
-    func testDismissalRejectsLateStripSleeperAndOvertakenOpeningStartsNoEffects() async throws {
-        let base = TestClock()
-        let clock = CancellationInsensitiveClock(base: base)
-        var shown: [String] = []
-        let owner = testLensLifecycle(clock: clock, show: { shown.append($0.name) })
-        let old = owner.begin("old", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
-        let newer = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
-        XCTAssertFalse(owner.complete(model("old"), ticket: old))
-        XCTAssertTrue(owner.ownedEffects.isEmpty)
-        owner.complete(model(), ticket: newer)
-        await base.advance(by: .milliseconds(99))
-        owner.dismiss()
-        let replacement = owner.begin("list", toggle: false)!
-        owner.complete(model("list", presentation: "list", id: 2), ticket: replacement)
-        await base.advance(by: .seconds(3))
-        XCTAssertEqual(shown, ["list"])
-        XCTAssertEqual(owner.session?.name, "list")
-        owner.dismiss()
-        try await base.checkSuspension()
-    }
 
-    func testStripToListCancelsDelayAndRefreshAndRetainsOneEventPair() async throws {
-        for ready in [true, false] {
-            let clock = TestClock()
-            var events: [ServerEvent] = []
-            var requests = 0
-            var closed = 0
-            let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([true]) },
-                requestThumbnail: { _, _, _ in requests += 1 }, closeThumbnails: { _ in closed += 1 }, flags: { .command })
-            let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { events.append($0) }, show: { _ in }, hide: {})
-            var instructions: [LensLifecycle.ShowInstruction] = []
-            owner.finishShow = { _, instruction in instructions.append(instruction) }
-            let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
-            let session = model()
-            owner.complete(session, ticket: ticket)
-            if !ready { await clock.advance(by: .milliseconds(100)) }
-            session.send(.presentationChanged("list"))
-            XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false), "Conversion preserves the normal input state and never focuses Search")
-            session.send(.searchChanged("= true"))
-            XCTAssertTrue(owner.ownedEffects.contains(.search))
-            await clock.advance(by: .seconds(3))
-            XCTAssertEqual(requests, ready ? 0 : 1)
-            XCTAssertEqual(closed, ready ? 0 : 1)
-            XCTAssertEqual(events.map(\.eventType), [.lensOpened])
-            owner.dismiss()
-            XCTAssertEqual(events.map(\.eventType), [.lensOpened, .lensClosed])
-            XCTAssertTrue(owner.ownedEffects.isEmpty)
-            try await clock.checkSuspension()
-        }
-    }
 
     func testDismissedSearchCannotPublishOrClearReplacementWork() async throws {
         let clock = TestClock()
@@ -187,26 +109,6 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         withExtendedLifetime(observation) {}
     }
 
-    func testStripDeadlineChecksReleaseWithoutUpdatingSummon() async throws {
-        let clock = TestClock()
-        var flags: NSEvent.ModifierFlags = .command
-        let dependencies = LensLifecycle.Dependencies(evaluate: { _, _, _ in .success([]) },
-            requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { flags })
-        let owner = LensLifecycle(clock: clock, dependencies: dependencies, emit: { _ in }, show: { _ in }, hide: {})
-        var settings = LensConfig(); settings.presentation = "strip"; settings.keys["alt-enter"] = ["summon"]
-        let session = LensSession(name: "recent", settings: settings, items: [], search: "")
-        owner.complete(session, ticket: owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!)
-        XCTAssertFalse(session.hintsShown)
-        var changes = 0
-        let observation = session.objectWillChange.sink { changes += 1 }
-        flags = [.command, .option]
-        await clock.advance(by: .milliseconds(100))
-        XCTAssertFalse(session.hintsShown, "The display deadline only rechecks the release key")
-        XCTAssertEqual(changes, 0, "First strip display does not recompute landing")
-        withExtendedLifetime(observation) {}
-        owner.dismiss()
-        try await clock.checkSuspension()
-    }
 
     func testPollingStopsAfterReplacementAndRepeatedDismissalCancelsOnlyOwnedToken() async throws {
         let base = TestClock()
@@ -238,37 +140,7 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         try await base.checkSuspension()
     }
 
-    func testReleaseCommittedAtReadinessSchedulesNoDisplayEvenWhenTheSessionSurvives() async throws {
-        let clock = TestClock()
-        var shown = 0
-        let owner = testLensLifecycle(clock: clock, show: { _ in shown += 1 })
-        let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock))!
-        owner.openingFlagsChanged([])
-        let session = model()
-        var actions = 0
-        session.onAction = { _ in actions += 1 }
-        owner.complete(session, ticket: ticket)
-        XCTAssertEqual(actions, 1)
-        XCTAssertFalse(owner.ownedEffects.contains(.stripDisplay))
-        await clock.advance(by: .seconds(1))
-        XCTAssertEqual(actions, 1)
-        XCTAssertEqual(shown, 0)
-        owner.dismiss()
-    }
 
-    func testOnlyTheStripFlagsPathCommitsARelease() {
-        let owner = testLensLifecycle()
-        let ticket = owner.begin("recent", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command))!
-        let session = model()
-        var actions = 0
-        session.onAction = { _ in actions += 1 }
-        owner.complete(session, ticket: ticket)
-        session.updateHintModifiers([])
-        XCTAssertEqual(actions, 0, "The panel's own flagsChanged only updates Summon")
-        owner.stripFlagsChanged([], from: session)
-        XCTAssertEqual(actions, 1)
-        owner.dismiss()
-    }
 
     func testListAskedToBecomeAListIsPresentedAgainWithoutActivationOrEvents() {
         var events: [ServerEvent] = []
@@ -276,12 +148,12 @@ final class LensEffectLifetimeTest: SerialClockTestCase {
         var instructions: [LensLifecycle.ShowInstruction] = []
         let owner = testLensLifecycle(emit: { events.append($0) }, show: { _ in shown += 1 })
         owner.finishShow = { _, instruction in instructions.append(instruction) }
-        var settings = LensConfig(); settings.startsIn = "normal"
+        var settings = LensConfig(); enterModeForTests("browse")
         let session = LensSession(name: "search", settings: settings, items: [], search: "")
         owner.complete(session, ticket: owner.begin("search", toggle: false)!)
         owner.changePresentationToList(session)
         XCTAssertEqual(shown, 2)
-        XCTAssertEqual(session.inputState, .normal)
+        XCTAssertEqual(activeMode, "browse")
         XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
         XCTAssertEqual(events.map(\.eventType), [.lensOpened])
         owner.dismiss()

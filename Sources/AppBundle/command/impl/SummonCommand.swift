@@ -53,7 +53,7 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
 }
 
 @MainActor
-func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async throws -> Bool {
+func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo, env: CmdEnv = .defaultEnv) async throws -> Bool {
     var success = true
     guard let window = Window.get(byId: id) else { return io.err("Window \(id) has closed") }
     if raw == "focus" {
@@ -67,7 +67,7 @@ func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async th
                 if !(command.args is CloseCmdArgs), !(command.args is SummonCmdArgs) {
                     try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
                 }
-                success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id), io)
+                success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id, isFromURL: env.isFromURL), io)
             case .failure(let error): success = io.err(error)
             case .help(let help): success = io.err(help)
         }

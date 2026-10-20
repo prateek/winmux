@@ -18,7 +18,7 @@ struct LensWindow {
 }
 
 @MainActor
-func lensWindows(popups: [String]) async throws -> [LensWindow] {
+func lensWindows(popups: [String: Bool]) async throws -> [LensWindow] {
     let ordered = orderedWorkspacesForPresentation()
     let workspaces = ordered + Workspace.all.filter { !ordered.contains($0) }.sorted { $0.name < $1.name }
     let indices = Dictionary(uniqueKeysWithValues: workspaces.enumerated().map { ($0.element.name, $0.offset) })
@@ -47,8 +47,8 @@ func lensWindows(popups: [String]) async throws -> [LensWindow] {
     return entries
 }
 
-func lensIncludes(_ windowClass: WindowClass, popups: [String]) -> Bool {
-    ![WindowClass.appPopup, .accessoryPopup].contains(windowClass) || popups.contains(windowClass.rawValue)
+func lensIncludes(_ windowClass: WindowClass, popups: [String: Bool]) -> Bool {
+    ![WindowClass.appPopup, .accessoryPopup].contains(windowClass) || popups[windowClass.rawValue] == true
 }
 
 func sortLensWindows(_ entries: [LensWindow], by keys: [String], previousId: UInt32?) -> [LensWindow] {

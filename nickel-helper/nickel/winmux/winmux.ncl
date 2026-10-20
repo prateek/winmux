@@ -12,6 +12,11 @@ let Choice = fun tags => std.contract.Sequence [std.enum.TagOrString, tags] in
 
 # One command, or several run in order.
 let Commands = std.contract.any_of [String, Array String] in
+let PeekAlone = std.contract.from_validator (fun commands =>
+    if std.typeof commands == 'Array then
+      if std.array.elem "lens peek" commands && commands != ["lens peek"] then 'Error { message = "lens peek runs alone" } else 'Ok
+    else 'Ok) in
+let BindingCommands = std.contract.Sequence [std.contract.any_of [Commands, [| 'pass |]], PeekAlone] in
 
 # A number, or a per-monitor list that ends in the fallback number:
 # `[{ monitor."built-in" = 8 }, 12]`.
@@ -20,9 +25,21 @@ let PerMonitor = std.contract.any_of [Int, Array Dyn] in
 # One monitor pattern, or a list of them: `1`, `"main"`, `"secondary"`, a name pattern.
 let Monitors = std.contract.any_of [Int, String, Array Dyn] in
 
-let Mode = {
-  binding | { _ | Commands } | optional,
+let ModeContract = {
+  lifetime | Choice [| 'latched, 'held, 'transient |] | optional,
+  unbound | Choice [| 'pass, 'consume, 'type, 'latch |] | optional,
+  on-enter | Commands | optional,
+  on-release | Commands | optional,
+  latch-to | String | optional,
+  draw-delay | Int | optional,
+  count | Bool | optional,
+  binding | { _ | BindingCommands } | optional,
   binding-tap | { _ | Commands } | optional,
+} in
+let KeymapContract = {
+  context | String,
+  priority | Int | default = 1,
+  bindings | { _ | BindingCommands },
 } in
 
 let WorkspaceSidebar = {
@@ -51,24 +68,7 @@ let WorkspaceSidebar = {
   project-colors | { _ | String } | optional,
 } in
 
-let LensKeys = std.contract.Sequence [
-  { _ | Commands },
-  std.contract.from_validator (fun keys =>
-    let mixed = std.array.filter (fun key =>
-      let commands = std.record.get key keys in
-      if std.typeof commands == 'Array then
-        std.array.elem "peek" commands && commands != ["peek"]
-      else false
-    ) (std.record.fields keys) in
-    if std.array.length mixed == 0 then 'Ok
-    else 'Error { message = "%{std.array.first mixed}: peek runs alone" }),
-  std.contract.from_validator (fun keys =>
-    if std.array.all (fun key =>
-      !(std.array.elem (std.array.last (std.string.split "-" key)) ["esc", "tab", "up", "down", "left", "right"])
-    ) (std.record.fields keys)
-    then 'Ok
-    else 'Error { message = "Escape, Tab and arrow keys (including modifier variants) are reserved for Lens navigation" }),
-] in
+let Removed = fun diagnostic => std.contract.from_validator (fun _ => 'Error { message = diagnostic }) in
 let MiniatureFields = {
   fit | Choice [| 'page, 'shrink |] | optional,
   current-workspace | Choice [| 'plain, 'highlight, 'enlarge, 'hide |] | optional,
@@ -106,17 +106,20 @@ let Grid = GridFields & { tile-size | default = 'real, sections-arrangement | de
 let LensFields = {
   filter | Dyn -> Dyn -> Bool | optional,
   presentation | Choice [| 'list, 'strip, 'miniatures, 'grid |] | optional,
-  starts-in | Choice [| 'normal, 'search |] | optional,
+  starts-in | Removed "Lens starts-in was removed; enter a mode with unbound = 'type or 'consume" | optional,
   tile | Choice [| 'card, 'picture, 'text |] | optional,
   badges | Bool | optional,
   entries | Choice [| 'window, 'app |] | optional,
   sections | Choice [| 'none, 'workspace, 'project, 'monitor, 'app |] | optional,
   sort | Array (Choice [| 'mru, 'previous, 'spatial, 'workspace, 'app, 'title, 'created |]) | optional,
-  keys | LensKeys | optional,
-  popups | Array (Choice [| 'accessory-popup, 'app-popup |]) | optional,
+  keys | Removed "Lens keys were removed; use mode bindings or keymap bindings and lens verbs" | optional,
+  popups | std.contract.Sequence [
+    std.contract.from_validator (fun value => if std.typeof value == 'Array then 'Error { message = "popups is a record of booleans; use popups.accessory-popup = true" } else 'Ok),
+    { accessory-popup | Bool | optional, app-popup | Bool | optional },
+  ] | optional,
   frozen-thumbnail | Choice [| 'plain, 'age-badge, 'pause-badge, 'dimmed |] | optional,
   accessory-window | Choice [| 'enlarged, 'actual-size |] | optional,
-  on-release | Choice [| 'commit, 'stay |] | optional,
+  on-release | Removed "Lens on-release was removed; use the mode on-release command list" | optional,
   appearance | Choice [| 'auto, 'dark, 'light |] | optional,
   peek | Choice [| 'zoom, 'follow |] | optional,
   hints | Choice [| 'held, 'always |] | optional,
@@ -132,25 +135,7 @@ let LensDefaults = LensFields & {
   entries | default = 'window,
   sections | default = 'workspace,
   sort | default = ['mru],
-  keys = {
-    space | default = "peek",
-    cmd-y | default = "peek",
-    enter | default = "focus",
-    shift-enter | default = "summon",
-    alt-enter | default = "summon",
-    cmd-w | default = "close",
-    cmd-g | default = "sections next",
-    cmd-1 | default = "move-node-to-workspace 1",
-    cmd-2 | default = "move-node-to-workspace 2",
-    cmd-3 | default = "move-node-to-workspace 3",
-    cmd-4 | default = "move-node-to-workspace 4",
-    cmd-5 | default = "move-node-to-workspace 5",
-    cmd-6 | default = "move-node-to-workspace 6",
-    cmd-7 | default = "move-node-to-workspace 7",
-    cmd-8 | default = "move-node-to-workspace 8",
-    cmd-9 | default = "move-node-to-workspace 9",
-  },
-  popups | default = [],
+  popups | default = {},
   frozen-thumbnail | default = 'dimmed,
   accessory-window | default = 'enlarged,
   peek | default = 'zoom,
@@ -217,7 +202,10 @@ let Columns = WorkspaceColumns & {
 # The contracts for the records WinMux hands to Filters and Policy hooks (`Window`,
 # `FilterContext` and the rest) and `contract-version` come from contract.ncl.
 Contract
+& (import "modes.ncl")
 & {
+  Mode = ModeContract,
+  Keymap = KeymapContract,
   # Remove inherited chords without depending on which defaults this version ships.
   without-bindings = fun chords bindings => std.array.fold_left (fun record chord =>
     if std.record.has_field chord record then std.record.remove chord record else record
@@ -276,7 +264,8 @@ Contract
         key-notation-to-key-code | { _ | String } | optional,
       }
       | optional,
-    mode | { _ | Mode } | optional,
+    mode | { _ | ModeContract } | optional,
+    keymap | { _ | KeymapContract } | optional,
 
     gaps
       | {

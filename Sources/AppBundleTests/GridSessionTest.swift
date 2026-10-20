@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 final class GridSessionTest: SerialClockTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
     private func model(count: Int = 14, settings: LensConfig? = nil) -> LensSession {
         var config = settings ?? LensConfig(); config.presentation = "grid"
         let items = (0..<count).map { index in
@@ -93,24 +93,24 @@ final class GridSessionTest: SerialClockTestCase {
         let session = model(count: 7)
         let expected = session.gridLayout.nearest(from: session.selection, direction: .right)
         XCTAssertNotNil(expected)
-        XCTAssertTrue(session.perform(.arrow(124)))
+        session.step("right")
         XCTAssertEqual(session.selection, expected)
-        XCTAssertTrue(session.perform(.arrow(126)))
+        session.step("up")
         XCTAssertEqual(session.query, "")
     }
     func testHeldTypingReleaseMarksAndAppEntriesShareTheSession() {
         let session = model()
         let owner = testLensLifecycle()
-        let gesture = StripGesture(keyCode: 5, invoking: .option)
-        owner.complete(session, ticket: owner.begin("grid", toggle: false, invocation: gesture)!)
-        XCTAssertTrue(session.perform(.endHold(38, "j")))
+        let gesture = ModeInvocation(keyCode: 5, invoking: .option)
+        owner.complete(session, ticket: owner.begin("grid", toggle: false)!)
+        session.enterBrowseForTests(); session.step("down")
         XCTAssertEqual(session.settings.presentation, "grid")
         XCTAssertEqual(session.query, "")
-        XCTAssertEqual(session.inputState, .normal)
-        session.perform(.mark)
+        XCTAssertEqual(activeMode, "browse")
+        session.toggleMark()
         let marked = session.selectedId
-        owner.stripFlagsChanged([], from: session)
-        XCTAssertNil(session.hold)
+        owner.modifiersChanged([], from: session)
+        XCTAssertFalse(session.isHeld)
         XCTAssertTrue(owner.session === session)
         XCTAssertEqual(session.marks, marked.map { [$0] })
         owner.dismiss()
@@ -124,8 +124,9 @@ final class GridSessionTest: SerialClockTestCase {
             for selection in 0..<14 {
                 let letter = model(); let control = model()
                 letter.send(.selectionChanged(selection)); control.send(.selectionChanged(selection))
-                let meaning = lensKeyMeaning(state: letter.inputState, hold: nil, keys: letter.activeKeyBindings, code: code, characters: text, flags: [])
-                XCTAssertTrue(letter.perform(meaning)); XCTAssertTrue(control.perform(.arrow(arrow)))
+                enterModeForTests("browse")
+                let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code)!
+                XCTAssertTrue(letter.pressForTests(event)); control.step([UInt16(123): "left", 124: "right", 125: "down", 126: "up"][arrow]!)
                 XCTAssertEqual(letter.selectedId, control.selectedId)
                 XCTAssertEqual(letter.query, "")
             }
@@ -176,7 +177,7 @@ final class GridSessionTest: SerialClockTestCase {
             XCTAssertEqual(session.miniatureLanding != nil, presentation == "miniatures")
             XCTAssertEqual(session.summonLabel(for: 1, destination: "1") != nil, presentation == "miniatures")
         }
-        var settings = LensConfig(); settings.keys["alt-enter"] = []; settings.keys["shift-enter"] = []
+        var settings = LensConfig(); testModeBindings["alt-enter"] = []; testModeBindings["shift-enter"] = []
         let unbound = model(settings: settings)
         let owner = ownLens(unbound); defer { owner.dismiss() }
         unbound.hover(10); unbound.updateHintModifiers(.option)
@@ -212,7 +213,7 @@ final class GridSessionTest: SerialClockTestCase {
         let owner = LensLifecycle(dependencies: .init(evaluate: { _, _, _ in .success([]) }, requestThumbnail: { _, _, _ in }, closeThumbnails: { _ in }, flags: { .option }),
                                   emit: { _ in }, show: { _ in }, hide: {})
         defer { owner.dismiss() }
-        let ticket = owner.begin(session.name, toggle: false, strip: StripGesture(keyCode: 48, invoking: .option))!
+        let ticket = owner.begin(session.name, toggle: false)!
         owner.complete(session, ticket: ticket)
         XCTAssertEqual(session.selectedId, 2)
         XCTAssertTrue(session.hintsShown)

@@ -4,6 +4,30 @@ import XCTest
 
 @MainActor
 final class AgentSkillTest: XCTestCase {
+    func testOfflineCheckNamesInvalidBlockAndMigrationReplacement() throws {
+        guard let helper = nickelHelperUrl() else { throw XCTSkip("Build the helper") }
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appending(path: "winmux.ncl")
+        for (fields, expected) in [
+            (#"keymap.problem = W.when "unknown == x" { h = "focus left" }"#, "problem"),
+            (#"keymap.problem = W.when "mode = main" { h = "focus left" }"#, "problem"),
+            (#"keymap.problem = W.when "profile == default" { bogus-key = "focus left" }"#, "problem"),
+            (#"keymap.a = W.when "mode == main" { h = "focus left" }, keymap.b = W.when "app == editor" { h = "focus right" }"#, "conflicting"),
+            (#"lenses.demo.keys.enter = "focus""#, "mode bindings"),
+            (#"lenses.demo.starts-in = 'search"#, "unbound"),
+            (#"lenses.demo.on-release = 'commit"#, "mode on-release"),
+            (#"lenses.demo.popups = ['app-popup]"#, "record of booleans"),
+            (#"lenses.step = {}"#, "reserved Lens verb"),
+            (#"mode.demo.on-enter = "unknown-command""#, "unknown-command"),
+        ] {
+            try "let W = import \"winmux/winmux.ncl\" in { \(fields) } | W.Config".write(to: file, atomically: true, encoding: .utf8)
+            let result = try cli(["config", "check", file.path], helper: helper.path)
+            XCTAssertEqual(result.status, 2, fields)
+            XCTAssertTrue(result.output.contains(expected), result.output)
+        }
+    }
     func testEveryNickelRecipePassesConfigCheck() throws {
         guard let helper = nickelHelperUrl() else { throw XCTSkip("Build the helper") }
         guard FileManager.default.isExecutableFile(atPath: builtCli.path) else { throw XCTSkip("Run swift build") }
@@ -22,7 +46,7 @@ final class AgentSkillTest: XCTestCase {
             XCTAssertEqual(result.status, 0, "Nickel recipe \(index + 1): \(result.output)")
         }
         // The prose shows how to free a chord without a recipe that does it; check that field too.
-        let freeChord = try XCTUnwrap(agentSkillText.firstMatch(of: #/`(mode\.main\.binding\.[a-z-]+ = \[\])`/#)?.1)
+        let freeChord = try XCTUnwrap(agentSkillText.firstMatch(of: #/`(keymap\.free-search = W\.when[^`]+)`/#)?.1)
         try """
             let W = import "winmux/winmux.ncl" in
             ((import "winmux/defaults.ncl") & { \(freeChord) }) | W.Config

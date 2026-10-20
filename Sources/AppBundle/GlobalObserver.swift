@@ -23,6 +23,7 @@ enum GlobalObserver {
                 MissionControlState.shared.systemDidWakeOrUnlock()
             }
             if !TrayMenuModel.shared.isEnabled { return }
+            refreshModeContextIfNeeded()
             if notifName == NSWorkspace.didActivateApplicationNotification.rawValue {
                 scheduleRefreshSession(.globalObserver(notifName), optimisticallyPreLayoutWorkspaces: true)
             } else {
@@ -68,9 +69,12 @@ enum GlobalObserver {
 
     private static func onKeyDown(_ event: NSEvent) {
         let modifierFlags = event.modifierFlags
+        let code = event.keyCode
+        let characters = event.charactersIgnoringModifiers ?? ""
         runOnMainActor {
             WindowTabHintController.shared.keyOrClick(eventFlags: modifierFlags)
             noteTapBindingKeyDown()
+            observeUncapturedModeKey(code: code, flags: modifierFlags, characters: characters)
         }
     }
 
@@ -98,6 +102,7 @@ enum GlobalObserver {
         let point = normalizeAppKitScreenPoint(screenPoint)
         runOnMainActor {
             noteWorkspaceSidebarDragModifiers(modifierFlags)
+            ModeEngine.shared.noteModifiers(modifierFlags)
             WindowTabHintController.shared.pointerActivity(eventType, eventFlags: modifierFlags)
             if isHoverMove { SwitcherPalettePanel.shared.notePointerMoved(at: screenPoint) }
             MousePointerTracker.shared.note(point: point, timestamp: timestamp)
@@ -188,18 +193,6 @@ enum GlobalObserver {
         retainEventMonitor(NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: onKeyDown))
         retainEventMonitor(NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             onKeyDown(event)
-            // Check if this key matches a recently-pressed prefix (sequence binding)
-            if handleSequenceKeyDown(event: event) {
-                return nil // consume the event
-            }
-            // If this is a sequence prefix key (e.g. Escape), arm the sequence detector
-            if let prefix = Key(carbonKeyCode: UInt32(event.keyCode)),
-               sequenceBindingsPrefixKeys.contains(prefix) {
-                noteSequencePrefixKeyPressed(prefix)
-            }
-            if event.modifierFlags.contains(.control), event.keyCode == 34 {
-                return nil // consume the event
-            }
             return event
         })
     }

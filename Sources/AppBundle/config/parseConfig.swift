@@ -178,44 +178,36 @@ func parseCommandOrCommands(_ raw: TOMLValueConvertible) -> Parsed<[any Command]
     if case .object(let lenses) = fields["lenses"] {
         parsed.config.lenses = lenses.mapValues(LensConfig.init)
         for (name, value) in lenses {
+            if LensCmdArgs.verbNames.contains(name) { parsed.errors.append(.syntax("lenses.\(name): reserved Lens verb")) }
             var layers = [value]
             if case .object(let profiles) = value["when"] { layers += profiles.values }
-            var mixed: Set<String> = []
             for layer in layers {
-                guard case .object(let keys) = layer["keys"] else { continue }
-                for (key, value) in keys {
-                    let commands = value.stringOrNil.map { [$0] } ?? value.arrayOrNil?.compactMap(\.stringOrNil) ?? []
-                    if commands.contains("peek"), commands != ["peek"], mixed.insert(key).inserted {
-                        parsed.errors.append(.syntax("lenses.\(name).keys.\(key): peek runs alone"))
-                    }
+                for (old, replacement) in [("keys", "mode bindings or keymap bindings"), ("starts-in", "mode unbound"), ("on-release", "mode on-release")] {
+                    if layer[old] != nil { parsed.errors.append(.syntax("lenses.\(name).\(old) was removed; use \(replacement)")) }
                 }
-            }
-        }
-        for (name, lens) in parsed.config.lenses {
-            for (key, commands) in lens.keys {
-                switch parseBinding(key, .emptyRoot, parsed.config.keyMapping.resolve()) {
-                    // esc, tab and the arrow keys
-                    case .success(let (_, code)) where [53, 48, 123, 124, 125, 126].contains(Int(code.carbonKeyCode)):
-                        parsed.errors.append(.syntax("lenses.\(name).keys: \(key) is reserved for Lens navigation"))
-                    case .success: break
-                    case .failure:
-                        parsed.errors.append(.syntax("lenses.\(name).keys: invalid key \(key)"))
-                }
-                for command in commands where command != "focus" && command != "peek" {
-                    if case .failure(let error) = parseCommand(command) {
-                        parsed.errors.append(.syntax("lenses.\(name).keys.\(key): \(error)"))
-                    }
-                }
+                if case .array = layer["popups"] { parsed.errors.append(.syntax("lenses.\(name).popups is a record of booleans; use popups.accessory-popup = true")) }
             }
         }
     }
     parsed.config.arrive = fields["arrive"]?.stringOrNil
     parsed.config.columns = ColumnsConfig(fields["columns"], workspaces: fields["workspace"])
+    parsed.config.keymap = parseKeymap(fields["keymap"], modes: parsed.config.modes, mapping: parsed.config.keyMapping.resolve(), errors: &parsed.errors)
+    for name in parsed.config.modes.keys {
+        for binding in winningKeyBindings(parsed.config.keymap, context: KeyContext(mode: name), prefix: []) {
+            guard let commands = binding.commands else { continue }
+            if binding.chords.count > 1 {
+                parsed.config.modes[name]?.sequenceBindings[binding.name] = SequenceBinding(chords: binding.chords, commands: commands, descriptionWithKeyNotation: binding.name)
+            } else if let chord = binding.chords.first, let key = Key(carbonKeyCode: UInt32(chord.code)) {
+                let hotkey = HotkeyBinding(chord.modifiers, key, commands, descriptionWithKeyNotation: binding.name)
+                parsed.config.modes[name]?.bindings[hotkey.descriptionWithKeyCode] = hotkey
+            }
+        }
+    }
     return parsed
 }
 
 /// Root keys handled outside the TOML bridge.
-private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version", "config-version", "arrive"]
+private let nonTomlRootKeys: Set<String> = ["filters", "lenses", "columns", "workspace", "contract-version", "config-version", "arrive", "keymap"]
 
 private func tomlTable(_ fields: [String: JSONValue]) -> TOMLTable {
     TOMLTable(fields.compactMapValues(tomlValue))
