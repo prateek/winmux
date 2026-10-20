@@ -8,8 +8,8 @@ Part of {{UMBRELLA}}.
 
 ## Decisions
 
-- **The paragraph**, under **Scope and compatibility**: "WinMux is a window manager with an integration surface: the CLI, the socket, events and the URL scheme. A helper over that surface becomes a WinMux feature when any of these holds: it needs state the surface cannot expose, or can only expose by polling; it fights WinMux when both act on a window; or it must be continuous and instant, as a finger-tracked animation must. Otherwise it stays a script, and the gap it exposes is a CLI or events issue, not a feature. The launcher, status displays and leader menus are consumers of the surface, not parts of WinMux."
-- **A sentence on upstream** in the same section: the fork tracks upstream and merges what is useful, and changes anything it wants meanwhile.
+- **The paragraph**, under **Scope and compatibility**: "WinMux is a window manager with an integration surface: the CLI, the socket, events and the URL scheme. A helper over that surface becomes a WinMux feature when any of these holds: it needs state the surface cannot expose, or can only expose by polling; it fights WinMux when both act on a window; or it must be continuous and instant, as a finger-tracked animation must. Otherwise it stays a script, and the gap it exposes is a CLI or events issue, not a feature. The launcher, status displays such as SketchyBar or a notch indicator, and leader-key menus are consumers of the surface, not parts of WinMux; WinMux's own modes and its menu bar item are WinMux's." The last clause keeps the record's one native status piece and the shipped modes out of the consumers.
+- **A sentence on upstream** in the same section: for now the fork tracks upstream and merges what is useful, and changes anything it wants meanwhile; the record agreed to track it "for a bit longer", not for good.
 - **A pointer to the grilling record** that settled both.
 
 ## Depends on

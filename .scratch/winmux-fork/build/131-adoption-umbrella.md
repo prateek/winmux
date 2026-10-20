@@ -4,7 +4,7 @@ The second build, #55, carries the Lens look, the sidebar and the follow-ups. Th
 
 ## The boundary
 
-WinMux is a window manager with an integration surface. A helper becomes a feature when it needs state the surface cannot expose, fights WinMux, or must be continuous; otherwise it stays a script and the gap is a CLI issue. Tuna is the launcher. Status displays consume events. The test is in `AGENTS.md`'s **Scope and compatibility**, under **What is WinMux's**, since **Scope and compatibility: the native-versus-dotfiles test** landed.
+WinMux is a window manager with an integration surface. A helper becomes a feature when it needs state the surface cannot expose or can only expose by polling, fights WinMux, or must be continuous; otherwise it stays a script and the gap is a CLI or events issue. Tuna is the launcher. Status displays consume events. The test is in `AGENTS.md`'s **Scope and compatibility**, under **What is WinMux's**, since **Scope and compatibility: the native-versus-dotfiles test** landed.
 
 ## What the mode work is
 
