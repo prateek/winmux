@@ -67,6 +67,7 @@ Check the builder's work:
 - Read the whole diff, test hunks, vendored and generated files included, against the issue's **Decisions** and not only its Done-when list: a builder can meet every Done-when item and still build a default a Decision overrules.
 - Look for guards removed and fields given a second meaning, which is how a builder widens a change to satisfy a ruling, and compare the builder's verdicts with its own numbers.
 - A change to the shipped defaults can break a config that removes a default: check it against a config that uses the documented removal recipe, before the release.
+- When a docs child's Decision quotes or paraphrases the grilling record or another source, diff the quote against the source before the first commit: on #272 the issue's own Decision contradicted the record it cited, and three review rounds went to that cause.
 - Read the builder's report against `$STATE/captures/`: each visible Done-when item it marks met has a capture that shows it.
 - Run `make check` on the host and in the guest: `$VM sync relay-<n> $WT`, then `$VM check relay-<n>`. A green guest check does not promise green CI until **One pinned toolchain for CI, the guest and the release** lands: both are Swift 6.4.0, from different toolchains.
 

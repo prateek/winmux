@@ -51,6 +51,7 @@ func setUpWorkspacesForTests() {
         child.unbindFromParent()
     }
     Window.resetLastFocusedSeqsForTests()
+    WindowMarks.resetForTests()
     resetWinMuxWorkspaceStateForTests()
     check(Workspace.get(byName: "setUpWorkspacesForTests").focusWorkspace())
     Workspace.reconcileWorkspaceState()

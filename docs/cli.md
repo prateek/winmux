@@ -28,6 +28,36 @@ frame. The mark holds for 0.8 seconds, then fades over 0.4 seconds; any key or
 click ends it early. Press Option-semicolon, then `c`, to run it in the default
 windowing mode, which stays on.
 
+## Focus history and window marks
+
+- `winmux focus-back` restores and focuses the previously confirmed focused window,
+  switching workspace and project when needed. After macOS confirms focus, a second
+  call returns. It exits 1 with `No previously focused window` when none exists.
+- `winmux mark a` assigns a window to register `a`: the window `WINMUX_WINDOW_ID`
+  names, or else the most recent window of `WINMUX_WORKSPACE`, or else the focused
+  window. A Lens action sets `WINMUX_WINDOW_ID` to its target, a hook sets one or
+  both, and a process `exec-and-forget` starts inherits them. Registers are exactly one lowercase letter `a`
+  to `z`. Reassigning a register moves it to the new window; a window can hold
+  several registers. Bare `winmux mark` prints that window's registers in letter
+  order, separated by spaces, or nothing when it has none. Both forms exit 1 when
+  there is no such window.
+- `winmux jump a` restores and focuses the marked window, including a minimized or
+  hidden-app window. Marks survive workspace and project moves. An empty register
+  or a closed window exits 1 with `Register a is empty`; jumping to the focused
+  window succeeds.
+- `winmux list-marks` prints `register | window-id | app | title` in register order,
+  with padded columns. `--json` prints an array with `register`, `window-id`,
+  `app-name` and `window-title`; it has no `--format` option.
+
+From a window in macOS native fullscreen, `focus-back` stays in it and `mark` marks
+the most recent other window on that window's workspace, or exits 1 when there is
+none, because WinMux's focus never points at a window in native fullscreen.
+
+Marks live only for the WinMux process: restarting clears them. These are window
+marks, separate from the marks a Lens toggles with Tab.
+Unlike `focus-back`, upstream `focus-back-and-forth` also falls back to
+never-focused windows and empty workspaces.
+
 ## Capture Policy hooks
 
 Run `winmux debug-hooks on`, reproduce the behavior, and read the printed

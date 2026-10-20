@@ -229,6 +229,8 @@ final class LensUnconventionalActionTest: XCTestCase {
         XCTAssertEqual(window.nodeWorkspace, origin)
         XCTAssertEqual(focus.workspace, origin)
         XCTAssertEqual(window.layoutReason, .standard)
+        XCTAssertEqual(focus.windowOrNil?.windowId, 2)
+        XCTAssertTrue(TestApp.shared.focusedWindow === window)
         try await normalizeLayoutReason()
         XCTAssertEqual(window.nodeWorkspace, origin)
     }

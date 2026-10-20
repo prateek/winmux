@@ -99,6 +99,14 @@ open class Window: TreeNode, Hashable {
         lastFocusedSeqs = lastFocusedSeqs.filter { windowIds.contains($0.key) }
     }
 
+    /// Forgets what WinMux keeps of every window but `windowIds`: its place in focus order and its
+    /// marks.
+    @MainActor
+    static func forgetWindows(except windowIds: Set<UInt32>) {
+        forgetLastFocusedSeqs(except: windowIds)
+        WindowMarks.forget(except: windowIds)
+    }
+
     @MainActor
     static func resetLastFocusedSeqsForTests() {
         lastFocusedSeqs = [:]

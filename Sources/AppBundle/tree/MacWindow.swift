@@ -46,7 +46,7 @@ final class MacWindow: Window {
         allWindowsMap[windowId] = window
         WindowScreenshot.invalidateWindowList()
         // A window that is gone can come back only while the closed-windows cache remembers it.
-        Window.forgetLastFocusedSeqs(except: closedWindowsCacheWindowIds.union(allWindowsMap.keys))
+        Window.forgetWindows(except: closedWindowsCacheWindowIds.union(allWindowsMap.keys))
 
         try await debugWindowsIfRecording(window)
         let didRestorePersistedFrozenWorld = try await restorePersistedFrozenWorldIfNeeded(newlyDetectedWindow: window)

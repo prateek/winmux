@@ -104,7 +104,7 @@ final class URLCommandTest: XCTestCase {
     }
 
     func testEveryKindHasAnExplicitURLPolicy() {
-        let refused: Set<CmdKind> = [.subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors,
+        let refused: Set<CmdKind> = [.subscribe, .listWindows, .listMarks, .mark, .listWorkspaces, .listApps, .listMonitors,
                                     .listModes, .listExecEnvVars, .listLenses, .listColumns, .debugWindows,
                                     .debugLensTrace, .debugHooks, .doctor, .config, .agent, .place, .execAndForget]
         for kind in CmdKind.allCases {

@@ -60,13 +60,15 @@ public struct ListWindowsCmdArgs: CmdArgs, JsonFormattableListCmdArgs {
 }
 
 extension ListWindowsCmdArgs {
+    public static let defaultFormat: [StringInterToken] = [
+        .interVar("window-id"), .interVar("right-padding"), .literal(" | "),
+        .interVar("app-name"), .interVar("right-padding"), .literal(" | "),
+        .interVar("window-title"),
+    ]
+
     public var format: [StringInterToken] {
         _format.isEmpty
-            ? [
-                .interVar("window-id"), .interVar("right-padding"), .literal(" | "),
-                .interVar("app-name"), .interVar("right-padding"), .literal(" | "),
-                .interVar("window-title"),
-            ]
+            ? Self.defaultFormat
             : _format
     }
 }

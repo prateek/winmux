@@ -57,11 +57,7 @@ func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async th
     var success = true
     guard let window = Window.get(byId: id) else { return io.err("Window \(id) has closed") }
     if raw == "focus" {
-        try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
-        if ![WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) {
-            success = window.focusWindow()
-        }
-        window.nativeFocus()
+        success = try await focusLensWindow(window)
     } else {
         switch parseCommand(raw) {
             case .cmd(let command):
@@ -76,6 +72,14 @@ func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async th
             case .help(let help): success = io.err(help)
         }
     }
+    return success
+}
+
+@MainActor
+func focusLensWindow(_ window: Window) async throws -> Bool {
+    try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
+    let success = [WindowClass.appPopup, .accessoryPopup].contains(window.windowClass) || window.focusWindow()
+    window.nativeFocus()
     return success
 }
 

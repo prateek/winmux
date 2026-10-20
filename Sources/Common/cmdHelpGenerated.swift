@@ -209,6 +209,10 @@ let lens_help_generated = """
     --tile overrides this opening; miniatures rejects --tile.
     """
 
+let focus_back_help_generated = "USAGE: focus-back\nRestore and focus the previously confirmed focused window. Exits 1 if none exists."
+let mark_help_generated = "USAGE: mark [<register>]\nName a window with one lowercase letter a to z, or print its registers: the window WINMUX_WINDOW_ID names, or else the most recent window of WINMUX_WORKSPACE, or else the focused one. Exits 1 if there is none. Marks last for this process."
+let jump_help_generated = "USAGE: jump <register>\nRestore and focus the window marked with a lowercase letter a to z. Exits 1 if the register is empty or its window has closed."
+let list_marks_help_generated = "USAGE: list-marks [--json]\nPrint window registers, window ids, app names and titles, in register order."
 let list_lenses_help_generated = "USAGE: list-lenses [--json]\nPrint the Lenses resolved for the default Display profile."
 
 let sections_help_generated = "USAGE: sections (next|none|workspace|project|monitor|app)\nChange the open Lens grouping without closing it."
