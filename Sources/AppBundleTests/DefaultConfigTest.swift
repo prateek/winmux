@@ -29,7 +29,7 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertEqual(settings.grid.tileSize, "same-height")
         let session = LensSession(name: name, settings: settings, items: [], search: "")
         XCTAssertEqual(session.tileKind, .picture)
-        session.enterSearch()
+        session.changePresentation("list"); session.enterSearchForTests()
         XCTAssertEqual(session.settings.presentation, "list")
         XCTAssertEqual(session.tileKind, .picture)
         XCTAssertEqual(session.listLayout.rowHeight, 74 * session.tileMetrics.scale)
@@ -57,17 +57,15 @@ final class DefaultConfigTest: XCTestCase {
             XCTAssertEqual(settings.grid.tileSize, "real", name)
             let session = LensSession(name: name, settings: settings, items: [], search: "")
             XCTAssertEqual(session.tileKind, .card, name)
-            XCTAssertEqual(settings.resolvedOnRelease, name == "app-windows" ? "commit" : "stay", name)
-            XCTAssertEqual(settings.commitsOnRelease(for: StripGesture(keyCode: 50, invoking: .command)), name == "app-windows", name)
-            XCTAssertFalse(settings.commitsOnRelease(for: nil), name)
-            XCTAssertFalse(settings.commitsOnRelease(for: StripGesture(keyCode: 50, invoking: [])), name)
+            XCTAssertNil(settings.json["on-release"], name)
         }
+        XCTAssertEqual(defaultConfig.modes["cmd-backtick"]?.onRelease, ["lens focus", "mode main"])
     }
 
     func testDefaultMainBindingsAreExactlyTheShortList() {
         let expected: Set<String> = Set(
             ["alt-h", "alt-j", "alt-k", "alt-l", "alt-shift-h", "alt-shift-j", "alt-shift-k", "alt-shift-l",
-             "alt-shift-t", "alt-shift-m", "alt-slash", "alt-semicolon", "alt-shift-o"]
+             "alt-shift-t", "alt-shift-m", "alt-slash", "alt-semicolon", "alt-shift-o", "alt-shift-semicolon"]
             + (1...9).map { "ctrl-\($0)" }
             + (1...9).map { "alt-shift-\($0)" }
             + (1...9).map { "alt-\($0)" }
@@ -81,9 +79,9 @@ final class DefaultConfigTest: XCTestCase {
     func testSixLensesTriggersAndLeaderEscape() async throws {
         let defaults = defaultConfig
         XCTAssertEqual(Set(defaults.lenses.keys), ["recent", "app-windows", "overview", "floating", "search", "windows"])
-        XCTAssertEqual(Set(defaults.modes.keys), ["main", "window"])
+        XCTAssertEqual(Set(defaults.modes.keys), ["main", "window", "browse", "search", "cmd-tab", "cmd-tab-back", "cmd-backtick", "search-hold", "overview-hold", "window-once"])
         XCTAssertNil(defaults.columns.resolved(workspace: "Demo"))
-        let expected = ["alt-shift-o": "lens overview", "alt-slash": "lens search", "alt-semicolon": "mode window"]
+        let expected = ["alt-shift-o": "mode overview-hold", "alt-slash": "mode search-hold", "alt-semicolon": "mode window"]
         for (chord, raw) in expected {
             let binding = try XCTUnwrap(defaults.modes["main"]?.bindings[chord])
             XCTAssertTrue(binding.commands.singleOrNil()?.equals(parseCommand(raw).cmdOrDie) == true, chord)
@@ -98,14 +96,15 @@ final class DefaultConfigTest: XCTestCase {
         for (key, name) in ["w": "windows", "o": "overview", "f": "floating", "s": "search", "r": "recent", "a": "app-windows"] {
             let commands = try XCTUnwrap(leader.bindings[key]?.commands)
             XCTAssertEqual(commands.count, 2)
-            XCTAssertTrue(commands[1].equals(parseCommand("lens \(name)" + (["r", "a"].contains(key) ? " --presentation list --tile text" : "")).cmdOrDie))
-            XCTAssertTrue(commands[0].equals(parseCommand("mode main").cmdOrDie))
+            XCTAssertTrue(commands[0].equals(parseCommand("lens \(name)" + (["r", "a"].contains(key) ? " --presentation list --tile text" : "")).cmdOrDie))
+            let target = ["s", "r", "a"].contains(key) ? "search" : "browse"
+            XCTAssertTrue(commands[1].equals(parseCommand("mode \(target)").cmdOrDie))
             var disabled = LensConfig(); disabled.enabled = false
             config.lenses = [name: disabled]
             try await activateMode("window")
             let failed = try await commands.runCmdSeq(.defaultEnv, .emptyStdin)
             XCTAssertEqual(failed.exitCode, 2)
-            XCTAssertEqual(activeMode, "main", "a rejected Lens must still leave the leader")
+            XCTAssertEqual(activeMode, target, "the opener pair follows ordinary command-list semantics after failure")
             XCTAssertFalse(SwitcherPalettePanel.shared.isPaletteActive)
         }
         try await activateMode("window")
@@ -120,7 +119,7 @@ final class DefaultConfigTest: XCTestCase {
         config.lenses = ["search": LensConfig()]
         defer {
             SwitcherPalettePanel.shared.dismiss()
-            activeMode = mainModeId
+            ModeEngine.shared.replace(mainModeId, mode: config.modes[mainModeId] ?? .zero)
         }
         for mode in ["lens", "custom"] {
             try await activateMode(mode)
@@ -181,7 +180,7 @@ final class DefaultConfigTest: XCTestCase {
         XCTAssertTrue(main.bindings["alt-shift-h"]?.commands.singleOrNil()?.equals(parseCommand("move left").cmdOrDie) == true)
         XCTAssertEqual(main.bindings["cmd-tab"]?.descriptionWithKeyNotation, "cmd-mytab")
         XCTAssertTrue(main.bindings["cmd-tab"]?.commands.singleOrNil()?.equals(parseCommand("focus right").cmdOrDie) == true)
-        XCTAssertEqual(Set(parsed.config.modes.keys), ["main", "window", "custom"])
+        XCTAssertEqual(Set(parsed.config.modes.keys), ["main", "window", "custom", "browse", "search", "cmd-tab", "cmd-tab-back", "cmd-backtick", "search-hold", "overview-hold", "window-once"])
         XCTAssertEqual(Set(parsed.config.lenses.keys), Set(defaultConfig.lenses.keys))
     }
 

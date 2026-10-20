@@ -258,18 +258,18 @@ final class FindFocusTest: SerialClockTestCase {
         _ = install(clock, show: { _ in shows += 1 }, hide: { hides += 1 })
         _ = window()
         config.modes = ["main": .zero, "window": .zero]
-        activeMode = "window"
+        ModeEngine.shared.replace("window", mode: .zero)
         triggerBinding("esc", [parseCommand("mode main").cmdOrDie])
         await clock.advance()
         XCTAssertEqual(activeMode, "main", "feature off: binding still executes")
         XCTAssertEqual(hides, 0)
-        activeMode = "window"
+        ModeEngine.shared.replace("window", mode: .zero)
         try await mark()
         triggerBinding("esc", [parseCommand("mode main").cmdOrDie])
         XCTAssertEqual(hides, 1, "Carbon dispatch hides synchronously before its task runs")
         await clock.advance()
         XCTAssertEqual(activeMode, "main")
-        activeMode = "window"
+        ModeEngine.shared.replace("window", mode: .zero)
         try await mark()
         triggerBinding("c", [parseCommand("find-focus").cmdOrDie])
         XCTAssertEqual(hides, 2)

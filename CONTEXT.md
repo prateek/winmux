@@ -5,7 +5,7 @@ A sidebar-first tiling window manager for macOS, forked from AeroSpace. This glo
 ## Finding windows
 
 **Lens**:
-A named way to find windows: a Filter, a Presentation, sort order, and the actions its keys run on the selected window. A Trigger opens it as an overlay showing the matching windows.
+A view of matching windows: a Filter, a Presentation, sort order and shared Tile settings. A command in any Mode, a gesture or the CLI opens it. Its view state is selection, Search text, marks in mark order and the focused pane; keys belong to Modes. A mode and its Lens are one thing exactly when the mode opened the Lens. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode. A Lens that replaces the one a mode owns is still that mode's.
 _Avoid_: picker, picker binding, switcher, exposé, overview, Mission Control
 
 **Filter**:
@@ -48,13 +48,14 @@ _Avoid_: tab group, pane, surface
 The source that lists an app's Tabs and brings a chosen one to the front, either asked by WinMux when a Lens opens or publishing to WinMux on its own.
 _Avoid_: tab source, adapter, integration
 
-**Trigger**:
-A key or trackpad-gesture binding whose command opens a Lens.
-_Avoid_: shortcut, hotkey
+**Mode**:
+The one owner of keyboard modality. A named mode has a lifetime (`latched`, until replaced; `held`, until all entry modifiers are released; or `transient`, for one key), an unbound-key policy (`pass`, `consume`, `type` into Search, or `latch` into another mode and reread an unbound letter), `on-enter`, `on-release`, `draw-delay`, and `count`. `latch-to` names the latch target. Entering a mode replaces the current one. A Lens opened by its `on-enter` belongs to it; a mode that needs a Lens adopts one already open when it enters. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode, including its lifetime and entry modifiers.
+_Avoid_: Hold, strip mode, binding mode, input state
 
-**Hold**:
-The time from a **Trigger**'s key press until its invoking Command, Control and Option modifiers are released (or Shift for a Shift-only chord), or until the first unbound letter is typed, whichever comes first. Shift otherwise controls reverse stepping and capital letters. It belongs to the Lens session, not to a **Presentation**. While it lasts the Lens is a gesture: the Trigger's key steps and the Lens's own chords run. After it the Lens is modal: it stays open with nothing held, plain keys are commands as in vim's normal mode (`h`, `j`, `k`, `l` move, `/` starts Search, Escape leaves it), and a modifier means itself. What a release does (commit, or stay open) is decided for the Lens, not by the Presentation.
-_Avoid_: strip mode, held mode
+**Keymap**:
+Named blocks of chord or sequence bindings, conditioned on `mode`, `app` (the front app's bundle id), `lens`, `presentation`, `columns` (the focused workspace's Column count), and `profile` (`default` until Display profiles land). Greater specificity wins, then greater priority; an unresolved tie is a config error. `mode.<name>.binding` is sugar for a block on that mode. A binding's `'pass` value leaves its chord to the app.
+
+A collection a person extends is a record keyed by name: Lenses, modes, keymap blocks, Filters, profiles and popup-class booleans. A list is an ordered value replaced whole, such as commands, sort keys, width presets or Column widths. Nickel merges records field by field; it does not extend lists.
 
 **Summon**:
 To move the selected window into the current workspace, rather than going to the window's workspace.

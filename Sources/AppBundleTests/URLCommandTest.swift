@@ -125,6 +125,26 @@ final class URLCommandTest: XCTestCase {
             XCTAssertNil(urlCommandRefusal(command), words.description)
         }
     }
+    func testLensRunUsesTheWrappedCommandsURLGateIncludingBindings() throws {
+        let parsed = parseConfig("""
+        [mode.main.binding]
+        alt-x = 'exec-and-forget true'
+        alt-h = 'focus left'
+        alt-t = 'lens run trigger-binding --mode main alt-h'
+        """)
+        XCTAssertTrue(parsed.errors.isEmpty)
+        config = parsed.config
+        for raw in ["lens run exec-and-forget true", "lens run list-windows --all", "lens run workspace next --stdin",
+                    "lens run trigger-binding --mode main alt-x", "trigger-binding --mode main alt-t",
+                    "lens run lens run list-modes --current"] {
+            let command = try XCTUnwrap(parseCommand(raw).cmdOrNil)
+            XCTAssertNotNil(urlCommandRefusal(command), raw)
+        }
+        for raw in ["lens run move-node-to-workspace 2", "lens focus", "lens step next", "lens run trigger-binding --mode main alt-h"] {
+            let command = try XCTUnwrap(parseCommand(raw).cmdOrNil)
+            XCTAssertNil(urlCommandRefusal(command), raw)
+        }
+    }
 
     func testURLRefusalsAndHelpNeverExecute() async {
         let previous = mayArrangeWindows

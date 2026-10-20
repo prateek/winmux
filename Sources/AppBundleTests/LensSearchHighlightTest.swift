@@ -15,7 +15,7 @@ final class LensSearchHighlightTest: XCTestCase {
         let item = SwitcherPaletteItem(id: 1, title: "Quarterly report", appName: "Safari", icon: nil, workspaceName: "Work", isFocused: false,
                                       tile: TileEntry(title: "Quarterly report", appName: "Safari"))
         for presentation in ["list", "strip", "grid"] {
-            var settings = LensConfig(); settings.presentation = presentation; settings.startsIn = "normal"
+            var settings = LensConfig(); settings.presentation = presentation; enterModeForTests("browse")
             let explicit = LensSession(name: "explicit", settings: settings, items: [item], search: "rep saf", searchIsExplicit: true)
             XCTAssertEqual(explicit.query, "rep saf")
             XCTAssertEqual(substrings(item.title, explicit.results[0].tile.titleRanges), ["rep"])
@@ -25,7 +25,7 @@ final class LensSearchHighlightTest: XCTestCase {
             XCTAssertEqual(explicit.results[0].tile.appRanges, [])
             let recalled = LensSession(name: "recall", settings: settings, items: [item], search: "rep saf")
             XCTAssertEqual(recalled.results[0].tile.titleRanges, [])
-            recalled.enterSearch()
+            recalled.enterSearchForTests()
             XCTAssertEqual(substrings(item.title, recalled.results[0].tile.titleRanges), ["rep"])
         }
         let fallback = TileEntry(title: "", appName: "Safari", appRanges: [0..<3])
@@ -48,7 +48,7 @@ final class LensSearchHighlightTest: XCTestCase {
         fullscreen.testAxRecordAttributes = WindowAxRecordAttributes(title: "Fullscreen", subrole: "AXStandardWindow", hasCloseButton: true, document: "", buttons: .all)
         var reads = 0
         ordinary.beforeAxRecord = { reads += 1 }
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(reads, 1)
         XCTAssertEqual(entries.first { $0.record.id == 91 }?.controls, TileControlAvailability(close: false, minimize: true, fullscreen: true))
         XCTAssertEqual(entries.first { $0.record.id == 92 }?.controls, TileControlAvailability(close: true, minimize: false, fullscreen: true))

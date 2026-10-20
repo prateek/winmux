@@ -41,6 +41,7 @@ let package = Package(
         .target(
             name: "Common",
             dependencies: [
+                .product(name: "HotKey", package: "HotKey"),
                 .product(name: "Collections", package: "swift-collections"),
             ],
         ),

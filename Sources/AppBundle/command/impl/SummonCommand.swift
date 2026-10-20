@@ -35,7 +35,7 @@ func restoreLensWindow(_ window: Window, on workspace: Workspace, runPlace: Bool
 }
 
 @MainActor
-func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async throws -> Bool {
+func runLensAction(_ commands: [String], session: LensSession, io: CmdIo, env: CmdEnv = .defaultEnv, targets: [UInt32]? = nil) async throws -> Bool {
     var success = true
     for raw in commands {
         if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs {
@@ -43,17 +43,17 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo) async 
             continue
         }
         let closes = if case .cmd(let command) = parseCommand(raw) { command.args is CloseCmdArgs } else { false }
-        for id in session.targets(forCommand: raw) {
+        for id in targets ?? session.targets(forCommand: raw) {
             // An earlier marked close can take this window with it; for close, gone is done.
             if closes, Window.get(byId: id) == nil { continue }
-            success = try await runLensWindowAction(raw, windowId: id, io: io) && success
+            success = try await runLensWindowAction(raw, windowId: id, io: io, env: env) && success
         }
     }
     return success
 }
 
 @MainActor
-func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async throws -> Bool {
+func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo, env: CmdEnv = .defaultEnv) async throws -> Bool {
     var success = true
     guard let window = Window.get(byId: id) else { return io.err("Window \(id) has closed") }
     if raw == "focus" {
@@ -67,7 +67,7 @@ func runLensWindowAction(_ raw: String, windowId id: UInt32, io: CmdIo) async th
                 if !(command.args is CloseCmdArgs), !(command.args is SummonCmdArgs) {
                     try await restoreLensWindow(window, on: lensRestoreWorkspace(window))
                 }
-                success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id), io)
+                success = try await [command].runCmdSeq(CmdEnv(windowWorkspaceFallback: focus.workspace.name, windowId: id, isFromURL: env.isFromURL), io)
             case .failure(let error): success = io.err(error)
             case .help(let help): success = io.err(help)
         }

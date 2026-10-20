@@ -29,8 +29,10 @@ fn main() -> ExitCode {
     };
     match args.as_slice() {
         ["serve"] => serve(protocol::Helper::new(library)),
-        ["check", file] => check(Some(Path::new(file)), &library),
-        ["check"] => check(None, &library),
+        ["check", "--json", file] => check(Some(Path::new(file)), &library, true),
+        ["check", "--json"] => check(None, &library, true),
+        ["check", file] => check(Some(Path::new(file)), &library, false),
+        ["check"] => check(None, &library, false),
         // The static settings of the shipped defaults: what WinMux falls back to without a helper.
         ["defaults"] => match protocol::load(None, &library) {
             Ok((_, result)) => {
@@ -74,12 +76,13 @@ fn print_diagnostic(diagnostic: &str) {
     }
 }
 
-fn check(file: Option<&Path>, library: &Path) -> ExitCode {
+fn check(file: Option<&Path>, library: &Path, json: bool) -> ExitCode {
     match protocol::load(file, library) {
         Ok((_, result)) => {
             if let Some(warnings) = result["warnings"].as_array() {
                 for warning in warnings { eprintln!("warning: {}", warning.as_str().unwrap_or_default()); }
             }
+            if json { println!("{}", result["config"]); }
             ExitCode::SUCCESS
         },
         Err(diagnostic) => {

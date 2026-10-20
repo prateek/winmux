@@ -1,5 +1,9 @@
 # Subscription events
 
+`mode-changed` and `on-mode-changed` cover all mode transitions, including held
+Lens modes, `browse`, `search` and the return to `main`. Opening a Lens alone
+does not change the mode.
+
 `winmux subscribe --all` includes eleven events: `focus-changed`, `focused-monitor-changed`, `focused-workspace-changed`, `mode-changed`, `window-detected`, `binding-triggered`, `config-reloaded`, `lens-opened`, `lens-closed`, `columns-changed` and `hook-called`. Output is one JSON record per line, with `_event` naming the event. Select individual events by listing their names. `--no-send-initial` suppresses the existing focus/mode initial records. Config, Lens, Column and hook events have no synthetic initial records.
 
 ```sh

@@ -21,7 +21,7 @@ final class LensWindowsTest: XCTestCase {
                 }
             }
         }
-        let task = Task { try await lensWindows(popups: []).map { $0.record.id } }
+        let task = Task { try await lensWindows(popups: [:]).map { $0.record.id } }
         await fulfillment(of: [started], timeout: 1)
         released = true
         for id: UInt32 in [2, 1, 3] {
@@ -39,7 +39,7 @@ final class LensWindowsTest: XCTestCase {
         broken.testAxRecordError = NSError(domain: "AX", code: 1)
         _ = broken.focusWindow()
         _ = TestWindow.new(id: 3, parent: ws.rootTilingContainer)
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(entries.map { $0.record.id }, [1, 3])
         let command = try XCTUnwrap(parseCommand("list-windows --search TestWindow --count").cmdOrNil)
         let result = try await command.run(.defaultEnv, .emptyStdin)
@@ -52,11 +52,11 @@ final class LensWindowsTest: XCTestCase {
         _ = TestWindow.new(id: 3, parent: ws.rootTilingContainer)
         _ = TestWindow.new(id: 2, parent: macosMinimizedWindowsContainer)
         _ = TestWindow.new(id: 1, parent: macosPopupWindowsContainer)
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(Set(entries.map { $0.record.id }), [2, 3])
-        let withPopups = try await lensWindows(popups: ["app-popup"])
+        let withPopups = try await lensWindows(popups: ["app-popup": true])
         XCTAssertEqual(Set(withPopups.map { $0.record.id }), [1, 2, 3])
-        let accessoryOnly = try await lensWindows(popups: ["accessory-popup"])
+        let accessoryOnly = try await lensWindows(popups: ["accessory-popup": true])
         XCTAssertEqual(Set(accessoryOnly.map { $0.record.id }), [2, 3])
     }
 
@@ -65,7 +65,7 @@ final class LensWindowsTest: XCTestCase {
         _ = TestWindow.new(id: 3, parent: ws.rootTilingContainer)
         _ = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
         _ = TestWindow.new(id: 2, parent: ws.rootTilingContainer)
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(sortLensWindows(entries, by: ["created"], previousId: nil).map { $0.record.id }, [1, 2, 3])
         XCTAssertEqual(sortLensWindows(entries, by: ["previous", "created"], previousId: 3).map { $0.record.id }, [3, 1, 2])
     }
@@ -89,8 +89,8 @@ final class LensSortAndNamesTest: XCTestCase {
                                  (["app", "title"], [3, 1, 2]), (["title", "created"], [2, 3, 1])] {
             XCTAssertEqual(sortLensWindows(entries, by: keys, previousId: nil).map { $0.record.id }, expected)
         }
-        XCTAssertTrue(lensIncludes(.accessoryPopup, popups: ["accessory-popup"]))
-        XCTAssertFalse(lensIncludes(.appPopup, popups: ["accessory-popup"]))
+        XCTAssertTrue(lensIncludes(.accessoryPopup, popups: ["accessory-popup": true]))
+        XCTAssertFalse(lensIncludes(.appPopup, popups: ["accessory-popup": true]))
     }
 
     func testSearchUsesWorkspaceAndProjectNamesShownToTheUser() async throws {
@@ -98,7 +98,7 @@ final class LensSortAndNamesTest: XCTestCase {
         _ = TestWindow.new(id: 1, parent: ws.rootTilingContainer)
         try renameWorkspaceForSidebar(workspaceName: "1", displayName: "Release")
         try renameWorkspaceProject(ws.projectId, displayName: "Research")
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(searchLensWindows(entries, search: "release research").map { $0.record.id }, [1])
     }
 }

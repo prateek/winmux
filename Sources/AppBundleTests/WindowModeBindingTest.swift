@@ -6,11 +6,11 @@ import XCTest
 final class WindowModeBindingTest: XCTestCase {
     override func setUp() async throws {
         setUpWorkspacesForTests()
-        activeMode = mainModeId
+        ModeEngine.shared.replace(mainModeId, mode: config.modes[mainModeId] ?? .zero)
     }
 
     func testExistingMainDispatchUnknownModeAndUnboundChord() async throws {
-        let modes = defaultConfig.modes
+        let modes = defaultConfig
         let main = try XCTUnwrap(activeHotkeyBinding("alt-l", mode: "main", modes: modes))
         XCTAssertTrue(main.commands.singleOrNil()!.equals(parseCommand("focus right").cmdOrDie))
         XCTAssertNil(activeHotkeyBinding("x", mode: "main", modes: modes))
@@ -26,7 +26,7 @@ final class WindowModeBindingTest: XCTestCase {
         defer { supervisor.discard(loaded) }
         let parsed = parseConfig(loaded.settings)
         XCTAssertTrue(parsed.errors.isEmpty)
-        let modes = parsed.config.modes
+        let modes = parsed.config
         // Dispatch uses loaded bindings; mode activation itself must not register desktop keys.
         config.modes = ["main": .zero, "window": .zero]
         TrayMenuModel.shared.isEnabled = true
@@ -77,10 +77,10 @@ final class WindowModeBindingTest: XCTestCase {
         var disabled = LensConfig(); disabled.enabled = false
         config.lenses = ["overview": disabled]
         _ = try await activeHotkeyBinding("o", mode: activeMode, modes: modes)!.commands.runCmdSeq(.defaultEnv, .emptyStdin)
-        XCTAssertEqual(activeMode, "main")
+        XCTAssertEqual(activeMode, "browse")
     }
 
-    private func press(_ chord: String, modes: [String: Mode]) async throws {
+    private func press(_ chord: String, modes: Config) async throws {
         let binding = try XCTUnwrap(activeHotkeyBinding(chord, mode: activeMode, modes: modes))
         let result = try await binding.commands.runCmdSeq(.defaultEnv, .emptyStdin)
         XCTAssertEqual(result.exitCode, 0, chord)

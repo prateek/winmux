@@ -87,7 +87,11 @@ final class LensPreparationTest: SerialClockTestCase {
         let clock = TestClock<Duration>()
         var prepared = false
         var shown = false
-        let owner = testLensLifecycle(clock: clock, show: { _ in
+        let engine = ModeEngine(clock: clock, liveModifiers: { .command })
+        engine.execute = { _ in }
+        var held = defaultConfig.modes["cmd-tab"]!; held.onEnter = []
+        try await engine.enter("cmd-tab", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        let owner = testLensLifecycle(clock: clock, modeEngine: engine, show: { _ in
             XCTAssertTrue(prepared)
             shown = true
         })
@@ -95,12 +99,13 @@ final class LensPreparationTest: SerialClockTestCase {
             XCTAssertTrue(owner.session === model)
             prepared = true
         }
-        let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-        let ticket = owner.begin("recent", toggle: false, strip: gesture)!
+        let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("recent", toggle: false)!
         var settings = LensConfig(); settings.presentation = "strip"
         let model = LensSession(name: "recent", settings: settings, items: [], search: "")
         await clock.advance(by: .milliseconds(8))
         owner.complete(model, ticket: ticket)
+        await engine.waitForReadiness()
         XCTAssertTrue(prepared)
         XCTAssertFalse(shown)
         await clock.advance(by: .milliseconds(91))

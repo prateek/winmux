@@ -8,6 +8,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 
 ## From the second build
 
+**Modes are the only modality**
+- [ ] Update the CLI with `brew upgrade --cask --greedy winmux` after the app update; Sparkle updates the app alone. On the installed build, check Cmd-Tab and Option-slash under the hand-written config and the modes it defines, after migrating Lens-only opener bindings to `W.open` pairs or modes. Check the same mode transitions on a second display and across real sleep, wake and unlock.
+
 **A trace of a Lens opening**
 - [ ] Hold Cmd-Tab five times, then run `winmux debug-lens-trace --last 5`. `panel ordered front` ends near 107 ms in every row, the first included.
 - [ ] After a launch, read the `Lens startup preparation took` line in the unified log, category `lens`, and note the duration on your display. It was 170 to 350 ms in a guest at 1280 by 720.

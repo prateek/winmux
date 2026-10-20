@@ -21,7 +21,7 @@ private final class AccessoryAxElement: AxUiElementMock {
 
 @MainActor
 final class AccessoryDefaultsTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
 
     func testBundleDeclarationAcceptsPlistRepresentationsAndMissingBundles() throws {
         for value: Any in [true, NSNumber(value: 1), "1"] {
@@ -99,9 +99,9 @@ final class AccessoryDefaultsTest: XCTestCase {
         let popup = TestWindow.new(id: 1, parent: macosPopupWindowsContainer, app: accessory)
         popup.testAxRecordAttributes = WindowAxRecordAttributes(title: "Popup", subrole: "AXUnknown", hasCloseButton: true, document: "")
         _ = TestWindow.new(id: 2, parent: macosPopupWindowsContainer, app: regular)
-        let accessoryOnly = try await lensWindows(popups: ["accessory-popup"])
-        let regularOnly = try await lensWindows(popups: ["app-popup"])
-        let neither = try await lensWindows(popups: [])
+        let accessoryOnly = try await lensWindows(popups: ["accessory-popup": true])
+        let regularOnly = try await lensWindows(popups: ["app-popup": true])
+        let neither = try await lensWindows(popups: [:])
         XCTAssertEqual(accessoryOnly.map { $0.record.id }, [1])
         XCTAssertEqual(regularOnly.map { $0.record.id }, [2])
         XCTAssertTrue(neither.isEmpty)
@@ -114,11 +114,11 @@ final class AccessoryDefaultsTest: XCTestCase {
             let session = LensSession(name: "popup", settings: LensConfig(), items: [
                 SwitcherPaletteItem(id: 1, title: "Popup", appName: "Demo", icon: nil, workspaceName: "", isFocused: false),
             ], search: "")
-            let enter = try await runLensAction(session.commands(for: "enter"), session: session, io: CmdIo(stdin: .emptyStdin))
+            let enter = try await runLensAction(session.actionCommandsForTests(for: "enter"), session: session, io: CmdIo(stdin: .emptyStdin))
             XCTAssertTrue(enter)
             XCTAssertTrue(app.focusedWindow === popup)
             let io = CmdIo(stdin: .emptyStdin)
-            let summon = try await runLensAction(session.commands(for: "shift-enter"), session: session, io: io)
+            let summon = try await runLensAction(session.actionCommandsForTests(for: "shift-enter"), session: session, io: io)
             XCTAssertFalse(summon)
             XCTAssertEqual(io.stderr, ["Cannot Summon a popup window"])
             XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
@@ -159,8 +159,7 @@ final class AccessoryDefaultsTest: XCTestCase {
         let json = try JSONDecoder().decode(JSONValue.self, from: Data(result.stdout.joined().utf8))
         XCTAssertEqual(json["floating"]?["filter"], .string("lenses.floating.filter"))
         XCTAssertEqual(json["floating"]?["presentation"], .string("grid"))
-        XCTAssertEqual(json["floating"]?["popups"], .array([]))
-        XCTAssertEqual(config.lenses["floating"]?.keys["enter"], ["focus"])
-        XCTAssertEqual(config.lenses["floating"]?.keys["shift-enter"], ["summon"])
+        XCTAssertEqual(json["floating"]?["popups"], .object([:]))
+        XCTAssertNil(json["floating"]?["keys"])
     }
 }

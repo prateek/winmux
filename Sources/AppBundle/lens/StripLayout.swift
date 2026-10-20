@@ -1,95 +1,13 @@
 import AppKit
 
-struct StripGesture {
-    let keyCode: UInt16?
-    let invoking: NSEvent.ModifierFlags
-    private let elapsed: @Sendable () -> Duration
-    /// Isolated by name. An optimised Swift 6.3 build does not return a caller-isolated closure
-    /// formed in a generic function to its caller's actor, and the strip was then shown off the main thread.
-    let waitForDisplay: @MainActor @Sendable () async throws -> Void
-
-    init(keyCode: UInt16?, invoking: NSEvent.ModifierFlags, clock: any Clock<Duration> = ContinuousClock()) {
-        self.keyCode = keyCode
-        self.invoking = invoking
-        (elapsed, waitForDisplay) = Self.start(on: clock)
-    }
-
-    private static func start<C: Clock>(on clock: C) -> (@Sendable () -> Duration, @MainActor @Sendable () async throws -> Void) where C.Duration == Duration {
-        let started = clock.now
-        return ({ started.duration(to: clock.now) }, { try await clock.sleep(until: started.advanced(by: .milliseconds(100)), tolerance: nil) })
-    }
-
-    // Test observation of the gesture deadline.
-    var shouldDisplay: Bool { elapsed() >= .milliseconds(100) }
-    var isHeldChord: Bool { keyCode != nil && !holdModifiers.isEmpty }
-    var committingModifiers: NSEvent.ModifierFlags { invoking.intersection([.command, .control, .option]) }
-    var holdModifiers: NSEvent.ModifierFlags {
-        committingModifiers.isEmpty ? invoking.intersection(.shift) : committingModifiers
-    }
-    func holdEnded(flags: NSEvent.ModifierFlags) -> Bool { flags.intersection(holdModifiers).isEmpty }
-    func shouldCommit(flags: NSEvent.ModifierFlags) -> Bool { holdEnded(flags: flags) }
-    func releaseModifiers(_ flags: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
-        flags.intersection([.command, .control, .option]).subtracting(committingModifiers)
-    }
-    /// A chord is the strip's own when it holds exactly the invoking modifiers; Shift is free.
-    func owns(_ flags: NSEvent.ModifierFlags) -> Bool {
-        flags.intersection([.command, .control, .option]) == committingModifiers
-    }
-    /// The step the invoking key makes, Shift reversing it. Nil for any other key or chord.
-    func step(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Int? {
-        guard keyCode == self.keyCode, owns(flags) else { return nil }
-        return flags.contains(.shift) ? -1 : 1
-    }
-}
-
 func stripDebugLog(_ message: @autoclosure () -> String) {
     if ProcessInfo.processInfo.environment["WINMUX_DEBUG_STRIP_EVENTS"] == "1" { debugFocusLog(message()) }
 }
 
-enum StripInput { case ignored, consumed, cancel, list }
-
-@TaskLocal var lensInvocation: StripGesture?
-
 extension LensSession {
-    func beginStrip(_ gesture: StripGesture) {
-        stripGesture = gesture
-        startHold(gesture)
-        send(.selectionChanged(gesture.invoking.contains(.shift) ? max(0, results.count - 1) : initialSelection()))
-    }
-
-    @discardableResult
-    func cycleStrip(keyCode: UInt16, flags: NSEvent.ModifierFlags) -> Bool {
-        guard inputState == .hold, commitsOnRelease, let step = stripGesture?.step(keyCode: keyCode, flags: flags) else { return false }
-        cycleStripSelection(step)
-        return true
-    }
-
-    func stripInput(_ event: NSEvent) -> StripInput {
-        guard commitsOnRelease else { return .ignored }
-        let meaning = meaning(for: event)
-        if meaning == .dismiss { return .cancel }
-        if perform(meaning) { return settings.presentation == "list" ? .list : .consumed }
-        return .ignored
-    }
-
     func cycleStripSelection(_ delta: Int) {
         let count = results.count
         send(.selectionChanged(count == 0 ? 0 : (selection + delta % count + count) % count))
-    }
-
-    func stripReleaseKey(flags: NSEvent.ModifierFlags) -> String? {
-        guard !holdEndedByKey, commitsOnRelease, let gesture = stripGesture, gesture.shouldCommit(flags: flags) else { return nil }
-        return enterKey(modifiers: gesture.releaseModifiers(flags)) ?? "enter"
-    }
-
-    @discardableResult
-    func handleStripLetter(_ event: NSEvent) -> Bool {
-        guard commitsOnRelease else { return false }
-        let meaning = meaning(for: event)
-        switch meaning {
-            case .command, .endHold: return perform(meaning)
-            default: return false
-        }
     }
 
     func removeStripItems(_ ids: Set<UInt32>) { send(.itemsRemoved(ids)) }

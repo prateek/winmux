@@ -12,17 +12,10 @@ import TOMLKit
 @MainActor private var pendingTapTriggerTokens: [TapModifierKey: Int] = [:]
 @MainActor private var nextTapTriggerToken = 0
 @MainActor private(set) var hotkeysSuspended = false
-@MainActor private var sequenceBindingsByPrefix: [Key: [SequenceBinding]] = [:]
-@MainActor var sequenceBindingsPrefixKeys: Set<Key> = []
-/// Timestamp of the last Escape press, used for sequence detection via local monitor
-@MainActor private var lastSequencePrefixTime: DispatchTime? = nil
-/// Which prefix key was pressed last
-@MainActor private var lastSequencePrefixKey: Key? = nil
 private let tapBindingTriggerDelayNs: UInt64 = 75_000_000
-/// Max time (ns) between prefix key and subsequent key for a sequence binding
-private let sequenceChordTimeoutNs: UInt64 = 300_000_000 // 300ms
 
 @MainActor func resetHotKeys() {
+    invalidateModeRegistrations()
     WindowTabHintController.shared.reset()
     FindFocusHighlight.shared.dismiss()
     // Explicitly unregister all hotkeys. We cannot always rely on destruction of the HotKey object to trigger
@@ -35,10 +28,6 @@ private let sequenceChordTimeoutNs: UInt64 = 300_000_000 // 300ms
     pendingTapBindings = [:]
     pressedTapModifiers = []
     cancelPendingTapTriggers()
-    sequenceBindingsByPrefix = [:]
-    sequenceBindingsPrefixKeys = []
-    lastSequencePrefixTime = nil
-    lastSequencePrefixKey = nil
     hotkeysSuspended = false
 }
 
@@ -53,7 +42,9 @@ extension HotKey {
     }
 }
 
-@MainActor var activeMode: String? = mainModeId
+@MainActor var activeMode: String? {
+    ModeEngine.shared.current
+}
 @MainActor func setHotkeysSuspended(_ suspended: Bool) {
     if hotkeysSuspended == suspended { return }
     hotkeysSuspended = suspended
@@ -66,48 +57,19 @@ extension HotKey {
     applyHotkeyEnabledState()
 }
 
-@MainActor func activateMode(_ targetMode: String?) async throws {
+@MainActor func activateMode(_ targetMode: String?, reenter: Bool = true) async throws {
     WindowTabHintController.shared.reset()
     let mode = targetMode.flatMap { config.modes[$0] }
-    let targetBindings = mode?.bindings ?? [:]
-    activeTapBindings = mode?
-        .tapBindings
-        .values
-        .reduce(into: [:]) { $0[$1.trigger] = $1 } ?? [:]
-    pendingTapBindings = [:]
-    pressedTapModifiers = []
-    cancelPendingTapTriggers()
-    for binding in targetBindings.values where mayArrangeWindows && !hotkeys.keys.contains(binding.descriptionWithKeyCode) {
-        hotkeys[binding.descriptionWithKeyCode] = HotKey(key: binding.keyCode, modifiers: binding.modifiers, keyDownWithTimeHandler: { eventTime in
-            let origin = LensTraceOrigin(start: eventTime, received: LensTimebase.now(), source: "Carbon")
-            Task { @MainActor in
-                if hotkeysSuspended { return }
-                noteTapBindingKeyDown()
-                guard let binding = activeHotkeyBinding(binding.descriptionWithKeyCode, mode: activeMode, modes: config.modes) else { return }
-                let gesture = StripGesture(keyCode: UInt16(binding.keyCode.carbonKeyCode), invoking: binding.modifiers)
-                let text = binding.modifiers.contains(.shift) ? binding.keyCode.description.uppercased() : binding.keyCode.description.lowercased()
-                if SwitcherPalettePanel.shared.handleStripHotkey(keyCode: UInt16(binding.keyCode.carbonKeyCode), modifiers: binding.modifiers, characters: text, timestamp: origin.start) { return }
-                triggerBinding(binding.descriptionWithKeyNotation, binding.commands, invocation: gesture, origin: origin)
-            }
-        })
+    ModeEngine.shared.changed = { reconcileModeContext() }
+    ModeEngine.shared.modeChanged = {
+        activeTapBindings = ModeEngine.shared.properties.tapBindings.values.reduce(into: [:]) { $0[$1.trigger] = $1 }
+        pendingTapBindings = [:]
+        pressedTapModifiers = []
+        cancelPendingTapTriggers()
+        SwitcherPalettePanel.shared.currentModeChanged()
     }
-    // Populate sequence binding lookup tables
-    sequenceBindingsByPrefix = [:]
-    sequenceBindingsPrefixKeys = []
-    lastSequencePrefixTime = nil
-    lastSequencePrefixKey = nil
-    if let seqBindings = mode?.sequenceBindings.values {
-        for seq in seqBindings {
-            sequenceBindingsByPrefix[seq.prefix, default: []].append(seq)
-            sequenceBindingsPrefixKeys.insert(seq.prefix)
-        }
-    }
-    let oldMode = activeMode
-    activeMode = targetMode
-    applyHotkeyEnabledState()
-    BindingModeHud.shared.refresh()
-    if oldMode != targetMode {
-        broadcastEvent(.modeChanged(mode: targetMode))
+    ModeEngine.shared.didEnter = { _, target in
+        broadcastEvent(.modeChanged(mode: target))
         if !config.onModeChanged.isEmpty {
             guard let token: RunSessionGuard = .isServerEnabled else { return }
             try await runLightSession(.onModeChanged, token) {
@@ -115,70 +77,33 @@ extension HotKey {
             }
         }
     }
+    if !reenter, ModeEngine.shared.current == targetMode { ModeEngine.shared.reconfigure(mode ?? .zero) }
+    else { try await ModeEngine.shared.enter(targetMode, mode: mode ?? .zero, invocation: modeInvocation, cli: modeInvocation == nil) }
+    applyHotkeyEnabledState()
+    BindingModeHud.shared.refresh()
 }
 
-@MainActor func triggerBinding(_ binding: String, _ commands: [any Command], invocation: StripGesture? = nil, origin: LensTraceOrigin? = nil) {
+@MainActor func triggerBinding(_ binding: String, _ commands: [any Command], invocation: ModeInvocation? = nil, origin: LensTraceOrigin? = nil) {
+    FindFocusHighlight.shared.dismiss()
+    Task {
+        do { try await runTriggeredBinding(binding, commands, invocation: invocation, origin: origin) }
+        catch { lensLog.error("Binding: \(error.localizedDescription, privacy: .public)") }
+    }
+}
+
+@MainActor func runTriggeredBinding(_ binding: String, _ commands: [any Command], invocation: ModeInvocation? = nil, origin: LensTraceOrigin? = nil) async throws {
     WindowTabHintController.shared.bindingTriggered()
     if hotkeysSuspended || !mayArrangeWindows { return }
     FindFocusHighlight.shared.dismiss()
-    Task {
-        if let activeMode {
-            broadcastEvent(.bindingTriggered(
-                mode: activeMode,
-                binding: binding,
-            ))
-            try await runLightSession(
-                .hotkeyBinding,
-                .checkServerIsEnabledOrDie(),
-                shouldSchedulePostRefresh: !commands.canSkipPostCommandRefresh
-            ) { () throws in
-                _ = try await $lensTraceOrigin.withValue(origin) {
-                    try await $lensInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
-                }
-            }
+    guard let entered = activeMode else { return }
+    broadcastEvent(.bindingTriggered(mode: entered, binding: binding))
+    let result = try await runLightSession(.hotkeyBinding, .checkServerIsEnabledOrDie(), shouldSchedulePostRefresh: !commands.canSkipPostCommandRefresh) {
+        try await $lensTraceOrigin.withValue(origin) {
+            try await $modeInvocation.withValue(invocation) { try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
         }
     }
-}
-
-/// Called from the local keyDown monitor when the Escape key (or other prefix key)
-/// is pressed. Records the timestamp so a subsequent matching key can trigger a
-/// sequence binding. Does NOT consume the event.
-@MainActor func noteSequencePrefixKeyPressed(_ prefix: Key) {
-    lastSequencePrefixTime = DispatchTime.now()
-    lastSequencePrefixKey = prefix
-}
-
-/// Called from the local keyDown monitor for every keyDown event.
-/// If a prefix key was pressed recently (within `sequenceChordTimeoutNs`),
-/// checks if this key matches a sequence binding and executes it.
-/// Returns true if the event was consumed (should not reach the app).
-@MainActor func handleSequenceKeyDown(event: NSEvent) -> Bool {
-    guard let prefix = lastSequencePrefixKey,
-          let lastTime = lastSequencePrefixTime,
-          let bindings = sequenceBindingsByPrefix[prefix] else {
-        return false
-    }
-    let elapsed = DispatchTime.now().uptimeNanoseconds - lastTime.uptimeNanoseconds
-    guard elapsed < sequenceChordTimeoutNs else {
-        // Timeout expired, clear state
-        lastSequencePrefixTime = nil
-        lastSequencePrefixKey = nil
-        return false
-    }
-    // Check if this key matches any sequence binding for this prefix
-    for seq in bindings {
-        if seq.key.carbonKeyCode == event.keyCode {
-            // Match! Execute the command and consume the event
-            lastSequencePrefixTime = nil
-            lastSequencePrefixKey = nil
-            triggerBinding(seq.descriptionWithKeyNotation, seq.commands, origin: LensTraceOrigin(event: event, received: LensTimebase.now()))
-            return true
-        }
-    }
-    // No match - clear state and let event pass through
-    lastSequencePrefixTime = nil
-    lastSequencePrefixKey = nil
-    return false
+    if result.exitCode != 0 { lensLog.error("Binding \(binding, privacy: .public): \(result.stderr.joined(separator: "; "), privacy: .public)") }
+    try await ModeEngine.shared.transientFinished(entered)
 }
 
 @MainActor func noteTapBindingKeyDown() {
@@ -189,7 +114,7 @@ extension HotKey {
 
 @MainActor func noteTapBindingFlagsChanged(keyCode: UInt16, modifierFlags: NSEvent.ModifierFlags, origin: LensTraceOrigin? = nil) {
     WindowTabHintController.shared.flagsChanged(modifierFlags)
-    SwitcherPalettePanel.shared.stripFlagsChanged(modifierFlags)
+    SwitcherPalettePanel.shared.modifiersChanged(modifierFlags)
     if hotkeysSuspended { return }
     if activeTapBindings.isEmpty && pendingTapBindings.isEmpty && pendingTapTriggerTasks.isEmpty { return }
     guard let tapModifier = TapModifierKey(keyCode: keyCode) else { return }
@@ -244,17 +169,40 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 }
 
 @MainActor private func applyHotkeyEnabledState() {
-    let targetBindings = activeMode.flatMap { config.modes[$0] }?.bindings ?? [:]
-    for (binding, key) in hotkeys {
-        key.isEnabled = !hotkeysSuspended && targetBindings.keys.contains(binding)
+    for (_, key) in hotkeys {
+        key.isEnabled = !hotkeysSuspended
         if key.isEnabled && key.registrationError != 0 {
-            lensLog.error("Carbon registration failed for \(binding, privacy: .public): \(key.registrationError)")
+            lensLog.error("Carbon registration failed: \(key.registrationError)")
         }
     }
     reconcileSystemSymbolicHotkeys()
 }
 
-/// Setup creates no hotkey, so every chord, Cmd-Tab included, reaches the system until Start.
+@MainActor func registerModeChords(_ chords: Set<ModeChord>) {
+    guard mayArrangeWindows else { return }
+    let wanted = Set(chords.flatMap { chord in chord.carbonKeyCodes.map { "\(chord.modifiers.rawValue)-\($0)" } })
+    for id in hotkeys.keys.filter({ !wanted.contains($0) }) {
+        hotkeys.removeValue(forKey: id)?.isEnabled = false
+    }
+    for chord in chords {
+        for code in chord.carbonKeyCodes {
+            guard let key = Key(carbonKeyCode: UInt32(code)) else { continue }
+            let id = "\(chord.modifiers.rawValue)-\(code)"
+            guard hotkeys[id] == nil else { continue }
+            hotkeys[id] = HotKey(key: key, modifiers: chord.modifiers, keyDownWithTimeHandler: { time in
+                Task { @MainActor in
+                    guard !hotkeysSuspended else { return }
+                    noteTapBindingKeyDown()
+                    let text = chord.modifiers.contains(.shift) ? key.description.uppercased() : key.description.lowercased()
+                    _ = handleModeKey(code: chord.code, flags: chord.modifiers, characters: text.count == 1 ? text : "", carbon: true,
+                                      origin: LensTraceOrigin(start: time, received: LensTimebase.now(), source: "Carbon"))
+                }
+            })
+        }
+    }
+    applyHotkeyEnabledState()
+}
+
 @MainActor func allowWindowArrangement() async {
     mayArrangeWindows = true
     do { try await activateMode(activeMode) }
@@ -262,11 +210,15 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 }
 
 @MainActor func listeningHotkeyChords() -> Set<SymbolicHotkeyChord> {
-    guard !hotkeysSuspended, let mode = activeMode.flatMap({ config.modes[$0] }) else { return [] }
-    return Set(hotkeys.compactMap { name, key in
-        guard mode.bindings[name] != nil, key.isEnabled, key.registrationError == 0 else { return nil }
+    guard !hotkeysSuspended else { return [] }
+    return Set(hotkeys.compactMap { _, key in
+        guard key.isEnabled, key.registrationError == 0 else { return nil }
         return SymbolicHotkeyChord(keyCode: UInt16(key.keyCombo.carbonKeyCode), modifiers: UInt64(key.keyCombo.modifiers.rawValue))
     })
+}
+
+@MainActor func modeHotkeyForTests(code: UInt16, modifiers: NSEvent.ModifierFlags = []) -> HotKey? {
+    hotkeys["\(modifiers.rawValue)-\(code)"]
 }
 
 @MainActor func tapBindingPressedModifiersForTests() -> Set<TapModifierKey> {
@@ -275,8 +227,4 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 
 @MainActor func hasPendingTapBindingForTests() -> Bool {
     !pendingTapBindings.isEmpty || !pendingTapTriggerTasks.isEmpty
-}
-
-@MainActor func activeHotkeyBinding(_ chord: String, mode: String?, modes: [String: Mode]) -> HotkeyBinding? {
-    mode.flatMap { modes[$0]?.bindings[chord] }
 }

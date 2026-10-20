@@ -7,9 +7,9 @@ struct TriggerBindingCommand: Command {
 
     /// The commands the named binding runs, or nil when the mode or binding does not exist.
     @MainActor var bindingCommands: [any Command]? {
-        guard let mode = config.modes[args.mode] else { return nil }
-        return mode.bindings.values.first(where: { $0.descriptionWithKeyNotation == args.binding.val })?.commands
-            ?? mode.sequenceBindings.values.first(where: { $0.descriptionWithKeyNotation == args.binding.val })?.commands
+        guard config.modes[args.mode] != nil else { return nil }
+        return winningKeyBindings(resolvedModeKeymap(), context: currentKeyContext(mode: args.mode), prefix: [])
+            .first(where: { $0.name == args.binding.val })?.commands
     }
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {

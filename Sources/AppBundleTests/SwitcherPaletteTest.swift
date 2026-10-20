@@ -61,7 +61,7 @@ final class SwitcherPaletteTest: XCTestCase {
         let window = TestWindow.new(id: 88, parent: workspace.rootTilingContainer)
 
         window.testAxRecordAttributes = WindowAxRecordAttributes(title: "Quarterly Planning", subrole: "AXStandardWindow", hasCloseButton: true, document: "")
-        let entries = try await lensWindows(popups: [])
+        let entries = try await lensWindows(popups: [:])
         XCTAssertEqual(entries.first?.record.title, "Quarterly Planning")
         XCTAssertEqual(searchLensWindows(entries, search: "quarterly").map { $0.record.id }, [88])
     }

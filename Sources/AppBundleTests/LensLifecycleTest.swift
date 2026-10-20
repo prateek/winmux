@@ -5,27 +5,24 @@ import XCTest
 
 @MainActor
 final class LensLifecycleTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("search") }
+    func testAcceptedSessionSurvivesOpeningCleanupWhileModeDelaysDrawing() {
+        var mode = Mode.zero; mode.lifetime = .held; mode.drawDelay = 100
+        ModeEngine.shared.replace("held", mode: mode, invocation: .init(keyCode: 48, invoking: .command))
+        var shown = 0
+        let owner = testLensLifecycle(show: { _ in shown += 1 })
+        let model = session("delayed")
+        let ticket = owner.begin("delayed", toggle: false)!
+        XCTAssertTrue(owner.complete(model, ticket: ticket))
+        owner.cancelOpening(ticket: ticket)
+        XCTAssertTrue(owner.session === model)
+        XCTAssertEqual(shown, 0)
+        owner.dismiss()
+    }
     private func session(_ name: String, search: String = "") -> LensSession {
         LensSession(name: name, settings: LensConfig(), items: [], search: search)
     }
 
-    func testOpeningStripAccumulatesForwardAndReverseTriggerSteps() {
-        for (flags, expected): (NSEvent.ModifierFlags, UInt32) in [(.command, 3), ([.command, .shift], 1)] {
-            let store = testLensLifecycle()
-            let gesture = StripGesture(keyCode: 48, invoking: .command)
-            let ticket = store.begin("recent", toggle: true, strip: gesture)!
-            XCTAssertFalse(store.cycleStrip(name: "other", keyCode: 48, flags: .command))
-            XCTAssertFalse(store.cycleStrip(name: "recent", keyCode: 50, flags: .command))
-            XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: flags))
-            var settings = LensConfig(); settings.presentation = "strip"
-            let items = (1...3).map { SwitcherPaletteItem(id: UInt32($0), title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: $0 == 1) }
-            let model = LensSession(name: "recent", settings: settings, items: items, search: "")
-            XCTAssertTrue(store.complete(model, ticket: ticket))
-            XCTAssertEqual(model.selectedId, expected)
-            XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
-            XCTAssertNotNil(store.session)
-        }
-    }
 
     private func stripSession() -> LensSession {
         var settings = LensConfig(); settings.presentation = "strip"
@@ -33,57 +30,8 @@ final class LensLifecycleTest: XCTestCase {
         return LensSession(name: "recent", settings: settings, items: items, search: "")
     }
 
-    func testOpeningStripSortsKeysIntoStepsIgnoredKeysAndOtherBindings() {
-        let store = testLensLifecycle()
-        XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
-        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
-        // Another binding on the invoking key is not a step.
-        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .option), .cancel)
-        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: [.command, .control]), .cancel)
-        // Backtick with the strip's modifiers does nothing in `recent`, as when the strip is ready.
-        XCTAssertEqual(store.openingStripKey(keyCode: 50, flags: .command), .consumed)
-        XCTAssertEqual(store.openingStripKey(keyCode: 37, flags: [.command, .control]), .cancel)
-        let model = stripSession()
-        XCTAssertTrue(store.complete(model, ticket: ticket))
-        XCTAssertEqual(model.selectedId, 2)
-        XCTAssertNil(store.openingStripKey(keyCode: 48, flags: .command))
-    }
 
-    func testReleaseWhileOpeningSettlesTheSelectionAndIsHandedToTheSession() {
-        let store = testLensLifecycle()
-        let ticket = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
-        store.openingFlagsChanged([.command, .shift])
-        store.openingFlagsChanged([.option])
-        store.openingFlagsChanged([])
-        // A press after the release is consumed and does not move the selection.
-        XCTAssertEqual(store.openingStripKey(keyCode: 48, flags: .command), .consumed)
-        let model = stripSession()
-        var committed: String?
-        model.onAction = { committed = $0 }
-        XCTAssertTrue(store.complete(model, ticket: ticket))
-        XCTAssertEqual(model.selectedId, 2)
-        XCTAssertEqual(committed, "alt-enter")
-        XCTAssertNil(model.hold)
-        XCTAssertEqual(model.stripReleaseKey(flags: [.option]), "alt-enter")
 
-        let held = store.begin("recent", toggle: true, strip: StripGesture(keyCode: 48, invoking: .command))!
-        store.openingFlagsChanged([.command, .option])
-        let second = stripSession()
-        XCTAssertTrue(store.complete(second, ticket: held))
-        XCTAssertTrue(store.session === second)
-        XCTAssertNotNil(second.hold)
-        XCTAssertNil(second.stripReleaseKey(flags: [.command, .option]))
-    }
-
-    func testCancelledOpeningDoesNotTransferPendingSteps() {
-        let store = testLensLifecycle()
-        let gesture = StripGesture(keyCode: 48, invoking: .command)
-        let ticket = store.begin("recent", toggle: true, strip: gesture)!
-        XCTAssertTrue(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
-        store.cancelOpening(ticket: ticket)
-        XCTAssertFalse(store.cycleStrip(name: "recent", keyCode: 48, flags: .command))
-        XCTAssertFalse(store.complete(session("recent"), ticket: ticket))
-    }
 
     func testFailedOpenCanRetryOnceAndOldCleanupCannotCancelNewerOpen() {
         let store = testLensLifecycle()
@@ -115,6 +63,18 @@ final class LensLifecycleTest: XCTestCase {
         let third = store.begin("search", toggle: true)!
         store.complete(session("search"), ticket: third)
         XCTAssertEqual(store.session?.name, "search")
+    }
+    func testAdHocIdentityTogglesOnlyWhenFilterAndResolvedSettingsMatch() {
+        let owner = testLensLifecycle()
+        let identity = LensAdHocIdentity(filter: "true", settings: LensConfig())
+        let first = owner.begin("<ad-hoc>", toggle: false, identity: identity)!
+        owner.complete(session("<ad-hoc>"), ticket: first)
+        XCTAssertNil(owner.begin("<ad-hoc>", toggle: false, identity: identity))
+        let second = owner.begin("<ad-hoc>", toggle: false, identity: identity)!
+        owner.complete(session("<ad-hoc>"), ticket: second)
+        let other = LensAdHocIdentity(filter: "false", settings: LensConfig())
+        XCTAssertNotNil(owner.begin("<ad-hoc>", toggle: false, identity: other))
+        owner.dismiss()
     }
 
     func testOvertakenOpenAndDismissedOpenCannotAppearLater() {
@@ -158,7 +118,7 @@ final class LensLifecycleTest: XCTestCase {
             let owner = testLensLifecycle()
             owner.finishShow = { _, instruction in instructions.append(instruction) }
             owner.complete(model, ticket: owner.begin("demo", toggle: false)!)
-            XCTAssertEqual(instructions, [.init(activate: true, focusSearch: presentation == "list")])
+            XCTAssertEqual(instructions, [.init(activate: true, focusSearch: true)])
             model.send(.presentationChanged("list"))
             if presentation != "list" {
                 XCTAssertEqual(instructions.last, .init(activate: false, focusSearch: false))
@@ -191,7 +151,7 @@ final class LensLifecycleTest: XCTestCase {
             var owner: LensLifecycle!
             owner = testLensLifecycle(show: { model in
                 XCTAssertTrue(owner.session === model)
-                if case .ready = owner.state { XCTFail("Ready belongs only to a delayed strip") }
+                if case .closed = owner.state { XCTFail("Accepted sessions are current before show") }
             })
             var settings = LensConfig(); settings.presentation = presentation
             let model = LensSession(name: "demo", settings: settings, items: [], search: "")
@@ -224,42 +184,18 @@ final class LensLifecycleTest: XCTestCase {
         XCTAssertEqual(requests, 5)
     }
 
-    func testAcceptedStripInitializesOnceAndRejectedTicketDoesNotInitialize() {
-        let owner = testLensLifecycle()
-        let model = stripSession()
-        var changes = 0
-        let observation = model.objectWillChange.sink { changes += 1 }
-        let gesture = StripGesture(keyCode: 48, invoking: .command)
-        let ticket = owner.begin("recent", toggle: false)!
-        XCTAssertFalse(owner.complete(model, ticket: ticket - 1, invocation: gesture))
-        XCTAssertNil(model.stripGesture)
-        XCTAssertEqual(changes, 0)
-        XCTAssertTrue(owner.complete(model, ticket: ticket, invocation: gesture))
-        XCTAssertNotNil(model.stripGesture)
-        XCTAssertEqual(changes, 3, "One Hold state change, one initialization and one application of accumulated steps")
-        owner.dismiss()
-        withExtendedLifetime(observation) {}
-    }
 
-    func testPanelDoesNotStartStripOrOwnSessionEffects() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let panel = try String(contentsOf: root.appendingPathComponent("AppBundle/ui/hud/SwitcherPalette.swift"), encoding: .utf8)
-        XCTAssertFalse(panel.contains(".beginStrip("), "Only the owner initializes a strip, after accepting its ticket")
-        for field in ["stripDisplay", "thumbnailRefresh", "thumbnailSession", "inlineSearch"] {
-            XCTAssertFalse(panel.contains("var \(field)"), field)
-        }
-    }
 
     func testConfigReloadDoesNotChangeOpenEntriesOrKeyActions() {
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)
         let store = testLensLifecycle()
         let ticket = store.begin("demo", toggle: true)!
         var settings = LensConfig()
-        settings.keys["cmd-x"] = ["close"]
+        testModeBindings["cmd-x"] = ["close"]
         store.complete(LensSession(name: "demo", settings: settings, items: [item], search: ""), ticket: ticket)
         config.lenses = [:]
         XCTAssertEqual(store.session?.results.map(\.id), [1])
-        XCTAssertEqual(store.session?.commands(for: "cmd-x"), ["close"])
+        XCTAssertEqual(store.session?.actionCommandsForTests(for: "cmd-x"), ["close"])
     }
 
     func testInteractiveFailureKeepsAllAlreadyGatedCandidatesWithBanner() {

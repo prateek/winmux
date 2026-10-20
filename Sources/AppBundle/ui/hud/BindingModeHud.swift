@@ -35,7 +35,9 @@ func bindingModeHudText(mode: String?, enabled: Bool) -> String? {
     }
 
     func refresh() {
-        refresh(mode: activeMode, enabled: TrayMenuModel.shared.isEnabled) {
+        let pending = ModeEngine.shared.pendingNames
+        let label = activeMode.map { pending.isEmpty ? $0 : "\($0)  \(pending)" }
+        refresh(mode: label, enabled: TrayMenuModel.shared.isEnabled) {
             focus.workspace.workspaceMonitor.visibleRect.toAppKitScreenRect
         }
     }

@@ -5,6 +5,7 @@ import XCTest
 
 @MainActor
 final class LensPointerTest: XCTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
     private func items(_ count: Int = 4, wide: Bool = false) -> [SwitcherPaletteItem] {
         (1...count).map {
             SwitcherPaletteItem(id: UInt32($0), title: "Window \($0)", appName: "Demo", icon: nil,
@@ -88,24 +89,30 @@ final class LensPointerTest: XCTestCase {
         }
     }
 
-    func testLastPointerOrTabInputIsTheReleaseTarget() {
+    func testLastPointerOrTabInputIsTheReleaseTarget() async {
         for presentation in ["strip", "grid"] {
             for pointerLast in [false, true] {
                 var settings = LensConfig(); settings.presentation = presentation
                 let session = LensSession(name: "release", settings: settings, items: items(), search: "")
                 let owner = testLensLifecycle(); defer { owner.dismiss() }
-                let gesture = StripGesture(keyCode: 48, invoking: .command)
-                let ticket = owner.begin(session.name, toggle: false, strip: presentation == "strip" ? gesture : nil,
-                                         invocation: gesture, settings: settings)!
+                let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+                let ticket = owner.begin(session.name, toggle: false,
+                                         settings: settings)!
                 var targets: [UInt32] = []
                 session.onAction = { targets += session.targets(for: $0) }
                 owner.complete(session, ticket: ticket)
                 let layout = presentation == "strip" ? session.stripSnapshot.layout : session.gridLayout
                 let frame = layout.tiles[0].frame
-                if pointerLast { session.perform(.step(1)) }
+                if pointerLast { session.cycleStripSelection(1) }
                 session.hoverTile(at: CGPoint(x: frame.midX, y: frame.midY), pointerLocation: CGPoint(x: 10000, y: 10000))
-                if !pointerLast { session.perform(.step(1)) }
-                owner.stripFlagsChanged([], from: session)
+                if !pointerLast { session.cycleStripSelection(1) }
+                if presentation == "strip" {
+                    enterModeForTests("cmd-tab", gesture: gesture)
+                    ModeEngine.shared.execute = { commands in
+                        if commands.contains(where: { $0.args.description == "lens focus" }) { session.onAction?("enter") }
+                    }
+                    await ModeEngine.shared.observeModifiers([])
+                }
                 if presentation == "grid" {
                     // A grid stays open on release; Return commits the last input.
                     XCTAssertEqual(targets, [], "grid, pointerLast=\(pointerLast)")
@@ -182,9 +189,9 @@ final class LensPointerTest: XCTestCase {
     func testGridReleaseWhileOpeningLeavesTheGridOpen() {
         let owner = testLensLifecycle(); defer { owner.dismiss() }
         var settings = LensConfig(); settings.presentation = "grid"
-        let gesture = StripGesture(keyCode: 48, invoking: .command)
-        let ticket = owner.begin("early", toggle: false, invocation: gesture, settings: settings)!
-        owner.openingFlagsChanged([])
+        let gesture = ModeInvocation(keyCode: 48, invoking: .command)
+        let ticket = owner.begin("early", toggle: false, settings: settings)!
+        owner.openingModifiersChanged([])
         let session = LensSession(name: "early", settings: settings, items: items(), search: "")
         var targets: [UInt32] = []
         session.onAction = { targets += session.targets(for: $0) }
@@ -196,7 +203,7 @@ final class LensPointerTest: XCTestCase {
     func testHeldGridClickSubtractsTriggerModifiersAndRunsFocus() throws {
         var settings = LensConfig(); settings.presentation = "grid"
         let session = LensSession(name: "click-hold", settings: settings, items: items(), search: "")
-        session.startHold(StripGesture(keyCode: 48, invoking: .command))
+        session.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .command))
         let frame = session.gridLayout.tiles[3].frame
         let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: .command,
                                                    timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 0))
@@ -207,7 +214,7 @@ final class LensPointerTest: XCTestCase {
                                                      timestamp: 1, windowNumber: 0, context: nil, eventNumber: 2, clickCount: 1, pressure: 0))
         session.clickTile(at: CGPoint(x: frame.midX, y: frame.midY), event: shifted)
         XCTAssertEqual(session.selectedId, 4)
-        XCTAssertEqual(keys, ["enter", "shift-enter"])
+        XCTAssertEqual(keys, ["enter", "enter"])
     }
 
     func testMiniaturePageTurnReanchorsEvenWhenItsSelectionDoesNotChange() {
@@ -245,7 +252,7 @@ final class LensPointerTest: XCTestCase {
             pointer = point
             session.hoverTile(at: point, pointerLocation: pointer)
             XCTAssertEqual(session.selectedId, 1)
-            session.perform(.step(1))
+            session.cycleStripSelection(1)
             session.hoverTile(at: point, pointerLocation: pointer)
             XCTAssertEqual(session.selectedId, 2, "Selection redraw under a still pointer is not pointer input")
             pointer.x += 1
@@ -288,7 +295,7 @@ final class LensPointerTest: XCTestCase {
             let session = LensSession(name: "edge", settings: settings, items: items(), search: "", pointerLocation: { pointer })
             pointer.x = 2
             session.hover(4, at: pointer)
-            session.perform(.arrow(124))
+            session.step("right")
             XCTAssertEqual(session.selectedId, 4)
             pointer.x += 0.5
             session.hover(1, at: pointer)
@@ -325,10 +332,16 @@ final class LensPointerTest: XCTestCase {
         let clock = TestClock<Duration>()
         var pointer = CGPoint.zero
         var settings = LensConfig(); settings.presentation = "strip"
-        let owner = testLensLifecycle(clock: clock); defer { owner.dismiss() }
-        let ticket = owner.begin("delay", toggle: false, strip: StripGesture(keyCode: 48, invoking: .command, clock: clock), settings: settings)!
+        let engine = ModeEngine(clock: clock, liveModifiers: { .command })
+        engine.execute = { _ in }
+        var held = defaultConfig.modes["cmd-tab"]!
+        held.onEnter = []
+        try await engine.enter("cmd-tab", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        let owner = testLensLifecycle(clock: clock, modeEngine: engine); defer { owner.dismiss() }
+        let ticket = owner.begin("delay", toggle: false, settings: settings)!
         let session = LensSession(name: "delay", settings: settings, items: items(), search: "", pointerLocation: { pointer })
         owner.complete(session, ticket: ticket)
+        await engine.waitForReadiness()
         guard case .ready = owner.state else { return XCTFail("Expected the strip to wait for its display delay") }
         pointer = CGPoint(x: 50, y: 0)
         await clock.advance(by: .milliseconds(100))
@@ -345,8 +358,8 @@ final class LensPointerTest: XCTestCase {
         for presentation in ["list", "miniatures"] {
             var settings = LensConfig(); settings.presentation = presentation
             let session = LensSession(name: "held-click", settings: settings, items: items(), search: "")
-            session.startHold(StripGesture(keyCode: 48, invoking: .command))
-            for (flags, expected): (NSEvent.ModifierFlags, String) in [(.command, "enter"), ([.command, .shift], "shift-enter")] {
+            session.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .command))
+            for (flags, expected): (NSEvent.ModifierFlags, String) in [(.command, "enter"), ([.command, .shift], "enter")] {
                 let event = try XCTUnwrap(NSEvent.mouseEvent(with: .leftMouseUp, location: .zero, modifierFlags: flags,
                     timestamp: 0, windowNumber: 0, context: nil, eventNumber: 1, clickCount: 1, pressure: 0))
                 session.hover(4)

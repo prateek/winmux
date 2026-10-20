@@ -1,7 +1,6 @@
-import Common
 import HotKey
 
-let dvorakMap: [String: Key] = keyNotationToKeyCode + [
+public let dvorakMap: [String: Key] = keyNotationToKeyCode + [
     leftSquareBracket: .minus,
     rightSquareBracket: .equal,
 
@@ -43,7 +42,7 @@ let dvorakMap: [String: Key] = keyNotationToKeyCode + [
     z: .slash,
 ]
 
-let colemakMap: [String: Key] = keyNotationToKeyCode + [
+public let colemakMap: [String: Key] = keyNotationToKeyCode + [
     q: .q,
     w: .w,
     f: .e,

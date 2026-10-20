@@ -1,6 +1,6 @@
 import AppKit
 
-let modifiersMap: [String: NSEvent.ModifierFlags] = [
+public let modifiersMap: [String: NSEvent.ModifierFlags] = [
     "shift": .shift,
     "alt": .option,
     "ctrl": .control,
@@ -8,7 +8,7 @@ let modifiersMap: [String: NSEvent.ModifierFlags] = [
 ]
 
 extension NSEvent.ModifierFlags {
-    func toString() -> String {
+    public func toString() -> String {
         var result: [String] = []
         if contains(.option) { result.append("alt") }
         if contains(.control) { result.append("ctrl") }

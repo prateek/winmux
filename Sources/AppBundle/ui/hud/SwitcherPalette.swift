@@ -43,18 +43,38 @@ final class SwitcherPalettePanel: NSPanelHud {
     private var eatenButtons = 0
     var eatsClicks: Bool { eatenButtons > 0 }
     var session: LensSession? { lifecycle.session }
+    var inputTrace: LensOpeningTrace? { lifecycle.trace }
+    var activateInput: (NSPanel) -> Void = { panel in
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKey()
+    }
+    private var openedWithHeldModifiers = false
+    private var replayingEvent: NSEvent?
+    var replayKeyEvent: (NSEvent) -> Void = { NSApp.sendEvent($0) }
     var isPaletteActive: Bool { session != nil }
     var isLensOpen: Bool { lifecycle.isOpen }
+    var openLensName: String? { lifecycle.openName }
+    var openPresentation: String? { lifecycle.openPresentation }
 
-    init(emit: @escaping (ServerEvent) -> Void) {
-        lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
+    init(dependencies: LensLifecycle.Dependencies = .live(), emit: @escaping (ServerEvent) -> Void) {
+        lifecycle = LensLifecycle(dependencies: dependencies, emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
-        lifecycle.openChanged = { WindowTabHintController.shared.reconcile() }
+        lifecycle.openChanged = {
+            WindowTabHintController.shared.reconcile()
+            if !isUnitTest { reconcileModeContext() }
+        }
         lifecycle.finishShow = { [weak self] model, instruction in self?.finishShow(model, instruction: instruction) }
         lifecycle.updatePresentation = { [weak self] model in self?.updateGridFrame(model); self?.updatePeek(model) }
-        lifecycle.inputStateChanged = { [weak self] model in self?.updateInputFocus(model) }
+        lifecycle.modeChanged = { [weak self] model in
+            guard let self else { return }
+            if self.isVisible, ModeEngine.shared.properties.unbound != .pass {
+                if self.openedWithHeldModifiers { self.makeKey() }
+                else { self.activateInput(self) }
+            }
+            self.updateInputFocus(model)
+        }
         lifecycle.hide = { [weak self] in self?.clearPresentation() }
         lifecycle.observeFrames = { [weak self] statistics in
             statistics.observeFrames(enabled: lensFrameSamplingEnabled) { [weak self] tick in
@@ -97,7 +117,7 @@ final class SwitcherPalettePanel: NSPanelHud {
 
     func prepareAtStartup() async {
         let started = LensTimebase.now()
-        let entries = (try? await lensWindows(popups: [])) ?? []
+        let entries = (try? await lensWindows(popups: [:])) ?? []
         // A Lens that opened during the read owns the panel; drawing here would replace its view.
         let idle = if case .closed = lifecycle.state { true } else { false }
         let workspaces = miniatureWorkspaceSnapshot(entries)
@@ -116,7 +136,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         lensLog.notice("Lens startup preparation took \(Int((LensTimebase.now() - started) * 1000)) ms")
     }
 
-    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, invocation: StripGesture? = nil, eventFilter: String? = nil) async {
+    func openLens(name: String, settings: LensConfig, entries: [LensWindow], search: String?, banner: String?, context: JSONValue, ticket: Int, eventFilter: String? = nil) async {
         // The grid's 'real size needs a floating window's frame as it is now, as miniatures does.
         if settings.presentation == "miniatures" || settings.presentation == "grid" {
             await withTaskGroup(of: Void.self) { group in
@@ -147,7 +167,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         let records = entries.map { $0.record.json }
         let ids = entries.map { $0.window.windowId }
-        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids, invocation: invocation)
+        lifecycle.complete(model, ticket: ticket, context: context, windows: records, ids: ids)
     }
 
     private func presentationItems(_ entries: [LensWindow], settings: LensConfig, workspaces: [MiniatureWorkspace]) -> [SwitcherPaletteItem] {
@@ -198,20 +218,39 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
-        if instruction.activate { NSApp.activate(ignoringOtherApps: true) }
-        makeKey()
+        if instruction.activate { openedWithHeldModifiers = !ModeEngine.shared.entryModifiers.isEmpty }
+        guard ModeEngine.shared.properties.unbound != .pass else { return }
+        if instruction.activate && !openedWithHeldModifiers { activateInput(self) }
+        else { makeKey() }
         updateInputFocus(model, selectAll: instruction.focusSearch)
     }
 
+    // Whether the panel is key decides which plain chords Carbon takes, however it became key.
+    override func becomeKey() {
+        super.becomeKey()
+        if !isUnitTest { reconcileModeContext() }
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        if !isUnitTest { reconcileModeContext() }
+    }
+
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        openedWithHeldModifiers = false
+        if !isUnitTest { reconcileModeContext() }
+    }
+
     private func updateInputFocus(_ model: LensSession, selectAll: Bool = false) {
-        if model.inputState != .search {
+        if !model.isTyping {
             if firstResponder !== self { _ = makeFirstResponder(self) }
         } else if model.settings.presentation != "strip", selectAll || !(firstResponder is NSTextView) {
             let initialQuery = model.query
             let selectAll = selectAll || !model.searchEdited
             focusSearch(model, selectAll: selectAll)
             DispatchQueue.main.async { [weak self, weak model] in
-                guard let self, let model, self.session === model, model.inputState == .search,
+                guard let self, let model, self.session === model, model.isTyping,
                       !(self.firstResponder is NSTextView) else { return }
                 self.focusSearch(model, selectAll: selectAll && !model.searchEdited && model.query == initialQuery)
             }
@@ -230,12 +269,6 @@ final class SwitcherPalettePanel: NSPanelHud {
         if editor.string != model.query { editor.string = model.query }
         editor.setSelectedRange(NSRange(location: (model.query as NSString).length, length: 0))
     }
-
-    func cycleStrip(name: String, invocation: StripGesture, identity: LensAdHocIdentity? = nil) -> Bool {
-        guard let code = invocation.keyCode else { return false }
-        return lifecycle.cycleStrip(name: name, keyCode: code, flags: invocation.invoking, identity: identity)
-    }
-
     func stripWindowClosed(_ id: UInt32) {
         guard let session else { return }
         // Miniatures draws each window where it sits and keeps its cells for the session.
@@ -247,19 +280,19 @@ final class SwitcherPalettePanel: NSPanelHud {
         let result = super.makeFirstResponder(responder)
         if result, let model = session {
             lifecycle.trace?.key(code: 0, characters: "", flags: [], timestamp: LensTimebase.now(),
-                presentation: model.settings.presentation, state: model.inputState, hold: model.hold != nil,
+                presentation: model.settings.presentation, state: activeMode ?? mainModeId, hold: model.isHeld,
                 path: "focus", destination: firstResponder is NSTextView ? "Search first responder" : "other responder",
                 search: model.query, selectedId: model.selectedId, fieldEditor: firstResponder is NSTextView)
         }
         return result
     }
 
-    func stripFlagsChanged(_ flags: NSEvent.ModifierFlags) {
-        guard let model = session else { lifecycle.openingFlagsChanged(flags); return }
-        let wasHeld = model.hold != nil
-        lifecycle.stripFlagsChanged(flags, from: model)
+    func modifiersChanged(_ flags: NSEvent.ModifierFlags) {
+        guard let model = session else { lifecycle.openingModifiersChanged(flags); return }
+        let wasHeld = model.isHeld
+        lifecycle.modifiersChanged(flags, from: model)
         // An untouched Search keeps the selection it opened with.
-        if wasHeld, model.hold == nil, model.searchEdited { synchronizeSearchEditor(model) }
+        if wasHeld, !model.isHeld, model.searchEdited { synchronizeSearchEditor(model) }
     }
 
     private func prepare(_ model: LensSession, startup: Bool = false) {
@@ -324,8 +357,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         preparedSession = model
     }
 
-    func beginLens(_ name: String, toggle: Bool, strip: StripGesture? = nil, trace: LensOpeningTrace? = nil, keys: [LensKeyBinding] = [], invocation: StripGesture? = nil, settings: LensConfig? = nil, identity: LensAdHocIdentity? = nil) -> Int? {
-        lifecycle.begin(name, toggle: toggle, strip: strip, trace: trace, keys: keys, invocation: invocation, settings: settings, identity: identity)
+    func beginLens(_ name: String, toggle: Bool, trace: LensOpeningTrace? = nil, settings: LensConfig? = nil, identity: LensAdHocIdentity? = nil) -> Int? {
+        lifecycle.begin(name, toggle: toggle, trace: trace, settings: settings, identity: identity)
     }
 
     func cancelLensOpening(ticket: Int) { lifecycle.cancelOpening(ticket: ticket) }
@@ -370,16 +403,14 @@ final class SwitcherPalettePanel: NSPanelHud {
     private func performAction(_ key: String) {
         guard let model = session else { return }
         if model.performPeekAction(key) || model.performSectionsAction(key) { return }
-        let commands = model.commands(for: key)
-        guard !commands.isEmpty else {
-            if model.commitsOnRelease, key.hasSuffix("enter") { dismiss() }
-            return
+        let commands = model.commands(for: key).compactMap { raw -> (any Command)? in
+            if case .cmd(let command) = parseCommand(raw) { return command }
+            return nil
         }
-        let keepOpen = model.keepsOpen(after: key)
-        let origin = LensTraceOrigin.internalNow()
-        if !keepOpen { dismiss() }
-        runLensCommands(model, label: key, origin: origin) { io in try await runLensAction(commands, session: model, io: io) }
+        triggerBinding(key, commands)
     }
+
+    func currentModeChanged() { lifecycle.currentModeChanged() }
 
     private func performControl(_ control: TileWindowControl, windowId: UInt32, model: LensSession) {
         runLensCommands(model, label: control.command) { io in
@@ -408,73 +439,54 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
     }
 
-    private func routeKey(_ event: NSEvent, path: String, carbon: Bool = false) -> Bool {
-        guard let model = session else { return false }
-        let receivedAt = LensTimebase.now()
-        let trace = lifecycle.trace
-        let presentation = model.settings.presentation
-        let held = model.hold != nil
-        let state = model.inputState
-        let editor = firstResponder is NSTextView
-        let composing = (firstResponder as? NSTextView)?.hasMarkedText() == true
-        let meaning = model.meaning(for: event, source: carbon ? .carbon : .panel, composing: composing)
-        let handled: Bool
-        let destination: String
-        switch meaning {
-            case .globalBinding: handled = false; destination = "global binding"
-            case .dismiss: dismiss(); handled = true; destination = "dismissed"
-            case .triggerGlobal: handled = false; destination = "global Trigger"
-            case .global: dismiss(); handled = !carbon; destination = "dismissed; global binding"
-            default:
-                if state == .search, editor, meaning.editsSearch {
-                    model.noteSearchEdit()
-                    handled = false
-                } else { handled = model.perform(meaning) }
-                switch meaning {
-                    case .text, .backspace: destination = handled ? "Search" : editor ? "passed to field editor" : "dropped"
-                    case .endHold: destination = "Hold ended by key; " + model.inputState.rawValue
-                    case .enterSearch: destination = "entered Search"
-                    case .leaveSearch: destination = "left Search"
-                    case .command(let key): destination = "Lens keys command " + key
-                    case .step: destination = "step"
-                    case .arrow, .mark: destination = "selection"
-                    case .endPeek: destination = "peek ended"
-                    case .dropped: destination = "dropped"
-                    default: destination = editor ? "passed to field editor" : "dropped"
-                }
-                if handled, session === model {
-                    switch meaning {
-                        case .text, .backspace, .endHold: synchronizeSearchEditor(model)
-                        default: break
-                    }
-                }
-                if carbon, !handled, model.commitsOnRelease { dismiss() }
+    private func routeKey(_ event: NSEvent, path: String) -> Bool {
+        guard session != nil, event !== replayingEvent else { return false }
+        return handleModeKey(code: event.keyCode, flags: event.modifierFlags,
+                             characters: lensCharacters(event),
+                             origin: LensTraceOrigin(start: event.timestamp, received: LensTimebase.now(), source: path),
+                             composing: (firstResponder as? NSTextView)?.hasMarkedText() == true,
+                             replay: { [weak self] in self?.replayNatively(event) })
+    }
+
+    /// Sends a key that waited behind queued input down the path it would have taken had routeKey returned false.
+    private func replayNatively(_ event: NSEvent) {
+        guard session != nil, isVisible else { return }
+        replayingEvent = event
+        defer { replayingEvent = nil }
+        replayKeyEvent(event)
+    }
+
+    func typeModeKey(code: UInt16, characters: String) {
+        guard let model = session else { return }
+        if let editor = firstResponder as? NSTextView {
+            model.noteSearchEdit()
+            if code == 51 { editor.deleteBackward(nil) }
+            else { editor.insertText(characters, replacementRange: editor.selectedRange()) }
+            model.send(.searchChanged(editor.string))
+            return
         }
-        trace?.key(code: event.keyCode, characters: event.charactersIgnoringModifiers ?? "", flags: event.modifierFlags,
-                   timestamp: event.timestamp, presentation: presentation, state: state, hold: held, path: path,
-                   destination: destination, search: model.query, selectedId: model.selectedId, fieldEditor: editor, receivedAt: receivedAt)
-        return handled
+        model.typeKey(code: code, characters: characters)
+        synchronizeSearchEditor(model)
+    }
+
+    func moveSearchCaret(_ direction: String) {
+        guard let editor = firstResponder as? NSTextView else { return }
+        if direction == "left" { editor.moveLeft(nil) } else { editor.moveRight(nil) }
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if routeKey(event, path: "performKeyEquivalent") { return true }
-        return super.performKeyEquivalent(with: event)
+        return super.performKeyEquivalent(with: searchEditorEvent(event))
     }
 
-    func handleStripHotkey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, characters: String, timestamp: Double? = nil) -> Bool {
-        let text = characters.count == 1 ? characters : keyCode == 49 ? " " : ""
-        guard let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers,
-                                          timestamp: timestamp ?? LensTimebase.now(), windowNumber: windowNumber,
-                                          context: nil, characters: text, charactersIgnoringModifiers: text,
-                                          isARepeat: false, keyCode: keyCode) else { return false }
-        let heldText = lifecycle.openingGesture.map { lensCharacters(event, hold: $0) }
-        if let input = lifecycle.openingStripKey(keyCode: keyCode, flags: modifiers, characters: text,
-                                                holdCharacters: heldText, timestamp: timestamp, source: .carbon) {
-            if input == .consumed { return true }
-            if input == .cancel { dismiss() }
-            return false
-        }
-        return routeKey(event, path: "Carbon", carbon: true)
+    private func searchEditorEvent(_ event: NSEvent) -> NSEvent {
+        let discounted = event.modifierFlags.subtracting(ModeEngine.shared.textModifiers.union(ModeEngine.shared.entryModifiers))
+        guard discounted != event.modifierFlags, event.type == .keyDown else { return event }
+        return NSEvent.keyEvent(with: event.type, location: event.locationInWindow, modifierFlags: discounted,
+                               timestamp: event.timestamp, windowNumber: event.windowNumber, context: nil,
+                               characters: event.characters(byApplyingModifiers: discounted) ?? event.characters ?? "",
+                               charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "", isARepeat: event.isARepeat,
+                               keyCode: event.keyCode) ?? event
     }
 
     override func sendEvent(_ event: NSEvent) {
@@ -494,7 +506,7 @@ final class SwitcherPalettePanel: NSPanelHud {
         }
         if event.type == .keyDown {
             if routeKey(event, path: "sendEvent") { return }
-            if session === model, model.inputState != .search { return }
+            if session === model, !model.isTyping { return }
         }
         if event.type == .scrollWheel, model.settings.presentation == "miniatures" {
             if let turn = scrollPaging.turn(delta: event.scrollingDeltaY, sideways: event.scrollingDeltaX, phase: event.phase, momentum: event.momentumPhase, time: event.timestamp) { model.turnMiniaturePage(turn) }
@@ -505,7 +517,7 @@ final class SwitcherPalettePanel: NSPanelHud {
                               momentum: event.momentumPhase, time: event.timestamp, precise: event.hasPreciseScrollingDeltas, paging: &scrollPaging)
             return
         }
-        super.sendEvent(event)
+        super.sendEvent(event.type == .keyDown ? searchEditorEvent(event) : event)
     }
 
     override var canBecomeKey: Bool { true }

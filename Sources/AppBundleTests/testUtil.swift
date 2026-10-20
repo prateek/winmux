@@ -40,6 +40,13 @@ func setUpWorkspacesForTests() {
 
     // Don't create any bindings and workspaces for tests
     config.modes = [mainModeId: Mode(bindings: [:], tapBindings: [:])]
+    config.keymap = []
+    ModeEngine.shared.changed = {}
+    ModeEngine.shared.modeChanged = {}
+    ModeEngine.shared.didEnter = { _, _ in }
+    ModeEngine.shared.execute = { commands in _ = try await commands.runCmdSeq(.defaultEnv, .emptyStdin) }
+    ModeEngine.shared.lensClosed()
+    ModeEngine.shared.replace(mainModeId, mode: .zero)
     config.persistentWorkspaces = []
 
     for workspace in Workspace.all {

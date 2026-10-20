@@ -5,6 +5,7 @@ import XCTest
 
 @MainActor
 final class LensInlineSearchTest: SerialClockTestCase {
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("search") }
     func testDisplayDeadlineKeepsLastResultAndIgnoresLateSuccess() async throws {
         let clock = TestClock()
         let item = SwitcherPaletteItem(id: 1, title: "Demo", appName: "Demo", icon: nil, workspaceName: "1", isFocused: false)

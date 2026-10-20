@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class SectionSessionTest: SerialClockTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
     private func items() -> [SwitcherPaletteItem] {
         [SwitcherPaletteItem(id: 1, title: "Focused", appName: "Editor", icon: nil, workspaceName: "1", appIdentity: "editor", isFocused: true),
          SwitcherPaletteItem(id: 2, title: "needle", appName: "Mail", icon: nil, workspaceName: "2", appIdentity: "mail", isFocused: false),
@@ -31,6 +31,7 @@ final class SectionSessionTest: SerialClockTestCase {
         XCTAssertEqual(model.selectedId, 2)
     }
     func testAnInlineResultKeepsTheSelectionOnItsWindow() {
+        enterModeForTests("search")
         let model = LensSession(name: "recent", settings: LensConfig(), items: items(), search: "= true")
         XCTAssertEqual(model.selectedId, 2)
         model.acceptInlineResult([1, 2, 3])
@@ -83,64 +84,42 @@ final class SectionSessionTest: SerialClockTestCase {
         XCTAssertEqual(model.selectedId, 2)
         XCTAssertEqual(model.settings.sections, "app")
     }
-    func testHoldGIsLetterOnlyUntilPresentationDrawsSections() {
-        func key(_ code: UInt16, _ text: String) -> NSEvent {
-            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code)!
-        }
+    func testHeldGroupingKeyOnlyChangesPresentationsWithSections() {
         for presentation in ["strip", "list", "grid", "miniatures"] {
             var settings = LensConfig(); settings.presentation = presentation
             let model = LensSession(name: "demo", settings: settings, items: items(), search: "")
-            model.startHold(StripGesture(keyCode: 48, invoking: .command))
-            if presentation == "strip" || presentation == "miniatures" {
-                XCTAssertEqual(model.meaning(for: key(5, "g")), .endHold(5, "g"))
-                _ = model.perform(model.meaning(for: key(5, "g")))
-                XCTAssertEqual(model.query, "")
-                XCTAssertEqual(model.settings.presentation, presentation)
-            } else {
-                XCTAssertEqual(model.meaning(for: key(5, "g")), .command("cmd-g"))
-                _ = model.perform(model.meaning(for: key(5, "g")))
-                XCTAssertNotNil(model.hold)
-                _ = model.perform(model.meaning(for: key(37, "l")))
-                XCTAssertNil(model.hold)
-            }
-            let query = model.query
-            if presentation == "miniatures" || presentation == "strip" { model.changeSections("next") }
-            else {
-                XCTAssertEqual(lensKeyMeaning(state: model.inputState, hold: model.hold, keys: model.activeKeyBindings, code: 5, characters: "g", flags: .command), .command("cmd-g"))
-                _ = model.perform(model.meaning(for: key(5, "g")))
-            }
-            XCTAssertEqual(model.query, query)
-            XCTAssertEqual(model.settings.sections, presentation == "miniatures" || presentation == "strip" ? "workspace" : "none")
-            model.endHold(flags: [])
-            if presentation == "list" || presentation == "grid" {
-                _ = model.perform(model.meaning(for: key(5, "g")))
-                XCTAssertEqual(model.settings.sections, "workspace")
-                XCTAssertEqual(model.query, query)
-            }
+            model.enterHeldModeForTests(ModeInvocation(keyCode: 48, invoking: .command))
+            let before = model.settings.sections
+            model.changeSections("next")
+            XCTAssertEqual(model.settings.sections, ["list", "grid"].contains(presentation) ? "app" : before)
+            XCTAssertTrue(model.isHeld)
+            XCTAssertEqual(model.query, "")
         }
     }
+
 }
 
 
 extension SectionSessionTest {
-    func testQueuedHoldLettersReResolveBindingsAfterStripConversion() {
-        let clock = TestClock<Duration>()
-        let owner = testLensLifecycle(clock: clock)
-        var settings = LensConfig(); settings.presentation = "strip"; settings.startsIn = "search"
-        let gesture = StripGesture(keyCode: 48, invoking: .command, clock: clock)
-        let ticket = owner.begin("demo", toggle: false, strip: gesture, keys: LensSession.openingBindings(settings), settings: settings)!
-        for (code, text, flags): (UInt16, String, NSEvent.ModifierFlags) in [(5, "g", .command), (4, "h", []), (5, "g", .command)] {
-            XCTAssertEqual(owner.openingStripKey(keyCode: code, flags: flags, characters: text), .consumed)
-        }
-        owner.openingFlagsChanged([])
+    func testQueuedKeysResolveAfterPresentationConversionInArrivalOrder() async {
+        enterModeForTests("browse")
+        let owner = testLensLifecycle()
+        var settings = LensConfig(); settings.presentation = "strip"
+        let ticket = owner.begin("demo", toggle: false)!
         let model = LensSession(name: "demo", settings: settings, items: items(), search: "")
+        for (code, text, flags): (UInt16, String, NSEvent.ModifierFlags) in [(44, "/", []), (5, "g", []), (4, "h", []), (5, "g", .command)] {
+            let key = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: code)!
+            ModeEngine.shared.whenLensReady { model.pressForTests(key) }
+        }
         owner.complete(model, ticket: ticket)
+        await ModeEngine.shared.waitForReadiness()
         defer { owner.dismiss() }
         XCTAssertEqual(model.query, "gh")
         XCTAssertEqual(model.settings.sections, "app")
         XCTAssertEqual(model.settings.presentation, "list")
-        XCTAssertNil(model.hold)
+        XCTAssertFalse(model.isHeld)
     }
+
     func testCycleSnapshotExplicitExtraAndEmptyResultsAndBindingChip() {
         var settings = LensConfig(); settings.sections = "monitor"
         let model = LensSession(name: "demo", settings: settings, items: items(), search: "")
@@ -152,8 +131,8 @@ extension SectionSessionTest {
         XCTAssertTrue(model.results.isEmpty)
         XCTAssertTrue(model.performSectionsAction("cmd-g"))
         XCTAssertEqual(model.settings.sections, "workspace")
-        settings.keys["cmd-g"] = []
-        settings.keys["alt-g"] = ["sections next"]
+        testModeBindings["cmd-g"] = []
+        testModeBindings["alt-g"] = ["sections next"]
         let custom = LensSession(name: "custom", settings: settings, items: items(), search: "")
         XCTAssertEqual(custom.sectionsKey, "alt-g")
     }

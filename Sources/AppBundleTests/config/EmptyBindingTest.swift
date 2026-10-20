@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class EmptyBindingTest: XCTestCase {
-    func testEmptyChordsAndSequencesAreAbsentButTapAndNonemptyBindingsRemain() throws {
+    func testEmptyChordsAndSequencesConsumeButTapAndNonemptyBindingsRemain() throws {
         let (parsed, errors) = parseConfig("""
         on-mode-changed = []
         after-startup-command = []
@@ -19,8 +19,8 @@ final class EmptyBindingTest: XCTestCase {
         """)
         XCTAssertTrue(errors.isEmpty, "\(errors)")
         let mode = try XCTUnwrap(parsed.modes["main"])
-        XCTAssertEqual(Set(mode.bindings.values.map(\.descriptionWithKeyNotation)), ["cmd-tab"])
-        XCTAssertEqual(Set(mode.sequenceBindings.keys), ["esc-l"])
+        XCTAssertEqual(Set(mode.bindings.values.map(\.descriptionWithKeyNotation)), ["cmd-tab", "alt-slash"])
+        XCTAssertEqual(Set(mode.sequenceBindings.keys), ["esc-l", "esc-h"])
         XCTAssertEqual(mode.sequenceBindings["esc-l"]?.commands.count, 1)
         XCTAssertEqual(mode.tapBindings["left-alt"]?.commands.count, 0)
         XCTAssertEqual(mode.tapBindings["right-alt"]?.commands.count, 1)
@@ -41,7 +41,7 @@ final class EmptyBindingTest: XCTestCase {
         }
     }
 
-    func testEmptyBindingsAreUnboundForDispatchConfigAndSettings() async throws {
+    func testEmptyBindingsConsumeForDispatchConfigAndSettings() async throws {
         setUpWorkspacesForTests()
         let (parsed, errors) = parseConfig("""
         [mode.main.binding]
@@ -51,20 +51,20 @@ final class EmptyBindingTest: XCTestCase {
         """)
         XCTAssertTrue(errors.isEmpty, "\(errors)")
         config = parsed
-        XCTAssertNil(activeHotkeyBinding("alt-slash", mode: "main", modes: config.modes))
-        XCTAssertNotNil(activeHotkeyBinding("alt-j", mode: "main", modes: config.modes))
+        XCTAssertNotNil(activeHotkeyBinding("alt-slash", mode: "main", modes: config))
+        XCTAssertNotNil(activeHotkeyBinding("alt-j", mode: "main", modes: config))
         for chord in ["alt-slash", "esc-h"] {
             let result = try await parseCommand("trigger-binding --mode main \(chord)").cmdOrDie.run(.defaultEnv, .emptyStdin)
-            XCTAssertEqual(result.exitCode, 1)
-            XCTAssertEqual(result.stderr.joined(), "Binding '\(chord)' is not presented in mode 'main'")
+            XCTAssertEqual(result.exitCode, 0)
+            XCTAssertTrue(result.stderr.isEmpty)
         }
         let listed = try await parseCommand("config --get mode.main.binding --json").cmdOrDie.run(.defaultEnv, .emptyStdin)
         XCTAssertEqual(listed.exitCode, 0)
         let bindings = try JSONDecoder().decode([String: String].self, from: Data(listed.stdout.joined().utf8))
-        XCTAssertEqual(bindings, ["alt-j": "focus down"])
+        XCTAssertEqual(bindings, ["alt-j": "focus down", "alt-slash": ""])
         let settings = ShortcutSettingsModel.shared
         settings.reload()
-        XCTAssertFalse(settings.summary.bindings.contains { $0.notation == "alt-slash" })
+        XCTAssertTrue(settings.summary.bindings.contains { $0.notation == "alt-slash" })
         XCTAssertTrue(settings.summary.bindings.contains { $0.notation == "alt-j" && $0.command == "focus down" })
     }
 }

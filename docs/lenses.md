@@ -1,8 +1,8 @@
 # Lenses and Search
 
-A Lens combines a Filter, sort order, a Presentation and commands for its selected window.
+A Lens combines a Filter, sort order, a Presentation and shared Tile settings. Modes bind keys to commands that act on its selection and marks.
 Import `winmux/defaults.ncl` to get `search`, `floating`, `overview`, `recent`, `app-windows` and `windows`.
-Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `window` binding mode: `w` opens `windows`, `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app grid. See [default Triggers](default-config.md). `palette` is an alias for
+Alt-slash opens `search`; alt-shift-o opens `overview`. Alt-semicolon enters the `window` binding mode: `w` opens `windows`, `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent` as a list and `a` opens `app-windows` as a list. Cmd-tab, cmd-shift-tab and cmd-backtick are unbound by default. Opt in with the three lines in [Default config](default-config.md#opt-in-to-cmd-tab) to replace the system app switcher with the recent strip and reach the same-app grid. See [default modes](default-config.md). `palette` is an alias for
 `lens search`; without that Lens both commands fail.
 
 With [Cmd-Tab opted in](default-config.md#opt-in-to-cmd-tab), hold Cmd and tap Tab through every workspace; release to focus the selected window.
@@ -22,7 +22,7 @@ Hold Option in the strip to see the landing spot; Option-Return brings the selec
 ![An outline previews the selected window’s landing spot, then Option-Return brings it to workspace 1](demos/summon-landing.gif)
 
 The six shipped Lenses resolve as follows. A CLI opening always stays open; the
-release column applies to a held Trigger.
+release column applies to a held mode.
 
 | Lens | Presentation | Filter | Release | Keys |
 | --- | --- | --- | --- | --- |
@@ -44,12 +44,11 @@ let W = import "winmux/winmux.ncl" in
   lenses.work = {
     filter = filters.tiled,
     presentation = 'list,
-    starts-in = 'normal,
     sort = ['mru, 'title],
-    keys.cmd-x = "close",
     when.default.enabled = true,
   },
-  mode.main.binding.alt-l = "lens work",
+  mode.work = { unbound = 'consume, binding.cmd-x = "lens close-window" },
+  mode.main.binding.alt-l = W.open "work" 'work,
 }) | W.Config
 ```
 
@@ -129,31 +128,27 @@ Lens key that sends a window to that workspace (for example `⌘2`); it is absen
 On a Frozen picture, it sits above the pause or age badge with the same inset.
 The label reads, for example, `⌥↩ Summon to 1`. A list, strip or grid shows it and the landing
 spot only for a window on another workspace, with a Summon key configured. Miniatures retains
-its same-workspace label and landing behavior. During a live Hold, the label uses only Summon
-keys whose modifiers do not overlap the Hold’s invoking modifiers. It prefers the hints key,
-then legend order; with none left, there is no label or landing spot. An Option-Tab Hold with
+its same-workspace label and landing behavior. During a held mode, the label uses only Summon
+keys whose modifiers do not overlap the mode's entry modifiers. It prefers the hints key,
+then legend order; with none left, there is no label or landing spot. An Option-Tab mode with
 the shipped keys therefore reads `⇧↩ Summon to 1`; Cmd-Tab reads `⌥↩ Summon to 1`.
-All Summon keys count again once the Hold ends. `summon-hints` chooses which Summon hints exist.
+All Summon keys count again after release or a mode change. `summon-hints` chooses which Summon hints exist.
 
-The legend reads the open Lens's active `keys`: `focus`, `summon here`, `send to workspace`,
+The legend reads the open current mode's resolved bindings: `focus`, `summon here`, `send to workspace`,
 `close`, `peek`, `group`, then custom commands joined by `; `. Equal command lists share an entry.
 Workspace digit keys with the same modifiers collapse to a range such as `⌘1–9`; gaps show
-individual chords. Group is absent in Presentations without sections. Keys outside the Lens's
-`keys` are not listed. The legend sits below the painted panel, including any Filter banner
+individual chords. Group is absent in Presentations without sections. Keys outside the mode's resolved bindings are not listed. The legend sits below the painted panel, including any Filter banner
 or Search error rows, and stays at least 32 scaled points from each side of the screen,
-also clearing the resting sidebar. Long phrases truncate at their tails; chords and entries stay present. Reloading config affects the next
-opening, leaving an open Lens's keys intact.
+also clearing the resting sidebar. Long phrases truncate at their tails; chords and entries stay present. Mode and context changes update the legend.
 While hints show, the list, strip and grid glass thins to 55% opacity; their contents stay opaque.
 Dimmed pictures have an opaque backing inside the fitted picture while hints show, so the desk
 cannot show through them. Miniatures keeps its backdrop. `hints = 'always` keeps hints visible
 with no modifier down.
 `hints-key` also accepts `cmd`, `ctrl` and `shift`.
 
-A live Hold subtracts its invoking modifiers from hint detection. After release or the first
-letter ends the Hold, physically held modifiers count again. Other Triggers ignore their own
-modifiers until each has been released once. A strip whose Trigger holds the hints key is the
-exception: its hints show from its first frame. Shift alone no longer shows Summon hints with
-the default hints key; shift-enter still Summons.
+A held mode subtracts its entry modifiers from hint detection in every Presentation.
+After release or a mode change, physically held modifiers count again. Shift alone
+does not show Summon hints with the default hints key; shift-enter still Summons.
 
 Pictures carry the corner icon, mark, Summon label and Frozen/Accessory treatments. List rows
 of every kind keep the mark, Summon label and Accessory tag at the trailing end of the line.
@@ -219,12 +214,13 @@ An error keeps the last good rows and shows its first line with an amber border.
 deadline is 50 ms; the helper deadline is 100 ms.
 
 Enter focuses the selection, shift-enter and alt-enter Summon it, cmd-w closes it, and cmd-1
-through cmd-9 move it to that workspace of the window's own project. Space peeks before anything is typed; cmd-y peeks in every input state. Custom keys merge over these
-defaults and run against the selected window. Configured Command shortcuts take priority over
+through cmd-9 move it to that workspace of the window's own project. Space peeks in
+`browse` and the held modes, and types in `search`; cmd-y peeks in every shipped Lens mode.
+Custom mode or keymap bindings merge over these defaults and use Lens verbs to act on the selection.
+Configured Command shortcuts take priority over
 Search field editing, including Cut and Close. Tab toggles marks; commands act on marked windows
-in mark order, while focus acts only on the selection. Escape, Tab and the four arrow keys,
-including their modifier variants, are reserved for Lens navigation and rejected in `keys`
-at load. In every Presentation, moving the pointer over a Tile selects it after it moves
+in mark order, while focus acts only on the selection. Escape, Tab and the arrows can
+all be rebound in a mode or keymap block. In every Presentation, moving the pointer over a Tile selects it after it moves
 more than one point from its anchor (Euclidean distance). First presentation, a keyboard or
 wheel step, Search reselection and a miniature page turn anchor the pointer again. A Tile
 sliding under a resting pointer cannot replace the default or keyboard selection. Leaving
@@ -250,7 +246,7 @@ selects, commits or closes the Lens. Closing removes the Tile and reflows the la
 keeps it as a minimized Tile, frozen at its last picture, and hides its minimize control. Failures leave it in place and
 are logged under `lens`. After any control action, controls stay hidden until the pointer moves
 more than one point again, preventing a second close on a window that slid under it. An ordinary
-Tile click keeps its Enter action, and a committing Hold still commits on release.
+Tile click keeps its Enter action, and a committing mode still commits on release.
 
 Focus restores a minimized row on its origin workspace and focuses it there, recreating that
 workspace if cleanup removed it. A row with no known origin uses the current workspace.
@@ -285,7 +281,7 @@ To list an Accessory app's popups alongside its floating windows, configure:
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
   lenses.accessory = {
-    popups = ['accessory-popup],
+    popups.accessory-popup = true,
     filter = fun w ctx => w.app.accessory && (w.class == 'floating || w.class == 'accessory-popup),
   },
 }) | W.Config
@@ -297,65 +293,40 @@ and moves nothing, because a popup has no workspace.
 
 ## Release and appearance
 
-`on-release` and `appearance` are optional Lens fields, like `peek`, and also work
-under `when.default`. They resolve once for each opening.
-
-- `on-release = 'commit` runs the Enter binding when the invoking modifiers are
-  released. The invoking key steps, Shift reverses, and the panel waits 100 ms
-  before drawing. A quick tap switches without drawing or emitting Lens events.
-- `on-release = 'stay` ends the Hold on release and keeps the Lens open. Enter
-  runs its binding and Escape closes it; Tab marks once the Hold ends. Repeating
-  the named Lens's invoking chord after release toggles it closed.
-- With `on-release` omitted, a strip commits and every other Presentation stays.
-  Swift resolves this after `--presentation`; shipped `app-windows` explicitly sets `on-release = 'commit`.
-  An explicit value holds for every Presentation, including one chosen with `--presentation`:
-  a held chord bound to `lens app-windows --presentation list` commits on release too.
-  A committing Lens needs a chord with a physical key and held modifiers. CLI,
-  menu, tap and modifier-free bindings stay open, including a strip.
-- `appearance = 'auto` (the default) reads the system appearance when the Lens
-  opens. `dark` and `light` force that appearance. A system change while the Lens
-  is open appears at the next opening.
-
-For a held Control-Option-G chord opening a committing grid:
+Release behavior is a mode property, independent of Presentation. `W.switcher`
+creates a mode with `lifetime = 'held`, `on-release = ["lens focus", "mode main"]`
+and `draw-delay = 100`. A quick release focuses without drawing a panel or
+emitting Lens events. A release during opening waits for readiness; a letter
+that latches into another mode first cancels that pending commit. `W.hold`
+releases into `browse` or `search` and leaves the Lens open.
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
-  lenses.documents = {
-    presentation = 'grid,
-    on-release = 'commit,
-    appearance = 'auto,
-    peek = 'zoom,
-  },
-  mode.main.binding.ctrl-alt-g = "lens documents",
-  lenses.recent.on-release = 'stay,
+  lenses.documents = { presentation = 'grid, appearance = 'auto, peek = 'zoom },
+  mode.documents = W.switcher { lens = "documents", key = "tab" },
+  mode.main.binding.ctrl-alt-g = "mode documents",
 }) | W.Config
 ```
 
-The Presentation keeps its layout: a committing grid still draws a grid, and a
-staying strip still draws a strip. A letter or `/` ending the Hold prevents the
-later release from committing. Conversion to a list, including `winmux lens
---presentation list`, ends the committing gesture. A committing release hides a
-peek at once; a staying release leaves a zoom as it is.
-
-Light uses the prototype's pale panel over blur and dark text; the selection keeps
-the system accent colour in both appearances. With solid chrome, light is an opaque
-pale panel. Labels drawn over window pictures keep their dark plate.
-The panels, Search, grouping, Tile chrome, badges and peek follow the opening's
-appearance. The hint legend keeps its dark plate and white text; window pictures,
-app icons and Frozen treatment keep their existing look. The sidebar and other
-non-Lens chrome have their own settings. `list-lenses --json` reports the resolved
-`on-release` and `appearance` (`auto` when omitted).
+`appearance = 'auto` reads the system appearance once per opening. `dark` and
+`light` force it, including under `when.default`; a system change appears at the
+next opening. Light uses a pale panel over blur and dark text; solid chrome uses
+an opaque pale panel. Panels, Search, grouping, Tile chrome, badges and peek
+follow that appearance. The hint legend retains its dark plate and white text;
+window pictures, app icons and Frozen treatment keep their look. The sidebar has
+its own settings. `list-lenses --json` reports appearance and other view settings;
+it reports no release policy or keys.
 
 ## Peek
 
-Space grows the selected Tile’s picture to the window’s frame. In Search it peeks
-only when the visible query is empty; after typing, Space inserts a space. Cmd-Y
-peeks in every state. The same key or Escape shrinks the picture back. Escape ends
+Space grows the selected Tile’s picture to the window’s frame in modes that bind it.
+In `search`, Space always inserts a space. Cmd-Y peeks in every shipped Lens mode.
+The same peek key or Escape shrinks the picture back. Escape ends
 only the peek: a list opened in Search then needs a second Escape to leave Search
 and a third to close. Arrows move the selection and its picture. Other keys keep
 their actions, including Enter, alt-enter, shift-enter and cmd-w. Releasing a committing
-Hold still commits and hides the peek; a staying release keeps the zoom. While zoomed, pointer motion leaves the selection alone and a
+committing mode still commits and hides the peek; a staying release keeps the zoom. While zoomed, pointer motion leaves the selection alone and a
 click only ends the zoom, since the Tile under the pointer is hidden by the picture.
 
 Peek never changes focus or workspace and never raises or restores the real
@@ -369,117 +340,85 @@ the first frame, without dimming, ring or label. Peek keys do nothing in this mo
 Miniatures keeps `zoom` even when `follow` is configured. Reduce Motion cross-fades
 the zoom at the window’s frame.
 
-`peek` is a Lens-only action and must run alone in its key’s command list.
-`keys.space = []` frees Space to type in Search and do nothing elsewhere.
-`keys.cmd-y = []` removes the other shipped peek key; `keys.cmd-p = "peek"` binds
-a replacement. The field also works under `when.default`.
+`lens peek` runs alone in a mode binding. The shipped `search` mode leaves Space
+to typing; a keymap block may add `cmd-p = "lens peek"`.
 
-| Lens action | Effect |
-| --- | --- |
-| `focus` | Focus the selected window. |
-| `summon` | Bring selected or marked windows here. |
-| `peek` | Toggle the selected picture while the Lens stays open. |
+## Modes and keys
 
-## The Hold
+`lens <name>` opens a view without changing mode. Shipped openers use a mode
+whose `on-enter` opens it, or a `W.open` pair such as `["lens windows", "mode browse"]`.
+Opening a Lens alone from `main`, including from the CLI, leaves plain keys with
+the app. Entering another mode replaces the current one; there is no mode stack.
+A mode and its Lens are one thing exactly when the mode opened the Lens.
+A Lens opened by `on-enter` belongs to that mode. A mode entered over an open
+Lens adopts it when its unbound policy is consume, type or latch, or its
+`on-enter` opens a Lens. Closing a Lens a mode owns ends that mode in `main`;
+closing a Lens no mode owns changes no mode, including its lifetime and entry
+modifiers. A Lens opened by a binding, the CLI or `on-release` belongs to no mode,
+except that a Lens replacing the one a mode owns is still that mode's. A mode
+that ends closes the Lens it owns unless the next mode adopts it. When a held
+mode releases, only its owned Lens closes; a Lens opened by its `on-release`
+stays. Escape, a foreign chord and `mode main` close the open Lens, owned or
+not; a transient mode returning to its mode leaves a Lens it does not own open.
 
-A Lens session reads keys in exactly one state: the **Hold**, **normal**, or **Search**.
-A Trigger with modifiers starts one Hold. CLI openings and the modifier-free Lens
-letters in the `window` binding mode have none. Changing Presentation keeps the input state.
+A mode with `lifetime = 'held` lasts until all the entering chord's Command,
+Control and Option modifiers are up; Shift is the lifetime modifier for a
+Shift-only chord. Key and pointer events also carry release evidence. A bound
+chord wins as pressed, then with entering modifiers removed. Return first
+uses the entering modifiers removed: Option-Return focuses during Option-slash,
+and extra Shift-Return Summons. A foreign modifier chord closes the Lens and
+runs its global binding. Space is never registered with Carbon, so Cmd-Space
+continues to belong to Spotlight; Cmd-Y peeks during Cmd-Tab.
 
-During a Hold, the Lens reads keys in this order:
+In the shipped switcher modes Tab steps, Shift-Tab reverses, arrows navigate,
+W closes the selected window, Y/Space peek, G changes sections, `/` converts to a
+list and enters `search`, and Escape closes. The other switcher's key is consumed.
+In `search-hold`, Tab and Shift-Tab step matches while Option is held.
+The first unbound letter latches into the configured target and is read there:
+`browse` operates a strip or grid; `search` types the letter. Other unbound digits,
+punctuation, Space, Backspace and function keys are consumed by the latch policy.
+A latch replaces the mode, so releasing later cannot commit the old switcher.
 
-1. Return uses its Enter binding with the Trigger's own modifiers removed, before matching
-   the pressed chord. Return during an Option or Option-Shift Hold focuses; extra
-   Shift on an Option Hold Summons. Other bound Lens chords win as pressed: `cmd-w` closes the selected
-   window and keeps the Hold, and `cmd-g` changes grouping in a list or grid.
-2. The Trigger's own key steps, with Shift reversing. Tab and backtick with the
-   invoking modifiers keep their existing stepping behavior; the other Trigger's
-   key is consumed without stepping. In a staying held list, Tab also steps through the
-   matches (Shift-Tab reverses), including during Option-slash’s Hold.
-3. Arrows move and Escape dismisses, with the Hold's modifiers removed.
-4. The first unbound letter, or `/`, ends the Hold. Shift with a letter still counts.
-   The letter is identified by what the current keyboard layout types with the
-   Hold's modifiers removed. It is read in the Lens's starting state: in normal
-   mode `j` moves down and `x` does nothing; in Search it is the first typed letter.
-   `/` always starts Search. A strip stays a strip at a normal-mode letter; `/`
-   converts it to a list and keeps its selected window. A strip configured to start
-   in Search converts at the first letter and types that letter.
-5. A chord with a foreign Command, Control or Option modifier belongs to its global
-   binding and dismisses the Lens before that binding runs.
+`browse` binds hjkl and arrows to navigation. In a list h/l do nothing; in a
+one-row strip j/k cycle. `/` converts to a list and enters `search`; Tab marks;
+Enter focuses; Shift-Enter and Option-Enter Summon. Unbound plain keys are consumed.
+Unbound modifier chords belong to their global binding and close the Lens.
+Option-slash and Option-Shift-O are bound to close in the staying modes.
 
-A peek binding also matches with the Hold’s invoking modifiers removed: Space
-matches if the system delivers it. During Cmd-Tab use Cmd-Y: Cmd-Space belongs to Spotlight. WinMux never registers Space system-wide. Backspace, digits, unbound Space, other punctuation and function keys do nothing during a
-Hold. They do not end it. Releasing its invoking Command, Control and Option
-modifiers (or Shift for a Shift-only chord) ends it too. Release follows `on-release`, defaulting to commit for a strip and stay for
-other Presentations. **A Hold ended by a key never commits on release**,
-including a release received while opening. One session never starts a second Hold.
-Every committing Hold uses the 100 ms display deadline; staying panels draw immediately.
+`search` has `unbound = 'type`: letters, Backspace and clipboard shortcuts edit
+Search, including Command-A and Command-V. Bound keys win, including a person's
+plain-letter binding. Up/down step; left/right navigate Tiles in grids and
+miniatures and move the caret in a list. Enter focuses. Escape enters `browse`
+with text and matches retained; a second Escape closes. The muted Search row's
+button runs `mode search`. IME marked text owns every key until composition ends.
+Letters received before the editor is ready remain in order. Keys received while
+a Lens opens are queued raw and decided in the mode current at readiness;
+foreign global bindings run immediately and dismiss the opening instead.
 
-In normal mode, a plain key or chord bound in Lens `keys` wins. Otherwise `h`, `j`,
-`k`, `l` move as left, down, up and right arrows in that Presentation. In a list
-`h` and `l` do nothing; in a one-row strip `j` and `k` cycle as down and up do.
-Arrows move, `/` enters Search, Return runs its binding, Escape dismisses, and Tab
-marks as before. All other plain keys are consumed without typing. An unbound
-Command, Control or Option chord belongs to its global binding. After a letter
-ends the Hold, repeating the Trigger's chord with its modifiers still down toggles
-the same Lens closed in every Presentation, named or ad hoc; it does not step or start
-another Hold. An ad-hoc Lens is the same when its Filter text, resolved opening
-settings (including Presentation overrides) and explicit `--search` are equal.
+Known limit: before the panel becomes key, an unregistered key reaches the app
+in front. This includes dispatch, Filter evaluation and a committing mode's draw
+delay. Only registered Carbon chords can reach an opening Lens. The related
+outside-panel limit is documented in [Default config](default-config.md#the-windowing-mode).
+WinMux adds no keyboard event tap.
 
-In Search the field editor owns letters, Backspace and clipboard shortcuts,
-including Command-A and Command-V while the Trigger's modifiers are still down.
-A bound Lens chord still wins. Plain letter bindings are typed in Search.
-Up/down move selection; left/right navigate Tiles in grid and miniatures and move
-the caret in a list. Return commits. Escape returns to normal mode with the text
-and matches kept; `j` then moves among those matches. A second Escape dismisses.
-This also applies to a Lens that opened in Search.
+Search is remembered per named Lens. Entering a typing mode applies remembered
+Search with its text selected, preserving a matching selection or choosing the
+strongest match. The first edit replaces the selected text. A strip retains
+remembered Search until conversion to a list; explicit `--search` applies at once
+in any mode and Presentation. Leaving Search keeps text and matches.
 
-The Search row is muted and shows `/` during a Hold and in normal mode. The panel
-owns the keyboard in those states; clicking that row enters Search and gives the
-keyboard to its field. A strip has no Search row. Letters arriving in Search
-before its editor is ready are retained in order. Queued opening keys use the same
-state decisions: the first letter ends the Hold and later Carbon presses are decided
-in the resulting state. Only the Lens's own keys are queued. Other Carbon bindings
-run immediately; they dismiss an opening Lens exactly where they would dismiss
-that Presentation once shown. No global binding is replayed later.
+The current mode's resolved bindings supply the hint legend, Summon chords,
+workspace chips and grouping shortcut. Entry modifiers are discounted while the
+mode is held. After release or a mode change they count again. `list-modes --current`
+and the HUD show the real mode, including `cmd-tab`, `browse` and `search`.
+See [keymap contexts, sequences and counts](default-config.md#keymap-contexts-sequences-and-counts).
 
-Known limit: before the panel becomes key, an unregistered key goes to the app
-in front and the Lens never sees it. This covers opening (including dispatch and
-Filter evaluation) and the strip's 100 ms before it is drawn. Only chords WinMux
-has registered with Carbon can reach an opening Lens. There is no keyDown monitor
-capture or replay of other apps' typing.
-
-### `starts-in`
-
-`starts-in = 'normal` or `'search` is a Lens setting, also accepted in
-`when.default`. It has no Nickel default. At session opening, Swift uses the
-explicit setting, otherwise Search for a list and normal for a strip, grid or
-miniatures. The opening Presentation decides: `lens recent --presentation list`
-starts in Search. There is no CLI flag, and converting an open Lens keeps its state.
-A Lens with a Hold enters its starting state when the Hold ends.
-`list-lenses --json` reports the configured value, or `null` when it is omitted.
-
-A Lens that starts in Search shows and applies its remembered Search from opening,
-including during a Hold. Stepping during the Hold moves among those matches;
-release enters Search with its text selected and the selection unchanged. The first
-letter replaces that text. Opening in normal mode leaves it inactive and unapplied.
-At `/` it appears selected and is applied, and the first letter replaces it.
-Applying remembered Search keeps the selected window if it matches, and selects
-the best match otherwise. A strip has no Search row, so it never opens filtered by a
-remembered Search, whatever its `starts-in`: the Search is applied when the strip
-becomes a list. An explicit `--search` filters a strip at opening, and the footer marks
-the match. A Search-starting strip also keeps a matching selected
-window through conversion at the Hold-ending letter, using the typed Search.
-Leaving Search with Escape preserves its matches.
-
-A binding mode's Carbon keys take priority as before. A Lens opened from the CLI
-with the `window` binding mode on receives none of `h`, `j`, `k`, `l`: they run the
-mode's focus commands. The mode's own Lens letters run `mode main` before opening
-so this does not affect Lenses opened from that mode.
-
-[Session key records](lens-opening-traces.md#session-keys) show each key's input
-state, the key ending the Hold, focus and the final Search/selection.
-
+Lens verbs are `step next|prev|left|right|up|down`, `focus`, `summon`, `peek`,
+`close`, `close-window`, `sections next`, `mark`, `pane next`, `presentation <name>`,
+`caret left|right`, and `run <command…>`. `lens run` targets the selection or marks
+in mark order. With no Lens open every verb exits 1 with a message. `pane next`
+exits 1 because no current Presentation has panes. These words, and the future
+`settle`, are reserved Lens names. The separate `sections` command is unchanged.
 
 ## Strip and the system switcher
 
@@ -534,14 +473,15 @@ the selection chooses its surviving successor, or the last entry. Hover selects 
 one-point movement rule used by every Presentation. Hover also reveals the picture/card controls
 described above; those actions keep the strip open. A click elsewhere selects the Tile under the pointer
 and runs the
-corresponding Enter action immediately. During a Hold it subtracts the invoking
+corresponding Enter action immediately. During a held mode it subtracts the entry
 modifiers as release does: Cmd-click focuses and cmd-Option-click Summons. After a
-key ends the Hold, click modifiers mean themselves.
+key changes the mode, click modifiers mean themselves. In a committing mode,
+Shift-click focuses too, matching Return while the entry chord remains held.
 
-An unbound letter ends the Hold and keeps the strip modal in normal mode; `j` and
+An unbound letter latches the committing mode into `browse`; `j` and
 `k` move as down and up. `/` converts the same session to a list, preserving the
-selected window, and enters Search. With `starts-in = 'search`, a letter converts
-and types into Search instead. Later modifier release never commits either case.
+selected window, and enters `search`. A held mode with `latch-to = "search"`
+reinterprets a letter in Search instead. Later modifier release never commits either case.
 
 The scroll wheel steps selection in the strip and the grid while the pointer is over the
 panel. A line-based wheel steps one Tile per event. A trackpad gesture steps once after
@@ -552,18 +492,19 @@ forward also steps forward. The strip wraps as Tab does; the grid follows entry 
 stops at either end. A wheel step re-arms the resting-pointer rule. The list scrolls its rows,
 and miniatures keeps its existing page turns. Scroll outside the panel is not handled.
 
-A Lens `keys` binding wins first: cmd-w closes the selected window while the Hold
+A bound mode chord wins first: cmd-w closes the selected window while the held mode
 and strip stay open. You can also open `winmux lens recent --presentation list --tile text`
-explicitly for the text list drawn by the window mode's `r`; without `--tile text`, it draws the Lens's picture rows. A foreign modifier chord during a Hold closes the Lens and runs its
-global binding, whether drawn or still opening. After the Hold, unbound modifier
-chords again belong to global bindings; repeating its Trigger toggles the Lens closed.
+explicitly for the text list drawn by the window mode's `r`; without `--tile text`, it draws the Lens's picture rows. Add `mode search` to operate that list.
+A foreign modifier chord during a held mode closes the Lens and runs its global
+binding, whether drawn or still opening. In `browse`, unbound modifier chords
+also run global bindings. Repeating Option-slash toggles its Lens closed.
 
 An ad-hoc binding can use the strip:
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
-  mode.main.binding.alt-r = "lens --filter same-app --presentation strip",
+  mode.main.binding.alt-r = ["lens --filter same-app --presentation strip", "mode browse"],
 }) | W.Config
 ```
 
@@ -623,7 +564,7 @@ when it is in a later section. Marks, actions, hover and the grid's count use th
 The Search row has a right-aligned `Group` control. Its segments show `none`, `workspace` and
 `app`, followed by `project` or `monitor` when the opening's entries span more than one of them.
 A grouping set explicitly outside that cycle appears as an extra selected segment. Clicking a
-segment preserves the selected window, Search focus and any Hold. The shortcut chip shows
+segment preserves the selected window, Search focus and the current mode. The shortcut chip shows
 this Lens's first binding to `sections next`, and disappears when there is none.
 The grid grows to at least 644 scaled points for the three-segment control, plus 68 per extra
 segment; the list also keeps its 760-point minimum.
@@ -648,10 +589,10 @@ and one stderr line: `Possible sections values: next, none, workspace, project, 
 Neither invalid-value message has an `ERROR: ` prefix. Other `sections` parse failures
 (a missing value, an extra argument or an unknown flag) also exit 2 and keep that prefix.
 
-The default Lens key `cmd-g = "sections next"` cycles grouping. A value outside the cycle
-advances to `none`. Bound chords win during a Hold: `cmd-g` changes grouping in a
+The default mode key `cmd-g = "lens sections next"` cycles grouping. A value outside the cycle
+advances to `none`. Bound chords win during a held mode: `cmd-g` changes grouping in a
 list or grid without ending it. A grouping-only key is omitted in strips and
-miniatures. A strip stays a strip when `g` ends its Hold; it converts at `/`.
+miniatures. A strip stays a strip when `g` runs its grouping command; it converts at `/`.
 After conversion, `cmd-g` changes grouping, including with Command still down.
 
 ## Grid
@@ -672,7 +613,7 @@ let W = import "winmux/winmux.ncl" in
     grid = { tile-size = 'real, sections-arrangement = 'flow },
     tile = 'card,
   },
-  mode.main.binding.alt-g = "lens documents",
+  mode.main.binding.alt-g = W.open "documents" 'browse,
 }) | W.Config
 ```
 
@@ -698,13 +639,12 @@ selection lifts. Labelled grid rows share a height, including when a window is t
 floor yields when needed to fit all Tiles. Text Tiles use the same packed rows without pictures;
 picture Tiles put the selected title and chips in the footer. The footer also shows app and count.
 
-The grid opens in normal mode unless `starts-in` says Search. Plain letters do not edit Search; use `/`. Search shows only matches, ranks them within their sections, and selects the best-ranked match across all sections. It re-packs them, resizing the panel and Tiles.
-Left and right move to the nearest Tile along the row, crossing section boundaries. In columns, a neighbouring Tile with an overlapping vertical span is used when that row is absent. Up and down use the nearest row and horizontal centre; columns prefer a Tile below or above in the same column. Arrows work with no Hold too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
+The shipped grid openers enter `browse`; a mode with `unbound = 'type` enables Search. Plain letters do not edit Search; use `/`. Search shows only matches, ranks them within their sections, and selects the best-ranked match across all sections. It re-packs them, resizing the panel and Tiles.
+Left and right move to the nearest Tile along the row, crossing section boundaries. In columns, a neighbouring Tile with an overlapping vertical span is used when that row is absent. Up and down use the nearest row and horizontal centre; columns prefer a Tile below or above in the same column. Arrows work in the shipped latched modes too, and a press at an edge keeps the selection. Left and right therefore navigate Tiles instead of moving the Search caret.
 Tab marks, Enter focuses, shift-enter and alt-enter Summon, cmd-w closes, and cmd-1 through cmd-9
 move the selected or marked windows to a workspace. Hover, clicks, custom keys, Frozen looks,
 `badges` and `entries = 'app` share the other Presentations' behavior. Summon shows its Tile label
-and a screen-space landing outline while the hints key is held (or `hints = 'always`). Trigger release leaves
-the grid open unless `on-release = 'commit`.
+and a screen-space landing outline while the hints key is held (or `hints = 'always`). The mode decides what release does.
 
 `grid` settings resolve through `when.default`. `list-lenses --json` reports a `grid` record on
 every Lens. Strips use `grid.tile-size`; on lists and miniatures the block loads and is reported
@@ -787,7 +727,6 @@ The settings resolve through `when.default` too. `list-lenses --json` reports th
 | `miniatures.backdrop` | `darkness` from 0 to 0.95 (default 0.6); `blur` defaults to true. Darkness is black in dark appearance and pale grey in light; its opacity stays the configured value. The panel remains non-opaque. |
 | `frozen-thumbnail` | `plain`, `dimmed` (default), `age-badge`, or `pause-badge`. Live thumbnails are unmarked. |
 | `accessory-window` | `enlarged` (default) makes small Accessory windows readable; `actual-size` keeps their scale. Both show a dashed outline and a menu-bar app tag. |
-| `on-release` | `commit` or `stay`; omitted resolves to `commit` for strip and `stay` otherwise, after the Presentation override. Only a held chord can commit on release. |
 | `appearance` | `auto` (default), `dark` or `light`; system appearance is read once per opening. |
 | `peek` | `zoom` (default) grows the selected picture on a key; `follow` always shows it under the panel. Miniatures always uses `zoom`. |
 | `hints` | `held` (default) shows hints while the hints key is held; `always` keeps them visible. |
@@ -810,6 +749,14 @@ placement on a workspace with Columns, and the tree's append geometry otherwise.
 
 ## Leaving the windowing mode
 
-The shipped windowing bindings run `mode main` before their Lens command: `w` opens `windows`, `o` opens `overview`, `f` opens `floating`, `s` opens `search`, `r` opens `recent --presentation list --tile text`, and `a` opens `app-windows --presentation list --tile text`. Escape and Option-semicolon run only `mode main`. The HUD is hidden before a Lens opens. A failed Lens command therefore leaves the shipped leader at `main` too. A standalone `lens` command does not change a user's active mode, even when that mode is named `lens`.
+The window mode's six Lens letters open a Lens then enter `browse` or `search`.
+`w`, `o` and `f` browse windows, overview and floating; `s`, `r` and `a` enter
+Search, with the last two explicitly choosing text lists. Escape and
+Option-semicolon return to `main`. Other window keys keep the mode on.
+A standalone `lens` command leaves the current mode alone.
 
-Lens subscription events describe visible panels. A committing Lens released before its 100 ms display delay emits neither `lens-opened` nor `lens-closed`. A presented Lens emits one pair; Search and handoff to the list keep that pair. Staying panels appear immediately. See [subscription events](events.md).
+Lens events describe visible panels. A committing mode released before its draw
+delay emits neither `lens-opened` nor `lens-closed`. A presented Lens emits one
+pair; Search, grouping and Presentation conversion retain that pair.
+`mode-changed` and `on-mode-changed` cover every mode transition, including
+Lens-operating modes. See [subscription events](events.md).

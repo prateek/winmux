@@ -211,7 +211,7 @@ final class LensEmptyScopeTest: XCTestCase {
 
 @MainActor
 final class LensUnconventionalActionTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
 
     private func session(_ window: Window) -> LensSession {
         LensSession(name: "demo", settings: LensConfig(), items: [SwitcherPaletteItem(id: window.windowId, title: "Demo", appName: "Demo", icon: nil, workspaceName: "", isFocused: false)], search: "")
@@ -273,7 +273,7 @@ final class LensUnconventionalActionTest: XCTestCase {
         window.rememberMacOsLayoutOrigin(detachFromWorkspace: true)
         window.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
         let model = session(window)
-        let result = try await runLensAction(model.commands(for: "cmd-1"), session: model, io: CmdIo(stdin: .emptyStdin))
+        let result = try await runLensAction(model.actionCommandsForTests(for: "cmd-1"), session: model, io: CmdIo(stdin: .emptyStdin))
         XCTAssertTrue(result)
         XCTAssertEqual(window.nodeWorkspace?.name, "1")
         XCTAssertEqual(window.layoutReason, .standard)
@@ -287,7 +287,7 @@ final class LensUnconventionalActionTest: XCTestCase {
         let popup = TestWindow.new(id: 2, parent: macosPopupWindowsContainer)
         for key in (1 ... 9).map({ "cmd-\($0)" }) + ["shift-enter", "alt-enter"] {
             let model = session(popup)
-            let result = try await runLensAction(model.commands(for: key), session: model, io: CmdIo(stdin: .emptyStdin))
+            let result = try await runLensAction(model.actionCommandsForTests(for: key), session: model, io: CmdIo(stdin: .emptyStdin))
             XCTAssertFalse(result, key)
             XCTAssertTrue(popup.parent === macosPopupWindowsContainer)
             try await normalizeLayoutReason()

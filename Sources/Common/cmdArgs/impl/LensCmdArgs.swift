@@ -7,6 +7,9 @@ public struct LensCmdArgs: CmdArgs {
     public var tile: String?
     public var sections: String?
     public var sort: String?
+    public var verb: String?
+    public var operands: [String] = []
+    public static let verbNames = ["step", "focus", "summon", "peek", "close", "close-window", "sections", "mark", "pane", "presentation", "caret", "run", "settle"]
     public static let parser: CmdParser<Self> = .init(
         kind: .lens, allowInConfig: true,
         help: lens_help_generated,
@@ -29,7 +32,18 @@ func filterBodySubArgParser<Root>(_ keyPath: SendableWritableKeyPath<Root, Strin
 }
 
 func parseLensCmdArgs(_ args: StrArrSlice) -> ParsedCmd<LensCmdArgs> {
-    parseSpecificCmdArgs(LensCmdArgs(commonState: .init(args)), args)
+    if let first = args.first, LensCmdArgs.verbNames.contains(first) {
+        let rest = Array(args.dropFirst())
+        let choices: [String: [String]] = ["step": ["next", "prev", "left", "right", "up", "down"], "sections": ["next"], "pane": ["next"], "presentation": ["list", "grid", "strip", "miniatures"], "caret": ["left", "right"]]
+        if first == "settle" { return .failure("lens settle is not available") }
+        if first == "run" {
+            guard !rest.isEmpty else { return .failure("lens run requires a command") }
+        } else if let accepted = choices[first] {
+            guard rest.count == 1, accepted.contains(rest[0]) else { return .failure("lens \(first) requires one of: \(accepted.joined(separator: ", "))") }
+        } else if !rest.isEmpty { return .failure("lens \(first) takes no arguments") }
+        return .cmd(LensCmdArgs(commonState: .init(args), verb: first, operands: rest))
+    }
+    return parseSpecificCmdArgs(LensCmdArgs(commonState: .init(args)), args)
         .filter("Specify a Lens name, --filter, or --presentation list") { $0.name != nil || $0.filter != nil || $0.presentation == "list" }
         .filter("A Lens name conflicts with --filter and --sort") { $0.name == nil || ($0.filter == nil && $0.sort == nil) }
         .filter("--sort requires --filter") { $0.sort == nil || $0.filter != nil }

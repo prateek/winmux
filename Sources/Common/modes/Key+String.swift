@@ -1,7 +1,7 @@
 import HotKey
 
 extension Key {
-    func toString() -> String {
+    public func toString() -> String {
         switch self {
             case .a: "a"
             case .b: "b"

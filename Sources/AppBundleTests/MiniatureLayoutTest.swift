@@ -115,7 +115,7 @@ final class MiniatureLayoutTest: XCTestCase {
 
 @MainActor
 final class MiniatureSessionTest: XCTestCase {
-    override func setUp() async throws { setUpWorkspacesForTests() }
+    override func setUp() async throws { setUpWorkspacesForTests(); enterModeForTests("browse") }
 
     private func session() -> LensSession {
         let workspace = Workspace.get(byName: "1")
@@ -373,8 +373,8 @@ final class MiniatureSessionTest: XCTestCase {
     func testHintsModifierComesFromHintsKeyIndependentlyOfCommands() {
         let original = session()
         var settings = original.settings
-        settings.keys["shift-enter"] = ["close"]
-        settings.keys["ctrl-enter"] = ["summon"]
+        testModeBindings["shift-enter"] = ["close"]
+        testModeBindings["ctrl-enter"] = ["summon"]
         settings.hintsKey = "ctrl"
         let model = LensSession(name: "custom", settings: settings, items: original.items, search: "")
         model.updateHintModifiers(.shift)

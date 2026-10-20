@@ -75,7 +75,7 @@ pub fn convert(toml: &Path, library: &Path) -> Result<Converted, Diagnostic> {
         nickel.push_str("# To drop a kept binding, remove its field below; to drop a Lens, remove it from defaults.lenses before merging.\n");
         nickel.push_str("let converted-modes = {\n");
         write_fields(modes.as_object().unwrap(), 1, &mut nickel);
-        nickel.push_str("} in\n((std.record.remove \"mode\" defaults) & {\n  mode = converted-modes,\n");
+        nickel.push_str("} in\n((std.record.remove \"keymap\" (std.record.remove \"mode\" defaults)) & {\n  mode = (std.record.remove \"main\" (std.record.remove \"window\" defaults.mode)) & converted-modes,\n  keymap = std.record.remove \"main\" (std.record.remove \"window\" defaults.keymap),\n");
     } else {
         nickel
             .push_str("# No TOML mode table: kept all default modes, bindings and six Lenses.\n");
@@ -100,7 +100,7 @@ fn converted_modes(
     library: &Path,
 ) -> Result<Value, Diagnostic> {
     let mapping = key_mapping(settings);
-    let defaults = evaluate_to_json("(import \"winmux/defaults.ncl\").mode", library)?;
+    let defaults = evaluate_to_json("(import \"winmux/defaults.ncl\").keymap", library)?;
     let Some(table) = modes.as_object_mut() else {
         return Err("mode must be a table".to_owned());
     };
@@ -154,13 +154,13 @@ fn converted_modes(
         FORK_TRIGGERS
             .iter()
             .filter(|key| add_window || **key != "alt-semicolon")
-            .map(|key| (*key, defaults["main"]["binding"][key].clone()))
+            .map(|key| (*key, defaults["main"]["bindings"][key].clone()))
             .collect(),
     );
     if add_window {
         add(
             "window",
-            defaults["window"]["binding"]
+            defaults["window"]["bindings"]
                 .as_object()
                 .unwrap()
                 .iter()

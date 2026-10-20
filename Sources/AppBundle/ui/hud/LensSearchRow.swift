@@ -6,7 +6,7 @@ struct LensSearchRow: View {
     var placeholder = "Search windows…"
 
     var body: some View {
-        if model.inputState == .search {
+        if model.isTyping {
             TextField(placeholder, text: Binding(get: { model.query }, set: { model.send(.searchChanged($0)) }),
                       prompt: Text(placeholder).foregroundColor(theme.ink(0.62)))
                 .textFieldStyle(.plain)

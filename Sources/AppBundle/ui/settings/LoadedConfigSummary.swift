@@ -21,7 +21,7 @@ struct LoadedConfigSummary {
             glyphs = switch kind {
                 case .chord: displayBindingNotation(notation)
                 case .tap: displayTapNotation(notation)
-                case .sequence: notation.components(separatedBy: "-").map(displayBindingNotation).joined(separator: " → ")
+                case .sequence: notation.components(separatedBy: notation.contains(" ") ? " " : "-").map(displayBindingNotation).joined(separator: " → ")
             }
         }
     }
@@ -85,6 +85,14 @@ struct LoadedConfigSummary {
 
     static func build(_ config: Config, load: ConfigLoadState, workspaceNames: [String]) -> Self {
         var bindings: [Binding] = []
+        func lensNames(_ commands: [any Command], visited: Set<String>) -> [String] {
+            commands.flatMap { command -> [String] in
+                if let name = (command as? LensCommand)?.args.name { return [name] }
+                guard let mode = (command as? ModeCommand)?.args.targetMode.val, !visited.contains(mode) else { return [] }
+                let nested = config.modes[mode]?.onEnter.compactMap { parseCommand($0).cmdOrNil } ?? []
+                return lensNames(nested, visited: visited.union([mode]))
+            }
+        }
         for modeName in config.modes.keys.sorted(by: { lhs, rhs in
             if lhs == mainModeId { return rhs != mainModeId }
             if rhs == mainModeId { return false }
@@ -93,7 +101,7 @@ struct LoadedConfigSummary {
             let mode = config.modes[modeName]!
             func binding(_ notation: String, _ commands: [any Command], kind: BindingKind) -> Binding {
                 Binding(id: "\(modeName):\(kind):\(notation)", mode: modeName, notation: notation,
-                        command: commands.prettyDescription, lensNames: commands.compactMap { ($0 as? LensCommand)?.args.name }, kind: kind)
+                        command: commands.prettyDescription, lensNames: lensNames(commands, visited: []), kind: kind)
             }
             let chords = mode.bindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: .chord) }
             let taps = mode.tapBindings.values.map { binding($0.descriptionWithKeyNotation, $0.commands, kind: .tap) }

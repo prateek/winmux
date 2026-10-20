@@ -129,7 +129,7 @@ extension LoadedConfig: ConfigReloadCandidate {
     for workspace in Workspace.all { workspace.applyColumns(config.columns) }
     config.workspaceSidebar.apply(readSidebarState())
     configUrl = url
-    try await activateMode(config.modeToKeep(activeMode))
+    try await activateMode(config.modeToKeep(activeMode), reenter: false)
     synchronizeLogin()
     applyReloadedConfigurationToRunningApp()
 }

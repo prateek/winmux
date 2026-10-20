@@ -44,7 +44,12 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
         case .moveNodeToWorkspace:
             return (args as? MoveNodeToWorkspaceCmdArgs)?.useStdin == true ? readsStdin("--stdin") : nil
         case .lens:
-            return (args as? LensCmdArgs)?.filter == "-" ? readsStdin("--filter -") : nil
+            guard let lens = args as? LensCmdArgs else { return nil }
+            if lens.verb == "run" {
+                guard case .cmd(let command) = parseCmdArgs(lens.operands.slice) else { return "lens run is refused in a URL: invalid command" }
+                return urlCommandRefusal(kind: type(of: command).info.kind, args: command)
+            }
+            return lens.filter == "-" ? readsStdin("--filter -") : nil
         case .reloadConfig:
             return (args as? ReloadConfigCmdArgs)?.dryRun == true ? "reload-config --dry-run is refused in a URL: it prints a result" : nil
         case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .columnCount, .balanceSizes,

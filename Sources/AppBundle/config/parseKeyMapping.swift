@@ -7,27 +7,6 @@ private let keyMappingParser: [String: any ParserProtocol<KeyMapping>] = [
     "key-notation-to-key-code": Parser(\.rawKeyNotationToKeyCode, parseKeyNotationToKeyCode),
 ]
 
-struct KeyMapping: ConvenienceCopyable, Equatable, Sendable {
-    enum Preset: String, CaseIterable, Sendable {
-        case qwerty, dvorak, colemak
-    }
-
-    init(
-        preset: Preset = .qwerty,
-        rawKeyNotationToKeyCode: [String: Key] = [:],
-    ) {
-        self.preset = preset
-        self.rawKeyNotationToKeyCode = rawKeyNotationToKeyCode
-    }
-
-    fileprivate var preset: Preset = .qwerty
-    fileprivate var rawKeyNotationToKeyCode: [String: Key] = [:]
-
-    func resolve() -> [String: Key] {
-        getKeysPreset(preset) + rawKeyNotationToKeyCode
-    }
-}
-
 func parseKeyMapping(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors: inout [TomlParseError]) -> KeyMapping {
     parseTable(raw, KeyMapping(), keyMappingParser, backtrace, &errors)
 }

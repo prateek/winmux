@@ -27,6 +27,24 @@ func execNickelHelper(_ action: ConfigAction, file: String? = nil, json: Bool = 
         case (.status, nil):
             die("'config status' is answered by the server")
     }
+    if action == .check {
+        arguments.insert("--json", at: 2)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: helper)
+        process.arguments = Array(arguments.dropFirst())
+        let output = Pipe()
+        process.standardOutput = output
+        do {
+            try process.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { Darwin.exit(process.terminationStatus) }
+            guard let fields = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { exit(2, err: "Config must be a record") }
+            let errors = compileModeKeymap(fields).errors
+            if !errors.isEmpty { exit(2, err: errors.joined(separator: "\n")) }
+            Darwin.exit(0)
+        } catch { exit(1, err: "Can't check config: \(error.localizedDescription)") }
+    }
     var argv: [UnsafeMutablePointer<CChar>?] = arguments.map { strdup($0) } + [nil]
     execv(helper, &argv)
     exit(1, err: "Can't run \(helper): \(String(cString: strerror(errno)))")

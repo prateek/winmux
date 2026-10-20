@@ -1,48 +1,47 @@
-import Common
 import HotKey
 
-let minus = "minus"
-let equal = "equal"
+public let minus = "minus"
+public let equal = "equal"
 
-let q = "q"
-let w = "w"
-let e = "e"
-let r = "r"
-let t = "t"
-let y = "y"
-let u = "u"
-let i = "i"
-let o = "o"
-let p = "p"
-let leftSquareBracket = "leftSquareBracket"
-let rightSquareBracket = "rightSquareBracket"
-let backslash = "backslash"
-let sectionSign = "sectionSign"
+public let q = "q"
+public let w = "w"
+public let e = "e"
+public let r = "r"
+public let t = "t"
+public let y = "y"
+public let u = "u"
+public let i = "i"
+public let o = "o"
+public let p = "p"
+public let leftSquareBracket = "leftSquareBracket"
+public let rightSquareBracket = "rightSquareBracket"
+public let backslash = "backslash"
+public let sectionSign = "sectionSign"
 
-let a = "a"
-let s = "s"
-let d = "d"
-let f = "f"
-let g = "g"
-let h = "h"
-let j = "j"
-let k = "k"
-let l = "l"
-let semicolon = "semicolon"
-let quote = "quote"
+public let a = "a"
+public let s = "s"
+public let d = "d"
+public let f = "f"
+public let g = "g"
+public let h = "h"
+public let j = "j"
+public let k = "k"
+public let l = "l"
+public let semicolon = "semicolon"
+public let quote = "quote"
 
-let z = "z"
-let x = "x"
-let c = "c"
-let v = "v"
-let b = "b"
-let n = "n"
-let m = "m"
-let comma = "comma"
-let period = "period"
-let slash = "slash"
+public let z = "z"
+public let x = "x"
+public let c = "c"
+public let v = "v"
+public let b = "b"
+public let n = "n"
+public let m = "m"
+public let comma = "comma"
+public let period = "period"
+public let slash = "slash"
 
-func getKeysPreset(_ layout: KeyMapping.Preset) -> [String: Key] {
+public func getKeysPreset(_ layout: KeyMapping.Preset) -> [String: Key] {
     return switch layout {
         case .qwerty: keyNotationToKeyCode
         case .dvorak: dvorakMap
@@ -52,7 +51,7 @@ func getKeysPreset(_ layout: KeyMapping.Preset) -> [String: Key] {
 
 extension Key: @unchecked @retroactive Sendable {}
 
-let keyNotationToKeyCode: [String: Key] = {
+public let keyNotationToKeyCode: [String: Key] = {
     var result = standardKeyMap
     result = result + keypadKeyMap
     result = result + navigationKeyMap

@@ -6,23 +6,26 @@ import os
 struct LensCommand: Command {
     let args: LensCmdArgs
     let shouldResetClosedWindowsCache = false
+    var canSkipPostCommandRefresh: Bool {
+        guard let verb = args.verb else { return false }
+        return ["step", "peek", "mark", "sections", "pane", "presentation", "caret", "close"].contains(verb)
+    }
 
     func run(_ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        if env.isFromURL, let refusal = urlCommandRefusal(self) { return io.err(refusal) }
+        if let verb = args.verb { return try await runVerb(verb, env, io) }
         if args.name == nil, args.filter == nil {
             let panel = SwitcherPalettePanel.shared
             guard panel.isPaletteActive else { io.failureExitCode = 2; return io.err("No Lens is open") }
             panel.changePresentationToList()
             return true
         }
-        let live = NSEvent.ModifierFlags(rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue))
-        let invocation = lensInvocation ?? StripGesture(keyCode: nil, invoking: live)
         let name = args.name ?? "<ad-hoc>"
-        var settings: LensConfig
         if let configured = args.name {
             guard let lens = config.lenses[configured] else { io.failureExitCode = 2; return io.err("No Lens named '\(configured)'") }
             guard lens.enabled else { io.failureExitCode = 2; return io.err("Lens '\(configured)' is disabled") }
-            settings = lens
-        } else { settings = LensConfig() }
+        }
+        var settings = args.name.flatMap { config.lenses[$0] } ?? LensConfig()
         if let presentation = args.presentation { settings.presentation = presentation }
         if let sections = args.sections {
             guard settings.presentation != "miniatures" else { io.failureExitCode = 2; return io.err("--sections is not allowed with miniatures") }
@@ -42,14 +45,12 @@ struct LensCommand: Command {
         }
         let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings, search: args.search) } : nil
         let panel = SwitcherPalettePanel.shared
-        if settings.commitsOnRelease(for: invocation), panel.cycleStrip(name: name, invocation: invocation, identity: identity) { return true }
         let now = LensTimebase.now()
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
         trace.advance("binding resolved")
         trace.startInterval("windows collected")
         guard let ticket = panel.beginLens(name, toggle: args.name != nil,
-                                          strip: settings.commitsOnRelease(for: invocation) ? invocation : nil,
-                                          trace: trace, keys: LensSession.openingBindings(settings), invocation: lensInvocation, settings: settings, identity: identity) else {
+                                          trace: trace, settings: settings, identity: identity) else {
             LensTraceStore.shared.discard(trace)
             return true
         }
@@ -73,7 +74,45 @@ struct LensCommand: Command {
             lensLog.info("Presentation \(settings.presentation, privacy: .public) is not built yet; using list")
             settings.presentation = "list"
         }
-        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, invocation: invocation, eventFilter: args.name == nil ? filter : nil)
+        await panel.openLens(name: name, settings: settings, entries: sorted, search: args.search, banner: resolution.banner, context: context.json, ticket: ticket, eventFilter: args.name == nil ? filter : nil)
+        return true
+    }
+
+    @MainActor private func runVerb(_ verb: String, _ env: CmdEnv, _ io: CmdIo) async throws -> Bool {
+        let panel = SwitcherPalettePanel.shared
+        guard let model = panel.session else { return io.err("No Lens is open") }
+        switch verb {
+            case "close": panel.dismiss(); await ModeEngine.shared.completeLensClose()
+            case "step": model.step(args.operands[0])
+            case "peek": model.send(.peekToggled)
+            case "mark": model.toggleMark()
+            case "sections": model.changeSections("next")
+            case "pane": return io.err("The open Presentation has no panes")
+            case "presentation": model.changePresentation(args.operands[0])
+            case "caret": panel.moveSearchCaret(args.operands[0])
+            case "focus", "summon", "close-window", "run":
+                let raw: [String]
+                if verb == "run" { raw = args.operands }
+                else { raw = [verb == "close-window" ? "close" : verb] }
+                if raw == ["focus"] {
+                    let ids = model.targets(forCommand: "focus")
+                    panel.dismiss()
+                    await ModeEngine.shared.completeLensClose()
+                    guard let id = ids.first, let window = Window.get(byId: id) else { return io.err("No selected window") }
+                    return try await focusLensWindow(window)
+                }
+                switch parseCommand(raw) {
+                    case .cmd: break
+                    case .failure(let error): return io.err(error)
+                    case .help: return io.err("A command is required")
+                }
+                let keepOpen = raw[0] == "close" || raw[0] == "move-node-to-workspace"
+                // The command acts on what was selected and marked when it ran, not after the Lens closed.
+                let targets = model.targets(forCommand: raw.joinArgs())
+                if !keepOpen { panel.dismiss(); await ModeEngine.shared.completeLensClose() }
+                return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env, targets: targets)
+            default: return io.err("Unknown Lens verb '\(verb)'")
+        }
         return true
     }
 }
