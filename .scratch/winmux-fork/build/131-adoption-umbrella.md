@@ -8,7 +8,7 @@ WinMux is a window manager with an integration surface. A helper becomes a featu
 
 ## What the mode work is
 
-A **mode** is a named record of chords to command lists with a lifetime, latched or held, a policy for unbound keys, and commands on entry and on release. A **Lens** is a view with a selection, driven by Lens verbs from whatever mode is current. Every Lens opener is a pair of commands. There is no stack. The held, normal and Search states of a Lens session, and the words Trigger and Hold, leave the glossary with **Modes are the only modality**.
+A **mode** is a named record of properties, a lifetime that is latched, held or transient, a policy for unbound keys, and commands on entry and on release; its keys live in a keymap of blocks each conditioned on a context, the mode among them. A **Lens** is a view with a selection, driven by Lens verbs from whatever mode is current. Every Lens opener is a pair of commands. There is no stack. The held, normal and Search states of a Lens session, and the words Trigger and Hold, leave the glossary with **Modes are the only modality**.
 
 ## Child issues, in build order
 
@@ -18,6 +18,7 @@ A **mode** is a named record of chords to command lists with a lifetime, latched
 - **Modes are the only modality** is the first large child. The shipped keyboard, the HUD legend, the mark keys, Column keys, gestures and the overview's keys all build on it. The mark commands themselves, **focus-back, mark and jump**, do not, and are ready now.
 - **These are ready now and independent of the mode work**: the four reproduced defects, `fullscreen` on a floating window, clicking outside a Lens, double-sided windows hiding the tab strip, and the pointer jump; the five integration gaps; the system-switcher command; modifier move and resize; the two status children, the menu bar item and the sidebar accents; the strip's buttons and the search list's look; the modifier-held hints on the sidebar and move targets; and the research child. A relay can take them in any order. **Fullscreen is a round trip on the same Space** waits on the floating-window defect.
 - **The overview goes prototype, pick, build.** Its prototype is independent; its build waits on Prateek's pick and on the mode work, since the Presentation's keys are a mode.
+- **Hint mode follows the mode rewrite**, beside the modifier-held hints: Vimium's `f`, a transient mode that labels every window, Column and workspace row and reaches the label typed.
 - **Gestures are #49, unparked**, with a replacement body on held modes. Its last checks need Prateek's trackpad.
 - **Crash and reports**: #263 keeps the crash and the relaunch; #106 gains the opt-in flag and the prefilled-issue convention, and still waits on #91, the pinned toolchain, which is blocked on Prateek.
 - **Display profiles, #47, absorbs the display-switching helper** as written; nothing in it changes.
