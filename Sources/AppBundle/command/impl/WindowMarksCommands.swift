@@ -16,7 +16,7 @@ struct MarkCommand: Command {
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
         guard let target = args.resolveTargetOrReportError(env, io) else { return false }
-        guard let window = target.windowOrNil else { return io.err("No window to mark") }
+        guard let window = target.windowOrNil else { return io.err(noWindowIsFocused) }
         if let register = args.register {
             WindowMarks.set(register, to: window)
             return true

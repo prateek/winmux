@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-WinMux's `focus` never points at a window in macOS native fullscreen: while you are in one, `focus` is the window you were in before it. **focus-back, mark and jump** reads that `focus`, so from a native-fullscreen window `focus-back` picks the window you are in and does nothing, and `mark a` marks the window you were in before. The Filter context's `previous` is that fullscreen window itself, by design and pinned by `ContractRecordsTest`, and `focus-back` agrees with it, as its issue's Decision asks.
+WinMux's `focus` never points at a window in macOS native fullscreen: while you are in one, `focus` is the most recent other window on that window's workspace, or none. **focus-back, mark and jump** reads that `focus`, so from a native-fullscreen window `focus-back` picks the window you are in and does nothing, and `mark a` marks that other window or exits 1. The Filter context's `previous` is that fullscreen window itself, by design and pinned by `ContractRecordsTest`, and `focus-back` agrees with it, as its issue's Decision asks.
 
 Three review rounds on #300 tried to fix it inside that pull request; each fix opened a window the next round found. This issue gives it one design and the tests for every window those rounds found.
 
