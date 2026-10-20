@@ -15,6 +15,19 @@ import XCTest
         XCTAssertEqual(try KeyCondition("presentation == strip && (mode == browse || mode == cmd-tab)").specificity, 2)
         XCTAssertThrowsError(try KeyCondition("unknown == x"))
         XCTAssertThrowsError(try KeyCondition("mode = browse"))
+        let present = KeyContext(mode: "window", app: "terminal", lensOpen: true, lens: "recent", presentation: "list", columns: 3)
+        for expression in ["columns", "columns == 3", "lens == recent", "app != editor", "presentation != strip",
+                           "mode == window || mode == main && columns == 0", "!(mode == main || columns != 3)"] {
+            XCTAssertTrue(try KeyCondition(expression).matches(present), expression)
+        }
+        for expression in ["columns != 3", "columns == 4", "lens != recent", "(mode == window || mode == main) && columns == 0"] {
+            XCTAssertFalse(try KeyCondition(expression).matches(present), expression)
+        }
+        XCTAssertFalse(try KeyCondition("lens").matches(.init(mode: "main")))
+        XCTAssertTrue(try KeyCondition("lens != recent").matches(.init(mode: "main")))
+        XCTAssertEqual(try KeyCondition("!columns && mode == main").specificity, 2)
+        XCTAssertEqual(try KeyCondition("(mode == main && app == terminal)").specificity, 1)
+        XCTAssertThrowsError(try KeyCondition("columns == many"))
     }
 
     private func map(_ records: String) throws -> [KeymapBlock] {
