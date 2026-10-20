@@ -13,7 +13,7 @@ final class LensReleaseTest: SerialClockTestCase {
         return mode
     }
     func testHeldReleaseRunsOnReleaseOnceAndReturnsMain() async throws {
-        let engine = ModeEngine(); var commands: [String] = []
+        let engine = ModeEngine(liveModifiers: { .command }); var commands: [String] = []
         engine.execute = { commands += $0.map { $0.args.description } }
         try await engine.enter("cmd-tab", mode: held(delay: 0), invocation: .init(keyCode: 48, invoking: .command))
         await engine.lensReady(show: {}, flags: .command)
@@ -23,7 +23,7 @@ final class LensReleaseTest: SerialClockTestCase {
         XCTAssertEqual(engine.current, "main")
     }
     func testLatchMakesLaterReleaseRunNothingAndNoStackIsRetained() async throws {
-        let engine = ModeEngine(); var commands: [String] = []
+        let engine = ModeEngine(liveModifiers: { .command }); var commands: [String] = []
         engine.execute = { commands += $0.map { $0.args.description } }
         try await engine.enter("cmd-tab", mode: held(delay: 0), invocation: .init(keyCode: 48, invoking: .command))
         var browse = Mode.zero; browse.unbound = .consume
@@ -33,10 +33,11 @@ final class LensReleaseTest: SerialClockTestCase {
         XCTAssertEqual(engine.current, "browse")
     }
     func testQuickTapBeforeReadyNeverDrawsAndCommitsOnlyWhenReady() async throws {
-        let clock = TestClock(); let engine = ModeEngine(clock: clock)
+        let clock = TestClock(); let engine = ModeEngine(clock: clock, liveModifiers: { .command })
         var commands: [String] = []; var shown = 0
         engine.execute = {
             commands += $0.map { $0.args.description }
+            if $0.contains(where: { $0.args.description == "lens recent" }) { engine.lensOpening() }
             if $0.contains(where: { $0.args.description == "lens focus" }) { engine.lensClosed() }
         }
         try await engine.enter("cmd-tab", mode: held(), invocation: .init(keyCode: 48, invoking: .command))
@@ -50,7 +51,7 @@ final class LensReleaseTest: SerialClockTestCase {
         XCTAssertEqual(shown, 0)
     }
     func testDrawDelayUsesInjectedClockAndReplacementCancelsOldDeadline() async throws {
-        let clock = TestClock(); let engine = ModeEngine(clock: clock)
+        let clock = TestClock(); let engine = ModeEngine(clock: clock, liveModifiers: { .command })
         engine.execute = { _ in }
         var shown = 0
         try await engine.enter("held", mode: held(), invocation: .init(keyCode: 48, invoking: .command))
@@ -61,7 +62,7 @@ final class LensReleaseTest: SerialClockTestCase {
         await clock.advance(by: .seconds(1)); XCTAssertEqual(shown, 0)
     }
     func testStayingReleaseAndCLIEntryHaveNoCommittingDelay() async throws {
-        let engine = ModeEngine(); var commands: [String] = []
+        let engine = ModeEngine(liveModifiers: { .option }); var commands: [String] = []
         engine.execute = { commands += $0.map { $0.args.description } }
         var mode = held(delay: 0); mode.onRelease = ["mode search"]
         try await engine.enter("search-hold", mode: mode, invocation: .init(keyCode: 44, invoking: .option))
@@ -76,7 +77,7 @@ final class LensReleaseTest: SerialClockTestCase {
     }
     func testShiftOnlyLifetimeWaitsForShiftAndMultiModifierWaitsForAll() async throws {
         for entry: NSEvent.ModifierFlags in [.shift, [.command, .option]] {
-            let engine = ModeEngine(); var releases = 0
+            let engine = ModeEngine(liveModifiers: { entry }); var releases = 0
             var mode = held(delay: 0); mode.onEnter = []
             engine.execute = { if !$0.isEmpty { releases += 1 } }
             try await engine.enter("held", mode: mode, invocation: .init(keyCode: 4, invoking: entry))

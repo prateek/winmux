@@ -4,6 +4,7 @@ import Common
 struct LensAdHocIdentity: Equatable {
     let filter: String
     let settings: LensConfig
+    var search = ""
 }
 
 @MainActor
@@ -145,14 +146,18 @@ final class LensLifecycle {
         trace?.session(model)
         searchInput = (context, windows, ids)
         state = .ready(model)
-        model.send(.modifiersChanged(dependencies.flags()))
+        model.send(.modifiersChanged(modeEngine.entryModifiers))
         prepare(model)
         if modeEngine.delaysDrawing { trace?.advance("display delay") }
         if !isUnitTest { reconcileModeContext() }
         modeEngine.presentLens(show: { [weak self, weak model] in
                 guard let self, let model, self.generation == ticket, self.session === model else { return }
                 self.presented(model)
-            }, flags: dependencies.flags())
+            }, readModifiers: { [weak model, dependencies] in
+                let flags = dependencies.flags()
+                model?.send(.modifiersChanged(flags))
+                return flags
+            })
         return true
     }
 
@@ -273,10 +278,10 @@ final class LensLifecycle {
 
     func cancelOpening(ticket: Int) {
         guard ticket == generation, case .opening = state else { return }
-        dismiss()
+        dismiss(returnToMain: false, preserveOpeningInput: true)
     }
 
-    func dismiss(returnToMain: Bool = true) {
+    func dismiss(returnToMain: Bool = true, preserveOpeningInput: Bool = false) {
         if case .closed = state { return }
         let model = session
         trace?.statistics.stop()
@@ -290,7 +295,7 @@ final class LensLifecycle {
         let wasPresented: Bool
         if case .presented = state { wasPresented = true } else { wasPresented = false }
         state = .closed
-        modeEngine.lensClosed(cancelMode: returnToMain)
+        modeEngine.lensClosed(cancelMode: returnToMain, preserveOpeningInput: preserveOpeningInput)
         if returnToMain, modeEngine === ModeEngine.shared, activeMode != mainModeId {
             let revision = modeEngine.revision
             Task { if ModeEngine.shared.revision == revision { try await activateMode(mainModeId) } }

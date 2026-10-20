@@ -179,21 +179,26 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
 }
 
 @MainActor func registerModeChords(_ chords: Set<ModeChord>) {
-    for key in hotkeys.values { key.isEnabled = false }
-    hotkeys = [:]
     guard mayArrangeWindows else { return }
+    let wanted = Set(chords.flatMap { chord in chord.carbonKeyCodes.map { "\(chord.modifiers.rawValue)-\($0)" } })
+    for id in hotkeys.keys.filter({ !wanted.contains($0) }) {
+        hotkeys.removeValue(forKey: id)?.isEnabled = false
+    }
     for chord in chords {
-        guard let key = Key(carbonKeyCode: UInt32(chord.code)) else { continue }
-        let id = "\(chord.modifiers.rawValue)-\(chord.code)"
-        hotkeys[id] = HotKey(key: key, modifiers: chord.modifiers, keyDownWithTimeHandler: { time in
-            Task { @MainActor in
-                guard !hotkeysSuspended else { return }
-                noteTapBindingKeyDown()
-                let text = chord.modifiers.contains(.shift) ? key.description.uppercased() : key.description.lowercased()
-                _ = handleModeKey(code: chord.code, flags: chord.modifiers, characters: text.count == 1 ? text : "", carbon: true,
-                                  origin: LensTraceOrigin(start: time, received: LensTimebase.now(), source: "Carbon"))
-            }
-        })
+        for code in chord.carbonKeyCodes {
+            guard let key = Key(carbonKeyCode: UInt32(code)) else { continue }
+            let id = "\(chord.modifiers.rawValue)-\(code)"
+            guard hotkeys[id] == nil else { continue }
+            hotkeys[id] = HotKey(key: key, modifiers: chord.modifiers, keyDownWithTimeHandler: { time in
+                Task { @MainActor in
+                    guard !hotkeysSuspended else { return }
+                    noteTapBindingKeyDown()
+                    let text = chord.modifiers.contains(.shift) ? key.description.uppercased() : key.description.lowercased()
+                    _ = handleModeKey(code: chord.code, flags: chord.modifiers, characters: text.count == 1 ? text : "", carbon: true,
+                                      origin: LensTraceOrigin(start: time, received: LensTimebase.now(), source: "Carbon"))
+                }
+            })
+        }
     }
     applyHotkeyEnabledState()
 }
@@ -212,14 +217,14 @@ private func tapModifiersPressed(in modifierFlags: NSEvent.ModifierFlags) -> Set
     })
 }
 
+@MainActor func modeHotkeyForTests(code: UInt16, modifiers: NSEvent.ModifierFlags = []) -> HotKey? {
+    hotkeys["\(modifiers.rawValue)-\(code)"]
+}
+
 @MainActor func tapBindingPressedModifiersForTests() -> Set<TapModifierKey> {
     pressedTapModifiers
 }
 
 @MainActor func hasPendingTapBindingForTests() -> Bool {
     !pendingTapBindings.isEmpty || !pendingTapTriggerTasks.isEmpty
-}
-
-@MainActor func activeHotkeyBinding(_ chord: String, mode: String?, modes: [String: Mode]) -> HotkeyBinding? {
-    mode.flatMap { modes[$0]?.bindings[chord] }
 }

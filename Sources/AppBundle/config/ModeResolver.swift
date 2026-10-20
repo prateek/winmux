@@ -29,21 +29,26 @@ struct ModeKeyResolution {
     var editsSearch = false
 }
 
-func modeRegistrationChords(keymap: [KeymapBlock], context: KeyContext, mode: Mode, entryModifiers: NSEvent.ModifierFlags = [], pending: [ModeChord] = []) -> Set<ModeChord> {
+func modeRegistrationChords(keymap: [KeymapBlock], context: KeyContext, mode: Mode, entryModifiers: NSEvent.ModifierFlags = [], pending: [ModeChord] = [], panelIsKey: Bool = false) -> Set<ModeChord> {
     let continuations = winningKeyBindings(keymap, context: context, prefix: pending).compactMap { binding -> ModeChord? in
         guard binding.commands != nil, binding.chords.count > pending.count else { return nil }
         return binding.chords[pending.count]
     }
     let fresh = winningKeyBindings(keymap, context: context, prefix: []).compactMap { $0.commands == nil ? nil : $0.chords.first }
-    var result = Set<ModeChord>()
-    for chord in continuations + fresh where chord.code != 49 {
-        let held = ModeChord(code: chord.code, modifiers: chord.modifiers.union(entryModifiers))
-        for candidate in Set([chord, held]) {
-            let resolution = resolveModeKey(keymap: keymap, context: context, mode: mode, chord: candidate, entryModifiers: entryModifiers, pending: pending)
-            if resolution.kind == .run || resolution.kind == .pending { result.insert(candidate) }
+    var global: [ModeChord] = []
+    if context.lensOpen {
+        var main = context; main.mode = mainModeId
+        global = winningKeyBindings(keymap, context: main, prefix: []).compactMap { $0.commands == nil ? nil : $0.chords.first }.filter {
+            resolveModeKey(keymap: keymap, context: context, mode: mode, chord: $0, entryModifiers: entryModifiers, pending: pending).kind == .global
         }
     }
-    return result
+    var result = Set(global)
+    for chord in continuations + fresh where chord.code != 49 {
+        let candidate = ModeChord(code: chord.code, modifiers: chord.modifiers.union(entryModifiers))
+        let resolution = resolveModeKey(keymap: keymap, context: context, mode: mode, chord: candidate, entryModifiers: entryModifiers, pending: pending)
+        if resolution.kind == .run || resolution.kind == .pending { result.insert(candidate) }
+    }
+    return result.filter { $0.code != 49 && (!panelIsKey || !$0.modifiers.intersection([.command, .control, .option]).isEmpty) }
 }
 
 func resolveModeKey(keymap: [KeymapBlock], context: KeyContext, mode: Mode, chord: ModeChord,

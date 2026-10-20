@@ -4,6 +4,7 @@ import Common
 @MainActor
 final class ModeEngine {
     static let shared = ModeEngine()
+    @TaskLocal private static var inputOwner: ObjectIdentifier?
     private(set) var current: String? = mainModeId
     private(set) var properties: Mode = .zero
     private(set) var entryModifiers: NSEvent.ModifierFlags = []
@@ -14,16 +15,20 @@ final class ModeEngine {
     private(set) var pendingNames = ""
     private var returnMode = mainModeId
     private var generation = 0
-    var revision: Int { generation }
+    private var configurationRevision = 0
+    var revision: Int { generation + configurationRevision }
     private var opening = false
     private var lensIsOpen = false
     private var entering = false
-    private var readyAction: (() -> Void)?
+    private var readyAction: (@MainActor () async -> Void)?
     private var released = false
     private var deadlinePassed = true
     private var draw: (() -> Void)?
     private var queued: [() async -> Void] = []
     private var inputTask: Task<Void, Never>?
+    private var inputEpoch = 0
+    private var inputCount = 0
+    var inputIsIdle: Bool { inputCount == 0 && !opening }
     private var readinessTask: Task<Void, Never>?
     private var readinessGeneration = 0
     private var delayTask: Task<Void, Never>?
@@ -43,17 +48,27 @@ final class ModeEngine {
         replace(name, mode: mode, invocation: invocation, cli: cli)
         let ticket = generation
         entering = true
-        if mode.onEnter.contains(where: { raw in
-            if case .cmd(let command) = parseCommand(raw), let args = command.args as? LensCmdArgs { return args.verb == nil }
-            return false
-        }) { opening = true }
-        if previous != name { try await didEnter(previous, name) }
-        try await perform(mode.onEnter, generation: ticket)
+        if LensCommandList(mode.onEnter).containsOpener { opening = true }
+        var failure: (any Error)?
+        do {
+            if previous != name { try await didEnter(previous, name) }
+            try await perform(mode.onEnter, generation: ticket)
+        } catch { failure = error }
         if generation == ticket {
             entering = false
-            if !lensIsOpen { opening = false }
-            let ready = readyAction; readyAction = nil; ready?()
+            let ready: @MainActor () async -> Void = readyAction ?? { [self] in
+                await finishReady(flags: entryModifiers.isEmpty ? textModifiers : liveModifiers())
+            }
+            readyAction = nil
+            if Self.inputOwner == ObjectIdentifier(self) { await ready() }
+            else {
+                await enqueueInput { [self] in
+                    guard generation == ticket else { return }
+                    await ready()
+                }.value
+            }
         }
+        if let failure { throw failure }
     }
 
     func replace(_ name: String?, mode: Mode, invocation: ModeInvocation? = nil, cli: Bool = false) {
@@ -96,6 +111,7 @@ final class ModeEngine {
 
     func lensOpening() { opening = true; lensIsOpen = true }
     func reconfigure(_ mode: Mode) {
+        configurationRevision += 1
         properties = mode
         if mode.lifetime != .held {
             entryModifiers = []; entryChordModifiers = []
@@ -112,26 +128,36 @@ final class ModeEngine {
     @discardableResult
     func enqueueInput(_ action: @escaping @MainActor () async -> Void) -> Task<Void, Never> {
         let previous = inputTask
-        let next = Task { @MainActor in
+        let epoch = inputEpoch
+        inputCount += 1
+        let next = Task { @MainActor [self] in
             await previous?.value
-            guard !Task.isCancelled else { return }
-            await action()
+            guard inputEpoch == epoch, !Task.isCancelled else { return }
+            defer { if inputEpoch == epoch { inputCount -= 1 } }
+            await Self.$inputOwner.withValue(ObjectIdentifier(self)) { await action() }
         }
         inputTask = next
         return next
     }
     func interruptOpening(_ action: @escaping @MainActor () async -> Void) {
         queued = []; readyAction = nil
-        inputTask?.cancel()
-        inputTask = Task { @MainActor in await action() }
+        inputEpoch += 1
+        inputCount = 0
+        inputTask = nil
+        enqueueInput(action)
     }
-    func presentLens(show: @escaping () -> Void, flags: NSEvent.ModifierFlags) {
+    func presentLens(show: @escaping () -> Void, flags: NSEvent.ModifierFlags? = nil, readModifiers: (() -> NSEvent.ModifierFlags)? = nil) {
+        let read = readModifiers ?? { flags ?? self.liveModifiers() }
         if entering {
-            readyAction = { [weak self] in self?.presentLens(show: show, flags: flags) }
+            readyAction = { [weak self] in
+                guard let self else { return }
+                await self.lensReady(show: show, flags: read())
+            }
             return
         }
         if entryModifiers.isEmpty && !released && deadlinePassed && queued.isEmpty {
             opening = false
+            _ = read()
             show()
         } else {
             readinessGeneration += 1
@@ -139,7 +165,7 @@ final class ModeEngine {
             readinessTask = enqueueInput { [weak self] in
                 guard let self, self.readinessGeneration == ticket else { return }
                 defer { if self.readinessGeneration == ticket { self.readinessTask = nil } }
-                await self.lensReady(show: show, flags: flags)
+                await self.lensReady(show: show, flags: read())
             }
         }
     }
@@ -147,28 +173,39 @@ final class ModeEngine {
     func waitForInput() async { await inputTask?.value }
     func lensReady(show: @escaping () -> Void, flags: NSEvent.ModifierFlags) async {
         let ticket = readinessGeneration
+        await finishReady(flags: flags)
+        guard lensIsOpen, readinessGeneration == ticket, !Task.isCancelled else { return }
+        if deadlinePassed { show() } else { draw = show }
+    }
+    private func finishReady(flags: NSEvent.ModifierFlags) async {
+        let epoch = inputEpoch
         opening = false
         let queued = self.queued; self.queued = []
         for action in queued {
-            guard lensIsOpen, readinessGeneration == ticket, !Task.isCancelled else { return }
+            guard inputEpoch == epoch, !Task.isCancelled else { return }
             await action()
         }
-        guard lensIsOpen, readinessGeneration == ticket, !Task.isCancelled else { return }
+        guard inputEpoch == epoch, !Task.isCancelled else { return }
         await observeModifiers(flags)
-        guard lensIsOpen, readinessGeneration == ticket, !Task.isCancelled else { return }
-        if released { await finishRelease(); if lensIsOpen { show() }; return }
-        if deadlinePassed { show() } else { draw = show }
     }
     func whenLensReady(_ action: @escaping @MainActor () async -> Void) {
         if opening { queued.append(action) } else { enqueueInput(action) }
     }
-    func lensClosed(cancelMode: Bool = true) {
-        opening = false; lensIsOpen = false; draw = nil; queued = []; readyAction = nil
+    func lensClosed(cancelMode: Bool = true, preserveOpeningInput: Bool = false) {
+        lensIsOpen = false; draw = nil; readyAction = nil
+        if !preserveOpeningInput { opening = false; queued = [] }
         readinessGeneration += 1
         readinessTask = nil
         if cancelMode {
             delayTask?.cancel(); delayTask = nil
             entryModifiers = []; released = false
+        }
+        if preserveOpeningInput && !entering {
+            let ticket = generation
+            enqueueInput { [weak self] in
+                guard let self, self.generation == ticket, !self.lensIsOpen else { return }
+                await self.finishReady(flags: self.entryModifiers.isEmpty ? [] : self.liveModifiers())
+            }
         }
     }
 
@@ -177,7 +214,7 @@ final class ModeEngine {
         guard !entryModifiers.isEmpty else { return }
         if opening {
             recordOpeningRelease(flags)
-        } else {
+        } else if flags.intersection(entryModifiers).isEmpty && !released {
             enqueueInput { [weak self] in await self?.observeModifiers(flags) }
         }
     }

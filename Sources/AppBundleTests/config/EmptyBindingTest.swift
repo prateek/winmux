@@ -51,8 +51,8 @@ final class EmptyBindingTest: XCTestCase {
         """)
         XCTAssertTrue(errors.isEmpty, "\(errors)")
         config = parsed
-        XCTAssertNotNil(activeHotkeyBinding("alt-slash", mode: "main", modes: config.modes))
-        XCTAssertNotNil(activeHotkeyBinding("alt-j", mode: "main", modes: config.modes))
+        XCTAssertNotNil(activeHotkeyBinding("alt-slash", mode: "main", modes: config))
+        XCTAssertNotNil(activeHotkeyBinding("alt-j", mode: "main", modes: config))
         for chord in ["alt-slash", "esc-h"] {
             let result = try await parseCommand("trigger-binding --mode main \(chord)").cmdOrDie.run(.defaultEnv, .emptyStdin)
             XCTAssertEqual(result.exitCode, 0)

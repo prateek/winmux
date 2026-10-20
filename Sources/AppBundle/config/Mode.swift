@@ -39,6 +39,12 @@ func parseModes(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ error
     for (key, value) in rawTable {
         result[key] = parseMode(value, backtrace + .key(key), &errors, mapping)
     }
+    let policies = result.mapValues { $0.unbound.rawValue }
+    for (name, mode) in result where mode.unbound == .latch || rawTable[name]?.table?.contains(key: "latch-to") == true {
+        if let error = modeLatchDiagnostic(mode.latchTo, policies: policies) {
+            errors.append(.semantic(backtrace + .key(name) + .key("latch-to"), error))
+        }
+    }
     return result
 }
 
@@ -78,10 +84,7 @@ func parseMode(_ raw: TOMLValueConvertible, _ backtrace: TomlBacktrace, _ errors
                 errors += [unknownKeyError(backtrace)]
         }
     }
-    if !rawTable.contains(key: "unbound"), result.onEnter.contains(where: {
-        if case .cmd(let command) = parseCommand($0), let args = command.args as? LensCmdArgs { return args.verb == nil }
-        return false
-    }) { result.unbound = .consume }
-    if !rawTable.contains(key: "draw-delay"), result.lifetime == .held, result.onRelease.contains("lens focus") { result.drawDelay = 100 }
+    if !rawTable.contains(key: "unbound"), LensCommandList(result.onEnter).containsOpener { result.unbound = .consume }
+    if !rawTable.contains(key: "draw-delay"), result.lifetime == .held, LensCommandList(result.onRelease).containsFocus { result.drawDelay = 100 }
     return result
 }

@@ -44,7 +44,7 @@ struct LensCommand: Command {
                 return io.err(failure.message)
             }
         }
-        let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings) } : nil
+        let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings, search: args.search ?? "") } : nil
         let panel = SwitcherPalettePanel.shared
         let now = LensTimebase.now()
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
@@ -107,15 +107,9 @@ struct LensCommand: Command {
                     case .failure(let error): return io.err(error)
                     case .help: return io.err("A command is required")
                 }
-                let ids = model.targets(forCommand: raw[0])
                 let keepOpen = raw[0] == "close" || raw[0] == "move-node-to-workspace"
                 if !keepOpen { panel.dismiss(); try await activateMode(mainModeId) }
-                var success = true
-                for id in ids {
-                    let result = try await runLensWindowAction(raw.joinArgs(), windowId: id, io: io, env: env)
-                    success = result && success
-                }
-                return success
+                return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env)
             default: return io.err("Unknown Lens verb '\(verb)'")
         }
         return true

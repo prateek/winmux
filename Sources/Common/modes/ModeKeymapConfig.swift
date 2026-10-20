@@ -43,6 +43,13 @@ public struct ModeBlockSource {
 /// Compiles keymap records and mode.binding sugar.
 public func compileModeKeymap(_ fields: [String: Any], mapping suppliedMapping: [String: Key]? = nil) -> (blocks: [ModeBlockSource], errors: [String]) {
     var errors: [String] = []
+    let modes = fields["mode"] as? [String: [String: Any]] ?? [:]
+    let policies = modes.mapValues { $0["unbound"] as? String ?? "pass" }
+    for (name, mode) in modes where mode["latch-to"] != nil || mode["unbound"] as? String == "latch" {
+        if let error = modeLatchDiagnostic(mode["latch-to"] as? String ?? "browse", policies: policies) {
+            errors.append("mode.\(name).latch-to: \(error)")
+        }
+    }
     let keySettings = fields["key-mapping"] as? [String: Any] ?? [:]
     let preset = (keySettings["preset"] as? String).flatMap(KeyMapping.Preset.init(rawValue:)) ?? .qwerty
     let aliases = (keySettings["key-notation-to-key-code"] as? [String: String] ?? [:]).compactMapValues { keyNotationToKeyCode[$0] }
@@ -104,6 +111,11 @@ public func compileModeKeymap(_ fields: [String: Any], mapping suppliedMapping: 
         errors.append("lenses.\(name): reserved Lens verb")
     }
     return (blocks, errors)
+}
+
+public func modeLatchDiagnostic(_ target: String, policies: [String: String]) -> String? {
+    guard let policy = policies[target] else { return "Unknown mode '\(target)'" }
+    return policy == "latch" ? "Target '\(target)' must not itself use unbound = 'latch" : nil
 }
 
 public func modeCommandDiagnostic(_ command: String) -> String? {

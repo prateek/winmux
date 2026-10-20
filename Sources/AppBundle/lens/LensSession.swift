@@ -46,6 +46,11 @@ final class LensSession: ObservableObject {
     var hintSnapshots: [Bool: LensHintSnapshot] = [:]
     var hintContext: KeyContext?
     var hintRevision = -1
+    private var commandContext: KeyContext?
+    private var commandRevision = -1
+    private var commandStrings: [String: [String]] = [:]
+    private var resolvedKeyBindings: [LensKeyBinding] = []
+    private(set) var commandResolutionCount = 0
     var gridLayoutCache: GridLayoutCache?
     var stripLayoutCache: StripLayoutCache?
     weak var owner: LensLifecycle?
@@ -163,8 +168,19 @@ final class LensSession: ObservableObject {
     private let searchIsExplicit: Bool
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
-    func enterSearch() { Task { try await activateMode("search") } }
-    func leaveSearch() { Task { try await activateMode("browse") } }
+    func enterSearch() { queueModeChange(key: "slash", useLatchTarget: true) }
+    func leaveSearch() { queueModeChange(key: "esc", useLatchTarget: false) }
+    private func queueModeChange(key: String, useLatchTarget: Bool) {
+        ModeEngine.shared.enqueueInput { [weak self] in
+            guard let self else { return }
+            let target = self.commands(for: key).compactMap { raw -> String? in
+                guard case .cmd(let command) = parseCommand(raw), let args = command.args as? ModeCmdArgs else { return nil }
+                return args.targetMode.val
+            }.last ?? (useLatchTarget ? ModeEngine.shared.properties.latchTo : nil)
+            guard let target, config.modes[target] != nil else { return }
+            try? await activateMode(target)
+        }
+    }
     func modeChanged() { send(.modeChanged); hintSnapshots = [:]; objectWillChange.send() }
 
     var bindingContext: KeyContext {
@@ -174,15 +190,24 @@ final class LensSession: ObservableObject {
     }
     var modeCommandStrings: [String: [String]] {
         let context = bindingContext
+        let revision = ModeEngine.shared.revision
+        if commandContext == context && commandRevision == revision { return commandStrings }
+        commandResolutionCount += 1
         var result: [String: [String]] = [:]
         for binding in winningKeyBindings(resolvedModeKeymap(), context: context, prefix: []) where binding.chords.count == 1 {
             guard result[binding.name] == nil else { continue }
             result[binding.name] = binding.commands?.map { $0.args.description } ?? []
         }
-        return result
+        commandContext = context; commandRevision = revision
+        commandStrings = result
+        resolvedKeyBindings = LensKeyBinding.resolve(result)
+        return commandStrings
     }
-    var keyBindings: [LensKeyBinding] { LensKeyBinding.resolve(modeCommandStrings) }
-    var sectionsKey: String? { keyBindings.first { modeCommandStrings[$0.name] == ["lens sections next"] }?.name }
+    var keyBindings: [LensKeyBinding] { _ = modeCommandStrings; return resolvedKeyBindings }
+    var sectionsKey: String? {
+        let commands = modeCommandStrings
+        return resolvedKeyBindings.first { commands[$0.name] == ["lens sections next"] }?.name
+    }
 
     private func keepSelectionOrSelectBest(_ selected: UInt32?) {
         if let selected, let index = results.firstIndex(where: { $0.id == selected }) { selection = index }
@@ -247,7 +272,7 @@ final class LensSession: ObservableObject {
     func initialSelection() -> Int {
         let ranked = rankedResults
         let results = results
-        if ModeEngine.shared.properties.onEnter.contains("lens step prev"), let focused = results.firstIndex(where: \.isFocused) { return focused }
+        if LensCommandList(ModeEngine.shared.properties.onEnter).containsStepPrev, let focused = results.firstIndex(where: \.isFocused) { return focused }
         guard settings.presentation == "miniatures", query.isEmpty else {
             let index = ranked.count > 1 && ranked.first?.isFocused == true ? 1 : 0
             guard ranked.indices.contains(index) else { return 0 }
@@ -380,7 +405,7 @@ final class LensSession: ObservableObject {
 
     private func clickModifiers(_ modifiers: NSEvent.ModifierFlags) -> NSEvent.ModifierFlags {
         let engine = ModeEngine.shared
-        if isHeld, engine.properties.onRelease.contains("lens focus") {
+        if isHeld, LensCommandList(engine.properties.onRelease).containsFocus {
             return modifiers.intersection([.control, .option, .command]).subtracting(engine.entryModifiers)
         }
         return modifiers.intersection([.control, .option, .shift, .command]).subtracting(engine.entryModifiers)

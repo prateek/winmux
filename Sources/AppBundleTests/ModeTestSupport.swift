@@ -1,6 +1,20 @@
 @testable import AppBundle
 import AppKit
 import Common
+import HotKey
+
+@MainActor func activeHotkeyBinding(_ chord: String, mode: String?, modes configuration: Config) -> HotkeyBinding? {
+    var errors: [TomlParseError] = []
+    let keymap = configuration.keymap.isEmpty
+        ? parseKeymap(nil, modes: configuration.modes, mapping: configuration.keyMapping.resolve(), errors: &errors)
+        : configuration.keymap
+    guard let mode, configuration.modes[mode] != nil,
+          let parsed = try? parseModeChord(chord, mapping: configuration.keyMapping.resolve()),
+          let binding = winningKeyBindings(keymap, context: .init(mode: mode), prefix: [parsed]).first,
+          binding.chords.count == 1, let commands = binding.commands,
+          let key = Key(carbonKeyCode: UInt32(parsed.code)) else { return nil }
+    return HotkeyBinding(parsed.modifiers, key, commands, descriptionWithKeyNotation: chord)
+}
 
 @MainActor var testModeBindings: [String: [String]] {
     get {

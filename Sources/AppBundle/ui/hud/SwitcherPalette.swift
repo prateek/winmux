@@ -48,13 +48,14 @@ final class SwitcherPalettePanel: NSPanelHud {
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKey()
     }
+    private var openedWithHeldModifiers = false
     var isPaletteActive: Bool { session != nil }
     var isLensOpen: Bool { lifecycle.isOpen }
     var openLensName: String? { lifecycle.openName }
     var openPresentation: String? { lifecycle.openPresentation }
 
-    init(emit: @escaping (ServerEvent) -> Void) {
-        lifecycle = LensLifecycle(dependencies: .live(), emit: emit, show: { _ in }, hide: {})
+    init(dependencies: LensLifecycle.Dependencies = .live(), emit: @escaping (ServerEvent) -> Void) {
+        lifecycle = LensLifecycle(dependencies: dependencies, emit: emit, show: { _ in }, hide: {})
         super.init()
         lifecycle.prepare = { [weak self] model in self?.prepare(model) }
         lifecycle.show = { [weak self] model in self?.show(model) }
@@ -67,7 +68,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         lifecycle.modeChanged = { [weak self] model in
             guard let self else { return }
             if self.isVisible, ModeEngine.shared.properties.unbound != .pass {
-                self.activateInput(self)
+                if self.openedWithHeldModifiers { self.makeKey() }
+                else { self.activateInput(self) }
             }
             self.updateInputFocus(model)
         }
@@ -214,10 +216,27 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func finishShow(_ model: LensSession, instruction: LensLifecycle.ShowInstruction) {
+        if instruction.activate { openedWithHeldModifiers = !ModeEngine.shared.entryModifiers.isEmpty }
         guard ModeEngine.shared.properties.unbound != .pass else { return }
-        if instruction.activate { activateInput(self) }
+        if instruction.activate && !openedWithHeldModifiers { activateInput(self) }
         else { makeKey() }
         updateInputFocus(model, selectAll: instruction.focusSearch)
+    }
+
+    override func makeKey() {
+        super.makeKey()
+        reconcileModeContext()
+    }
+
+    override func resignKey() {
+        super.resignKey()
+        reconcileModeContext()
+    }
+
+    override func orderOut(_ sender: Any?) {
+        super.orderOut(sender)
+        openedWithHeldModifiers = false
+        reconcileModeContext()
     }
 
     private func updateInputFocus(_ model: LensSession, selectAll: Bool = false) {

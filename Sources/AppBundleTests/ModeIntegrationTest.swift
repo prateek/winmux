@@ -19,7 +19,7 @@ import XCTest
         let terminal = modeRegistrationChords(keymap: map, context: .init(mode: "window", app: "terminal"), mode: .zero)
         XCTAssertEqual(terminal, [.init(code: 5)])
         let pending = modeRegistrationChords(keymap: map, context: .init(mode: "window"), mode: .zero, entryModifiers: .command, pending: [.init(code: 5)])
-        XCTAssertTrue(pending.contains(.init(code: 17)))
+        XCTAssertFalse(pending.contains(.init(code: 17)))
         XCTAssertTrue(pending.contains(.init(code: 17, modifiers: .command)))
         XCTAssertFalse(pending.contains { $0.code == 49 })
         XCTAssertTrue(modeRegistrationChords(keymap: map, context: .init(mode: "main"), mode: .zero).isEmpty)
@@ -46,7 +46,7 @@ import XCTest
     }
     func testOpeningLatchBeforeReleaseCancelsCommitButReleaseBeforeLatchCommits() async throws {
         for latchFirst in [true, false] {
-            let engine = ModeEngine(liveModifiers: { [] })
+            let engine = ModeEngine(liveModifiers: { .command })
             var actions: [String] = []
             engine.execute = { actions += $0.map { $0.args.description } }
             var mode = Mode.zero; mode.lifetime = .held; mode.onRelease = ["lens focus"]
@@ -193,7 +193,11 @@ import XCTest
         var mode = Mode.zero; mode.lifetime = .held; mode.onEnter = ["lens recent"]
         config.modes["held"] = mode
         var commands: [String] = []
-        ModeEngine.shared.execute = { commands += $0.map { $0.args.description } }
+        ModeEngine.shared.execute = {
+            commands += $0.map { $0.args.description }
+            ModeEngine.shared.lensOpening()
+            ModeEngine.shared.presentLens(show: {}, flags: .command)
+        }
         try await ModeEngine.shared.enter("held", mode: mode, invocation: .init(keyCode: 48, invoking: .command))
         try await applyConfig(config, url: configUrl, readSidebarState: { WorkspaceSidebarState() }, synchronizeLogin: {})
         XCTAssertEqual(commands, ["lens recent"])
@@ -239,7 +243,7 @@ import XCTest
         XCTAssertEqual(result.commands.map { $0.args.description }, ["mode main"])
     }
     func testQuickReleaseCanFinishFocusAfterClosingWithoutCancellingItself() async throws {
-        let engine = ModeEngine(liveModifiers: { [] })
+        let engine = ModeEngine(liveModifiers: { .command })
         var mode = Mode.zero; mode.lifetime = .held; mode.onRelease = ["lens focus"]
         var committed = false
         engine.execute = { commands in
