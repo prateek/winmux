@@ -5,7 +5,7 @@ A sidebar-first tiling window manager for macOS, forked from AeroSpace. This glo
 ## Finding windows
 
 **Lens**:
-A view of matching windows: a Filter, a Presentation, sort order and shared Tile settings. A command in any Mode, a gesture or the CLI opens it. Its view state is selection, Search text, marks in mark order and the focused pane; keys belong to Modes.
+A view of matching windows: a Filter, a Presentation, sort order and shared Tile settings. A command in any Mode, a gesture or the CLI opens it. Its view state is selection, Search text, marks in mark order and the focused pane; keys belong to Modes. A mode and its Lens are one thing exactly when the mode opened the Lens. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode.
 _Avoid_: picker, picker binding, switcher, exposé, overview, Mission Control
 
 **Filter**:
@@ -49,7 +49,7 @@ The source that lists an app's Tabs and brings a chosen one to the front, either
 _Avoid_: tab source, adapter, integration
 
 **Mode**:
-The one owner of keyboard modality. A named mode has a lifetime (`latched`, until replaced; `held`, until all entry modifiers are released; or `transient`, for one key), an unbound-key policy (`pass`, `consume`, `type` into Search, or `latch` into another mode and reread an unbound letter), `on-enter`, `on-release`, `draw-delay`, and `count`. `latch-to` names the latch target. Entering a mode replaces the current one; closing a Lens ends in `main`.
+The one owner of keyboard modality. A named mode has a lifetime (`latched`, until replaced; `held`, until all entry modifiers are released; or `transient`, for one key), an unbound-key policy (`pass`, `consume`, `type` into Search, or `latch` into another mode and reread an unbound letter), `on-enter`, `on-release`, `draw-delay`, and `count`. `latch-to` names the latch target. Entering a mode replaces the current one. A Lens opened by its `on-enter` belongs to it; a mode that needs a Lens adopts one already open when it enters. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode, including its lifetime and entry modifiers.
 _Avoid_: Hold, strip mode, binding mode, input state
 
 **Keymap**:

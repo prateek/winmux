@@ -349,7 +349,15 @@ to typing; a keymap block may add `cmd-p = "lens peek"`.
 whose `on-enter` opens it, or a `W.open` pair such as `["lens windows", "mode browse"]`.
 Opening a Lens alone from `main`, including from the CLI, leaves plain keys with
 the app. Entering another mode replaces the current one; there is no mode stack.
-Closing the Lens by a key, Focus, Summon, the panel or `lens close` ends in `main`.
+A mode and its Lens are one thing exactly when the mode opened the Lens.
+A Lens opened by `on-enter` belongs to that mode. A mode entered over an open
+Lens adopts it when its unbound policy is consume, type or latch, or its
+`on-enter` opens a Lens. Closing a Lens a mode owns ends that mode in `main`;
+closing a Lens no mode owns changes no mode, including its lifetime and entry
+modifiers. A Lens opened by a binding, the CLI or `on-release` belongs to no mode.
+When a held mode releases, only its owned Lens closes; a Lens opened by its
+`on-release` stays. Escape, a foreign chord and `mode main` still close the open
+Lens when they end a mode.
 
 A mode with `lifetime = 'held` lasts until all the entering chord's Command,
 Control and Option modifiers are up; Shift is the lifetime modifier for a

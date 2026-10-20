@@ -151,7 +151,8 @@ and end transient modes. The docs state this limit.
 The Lens is a view with selection, Search, marks and Presentation state. Its
 old keys, three input states, `starts-in` and `on-release` are removed. New Lens
 verbs operate on that state; `lens run` carries selection/mark command dispatch.
-Closing ends in `main`. Ready input and later input share a queue, replacement
+Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns
+changes no mode. Ready input and later input share a queue, replacement
 invalidates old entry work, and a foreign global chord interrupts opening.
 Held release uses event modifiers; readiness and the draw deadline alone sample
 live flags. Native Search preserves caret, selection, clipboard and composition.
@@ -165,23 +166,35 @@ synchronously only when that queue is idle.
 
 Cancelled openings drain parked keys and releases into the current mode, even
 when it changed during the opening. A newer Lens drops that parked work. One
-readiness drain keeps typing modifiers and stops on cancellation. After draining,
-a mode whose `on-enter` opens a Lens or whose `unbound` is consume, type or latch
-returns to `main` when no Lens remains; pass modes without openers stay. Unknown
-and disabled named Lenses follow the same cancelled-opening path. Dismissal uses
-a mode-generation guard and runs ahead of an in-flight input action, surviving
-reloads and input-epoch changes. A failed `on-release` closes the Lens and enters
-`main` through the successful release's cleanup. Held latch redispatch strips
+readiness drain keeps typing modifiers and stops on cancellation. Lens ownership
+is recorded by mode generation: `on-enter` owns its opening, and a mode that needs
+a Lens adopts one already open when it enters. Other openers own no mode. A failed
+owned opening ends its owner after the drain, unless a parked key replaced that
+mode. Unknown and disabled names, invalid Filter syntax, incompatible miniature
+options and URL refusals validate before beginning a Lens or recording a trace;
+an `on-enter` rejected there follows the same owner cleanup. A cancelled drain
+never clears a newer opening's parked work. Held and typing modifiers are read
+live after parked actions, or from the supplied event when none ran. Dismissal
+uses a mode-generation guard and runs ahead of an in-flight input action, surviving
+reloads and input-epoch changes. Interrupt actions serialize with each other while
+bypassing ordinary input in flight. Release closes only the mode's owned Lens,
+including an in-place Presentation change; a Lens opened by `on-release` stays.
+A failed `on-release` logs and follows the same return to `main`. Held latch redispatch strips
 entry modifiers without replaying the original modified event; unmodified
 composition keeps native replay.
 
-The final cancellation/release check passes on the host and pinned-version
-guest: 1,799 Swift, 94 Rust/helper and 171 script tests (one existing guest-only
-script skip). All 25 ordering tests pass. Fourteen new regressions and the
-strengthened failed-release test were observed failing without their fixes.
+The ownership/release check passes on the host and pinned-version guest:
+1,817 Swift, 94 Rust/helper and 171 script tests (one existing guest-only script
+skip). All 27 input-order tests and 16 ownership scenarios pass. Thirteen
+regressions produced 31 failing assertions with the implementation reverted;
+isolated reversions also reproduced the newer-opening drain, entry/replacement
+ownership, adoption and unowned-cancellation defects. The cache is structurally
+verified and covered by adoption behavior, without a timing claim.
 The guest run checks selected-window focus on held Cmd-Tab release, Escape
-returning typing to the prior app, and a missing named Lens from browse ending
-in `main` with the next letter reaching that app.
+returning typing to the prior app, a missing named Lens leaving browse and its
+Lens untouched, and an unowned Lens toggle preserving a held pass mode until
+release runs its command. The two windows are on one workspace; no nonempty
+Search or permission grant is involved.
 
 Showing with entry modifiers and latching from that visible Lens take key focus
 without activating WinMux.
