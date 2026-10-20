@@ -54,7 +54,7 @@ A test seen to fail without its fix, in step 6 or in a builder pass, is only evi
 An issue body is its draft **rendered**:
 
 - without the draft's first two lines, the title heading and the blank after it;
-- with `{{UMBRELLA}}` replaced by the number of the umbrella the issue is a child of, as `#<number>`: #84 for **Prateek's checks**, the build umbrella for a build issue;
+- with `{{UMBRELLA}}` replaced by the number of the umbrella the issue is a child of, as `#<number>`: #84 for **Prateek's checks**, the umbrella the brief names for a build issue;
 - with `{{CHILDREN}}` replaced by one `- [ ] #<number>` line per child, in order.
 
 Before updating a body, compare the live body with the draft rendered at the commit before this change, ignoring a trailing newline. Any other difference is an edit made only on GitHub, and a stop. Make the comparison at Land, with a command whose output you read:
@@ -65,7 +65,7 @@ diff <(printf '%s\n' "$(sed 's/^- \[x\]/- [ ]/' live.md)") <(printf '%s\n' "$(ca
 
 It drops trailing newlines from both. A ticked box is not a difference: GitHub ticks an umbrella's list, and Prateek ticks his checks. Then update the body from the draft rendered at the merge.
 
-The build umbrella's child list is the exception to rendering `{{CHILDREN}}`. #55's list is in build order, kept by hand: it is not the order the sub-issues API returns, and it leaves out #48, #49 and #51, which the prose names. Rendering it from the API reorders it. Compare only the prose with the draft, and add a new child's line to the live list by hand. #55 is at GitHub's limit of 100 sub-issues: linking a new build issue to it fails with HTTP 422 ("Parent cannot have more than 100 sub-issues"). The hand-kept list is the one GitHub ticks, so add the new child there, and say in the pull request description that it is not linked.
+An umbrella's child list is the exception to rendering `{{CHILDREN}}`. #55's and #271's lists are in build order, kept by hand: not the order the sub-issues API returns, and #55's leaves out #48 and #51, which the prose names. Rendering it from the API reorders it. Compare only the prose with the draft, and add a new child's line to the live list by hand. #55 is at GitHub's limit of 100 sub-issues: linking a new build issue to it fails with HTTP 422 ("Parent cannot have more than 100 sub-issues"). The hand-kept list is the one GitHub ticks, so add the new child there, and say in the pull request description that it is not linked.
 
 #84 and #85 are edited in place and never rendered over: add your line to the live body and the same line to the draft, and leave every tick as it is.
 
