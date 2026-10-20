@@ -1,6 +1,6 @@
 # WinMux fork
 
-A personal fork of WinMux. The trunk is `fork`; `main` only mirrors upstream. The first build plan, [issue #1](https://github.com/prateek/winmux/issues/1), is built; the open work is [issue #271](https://github.com/prateek/winmux/issues/271) and [issue #55](https://github.com/prateek/winmux/issues/55), each brief names the umbrella its driver builds from, and `.scratch/winmux-fork/handoff.md` orients a new session. Questions and checks that wait on Prateek are children of [issue #84](https://github.com/prateek/winmux/issues/84).
+A personal fork of WinMux. The trunk is `fork`; `main` only mirrors upstream. The first build plan, [issue #1](https://github.com/prateek/winmux/issues/1), is built; the open work is [issue #271](https://github.com/prateek/winmux/issues/271) and the defects in [issue #55](https://github.com/prateek/winmux/issues/55), whose large features wait; each brief names the umbrella its driver builds from, and `.scratch/winmux-fork/handoff.md` orients a new session. Questions and checks that wait on Prateek are children of [issue #84](https://github.com/prateek/winmux/issues/84).
 
 ## Landing work
 
@@ -52,7 +52,7 @@ A dogfood release follows every land to `fork`. The `issue-relay` driver cuts it
 
 **Who this is for.** This fork is Prateek's own build of WinMux. Its installs are his machines, updated through Sparkle and the tap's cask. There are no other users to keep working, and no older build, CLI or config to keep answering.
 
-**What is WinMux's.** WinMux is a window manager with an integration surface: the CLI, the socket, events and the URL scheme. A helper over that surface becomes a WinMux feature when any of these holds: it needs state the surface cannot expose, or can only expose by polling; it fights WinMux when both act on a window; or it must be continuous and instant, as a finger-tracked animation must. Otherwise it stays a script, and the gap it exposes is a CLI or events issue, not a feature. The launcher, status displays outside WinMux such as SketchyBar or a notch indicator, and leader-key apps are consumers of the surface, not parts of WinMux; what WinMux draws or binds itself, such as its modes, its menu bar item, the sidebar and the HUD, is WinMux's.
+**What is WinMux's.** WinMux is a window manager with an integration surface: the CLI, the socket, events and the URL scheme. A helper over that surface becomes a WinMux feature when any of these holds: it needs state the surface cannot expose, or can only expose by polling; it fights WinMux when both act on a window; or it must be continuous and instant, as a finger-tracked animation must. Otherwise it stays a script, and the gap it exposes is a CLI or events issue, not a feature. The launcher, status displays such as SketchyBar or a notch indicator, and leader menus are consumers of the surface, not parts of WinMux, which ships no leader menu and no command bar; its one native status piece is the menu bar item.
 
 **Upstream.** For now the fork tracks upstream and merges what is useful from it, and changes anything it wants meanwhile. The grilling record [`.scratch/winmux-fork/issues/36-grilling-what-winmux-becomes.md`](.scratch/winmux-fork/issues/36-grilling-what-winmux-becomes.md), "The boundary", settled both this and the test above.
 
