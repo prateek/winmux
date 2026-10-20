@@ -5,7 +5,7 @@ let arguments = Array(CommandLine.arguments.dropFirst())
 guard arguments.count >= 3 else { fatalError("drive <root> <capture-directory> <step>...") }
 let root = arguments[0], output = arguments[1]
 let home = FileManager.default.homeDirectoryForCurrentUser.path
-let codes: [String: CGKeyCode] = ["tab": 48, "backtick": 50, "escape": 53, "return": 36, "backspace": 51,
+let codes: [String: CGKeyCode] = ["tab": 48, "backtick": 50, "escape": 53, "return": 36, "keypad-enter": 76, "backspace": 51,
     "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7, "c": 8, "v": 9,
     "w": 13, "r": 15, "y": 16, "t": 17, "1": 18, "2": 19, "3": 20,
     "o": 31, "u": 32, "l": 37, "j": 38, "semicolon": 41, "k": 40, "slash": 44,

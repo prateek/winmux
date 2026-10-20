@@ -13,4 +13,8 @@ let W = import "winmux/winmux.ncl" in
     unbound = 'consume, count = true, on-enter = "lens windows",
     binding.l = "focus dfs-next",
   },
+  mode.sequence-global = {
+    unbound = 'consume, binding = { "g t" = "mode main" },
+  },
+  mode.keypad-global = { unbound = 'consume, binding.enter = "mode main" },
 }) | W.Config

@@ -138,7 +138,11 @@ Modes own keyboard modality through `ModeEngine` and the pure `resolveModeKey`.
 Carbon callbacks and panel input use that resolver; `Common/modes` owns the
 context parser and the compiler shared by offline checking and the app. No
 keyboard event tap was added. Registration follows context and pending input,
-omits winning `'pass` chords and Space, and adds held-entry modifier aliases.
+omits winning `'pass` chords and Space, and uses only entry-modified aliases
+while entry modifiers are held. A key Lens panel owns plain and Shift keys,
+including composition; Command, Control and Option chords stay with Carbon.
+Main's global command chords remain registered over an open Lens. Continuations
+register synchronously at a sequence prefix, and Return registers keypad Enter too.
 Outside a key Lens panel, unregistered keys reach the app, cancel pending input
 and end transient modes. The docs state this limit.
 
@@ -149,6 +153,25 @@ Closing ends in `main`. Ready input and later input share a queue, replacement
 invalidates old entry work, and a foreign global chord interrupts opening.
 Held release uses event modifiers; readiness and the draw deadline alone sample
 live flags. Native Search preserves caret, selection, clipboard and composition.
+
+Every serial input action carries an epoch. Interrupting opening advances it,
+drops all unstarted old actions and queues the global action ahead of later
+input. Readiness follows `on-enter`, including failed or cancelled Lens
+preparation and modes that open no Lens. Parked keys and release keep their
+arrival order. CLI readiness owns the queue too. Editor pass-through is decided
+synchronously only when that queue is idle.
+
+Showing with entry modifiers and latching from that visible Lens take key focus
+without activating WinMux.
+Ad-hoc identity includes Search again, distinguishing omission from an explicit
+empty Search. App loading and offline checking reject
+missing or latching latch targets; Search-row transitions use configured targets
+through the input queue. `lens run`, close-window and Summon share the real
+marked-action path and preserve URL provenance. One parsed command-list helper
+owns Lens-opener, reverse-step and focus recognition. Carbon registration applies
+only the difference, and Lens command maps cache by context and engine revision.
+`ModePassTwoTest` adds twenty regressions, each observed failing without its fix.
+The deliberate bound-Escape mismatch and zero-count behaviors remain covered.
 
 The library exports all requested contracts, constructors, modes and key sets.
 Main has 41 chords and window 45. Cmd-Tab remains opt-in. Popup classes are a
@@ -234,7 +257,17 @@ in mark order; marked and selected closes remove their windows. Pane reports its
 explicit unsupported error. The existing six action groups stay in the hint
 legend; navigation/editor controls are omitted from it.
 
-Host and pinned-version guest `make check` pass: 1,754 Swift tests, 94 Rust/helper
+The follow-up repeats the base/head, advanced and verbs runs. All 22 interaction
+phases plus the initial desk agree between base and head by selection, Search,
+open status and Presentation. Extra checks show held Cmd-Tab/Escape returning
+typing to Ghostty, Cmd-Tab from latched browse reopening WinMux's strip without
+the native switcher, and the app-specific pass block reaching Ghostty. The
+ad-hoc CLI checks change Search, toggle identical Search, recall it, and clear
+the recall explicitly. Offline checking names both invalid latch targets.
+With no Lens open, fast `g t` completes its global sequence and keypad Enter
+fires the Return binding. Both read back `main` after their bound mode command.
+
+Host and pinned-version guest `make check` pass: 1,774 Swift tests, 94 Rust/helper
 tests and 171 script tests, with the guest's existing committed-hash skip. The
 guest is a debug build; CI's swift.org toolchain remains the merge gate.
 Installed-build use, a second

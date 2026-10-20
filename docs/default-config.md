@@ -91,8 +91,9 @@ Cmd-backtick remain with macOS until opted in below.
 | `window-once` | transient | consume | — | return to entering mode after one key | 0 ms |
 
 `lifetime`, `unbound`, `on-enter`, `on-release`, `draw-delay` and `count` are mode
-properties. `latch-to` names the latch target. Counts default to false. A mode with
-no explicit `unbound` passes keys unless an `on-enter` command opens a Lens, in
+properties. `latch-to` must name an existing mode whose own `unbound` is not
+`latch`; app loading and `config check` reject other targets. Counts default to
+false. A mode with no explicit `unbound` passes keys unless an `on-enter` command opens a Lens, in
 which case it consumes them. A held committing mode defaults to 100 ms of draw
 delay; other modes draw immediately. CLI entry into a held mode is latched and
 prints a note on stderr, since no entering chord supplies its modifiers.
@@ -158,8 +159,17 @@ let W = import "winmux/winmux.ncl" in
 ```
 
 A sequence has no timeout. Pending chords appear beside the mode in the HUD.
+Carbon captures its first chord in every app while its mode is current. This
+also applies to legacy sequences: `esc-h` captures Escape in every app while
+that mode is current.
 Continuations win; a non-continuing key cancels the sequence and is read fresh.
 An unbound Escape cancels only the pending sequence. A mode change cancels it.
+Continuations register as soon as the prefix arrives. While entry modifiers are
+held, Carbon registers only each chord's entry-modified alias; plain keys become
+registered after a latch or release. A key Lens panel receives plain and Shift
+keys itself, with composition state, while Command, Control and Option chords
+stay registered. Main's bindings that resolve as global commands stay registered
+while a Lens is open.
 `"m <r>" = "mark <r>"` in `W.when` expands over `a` through `z`; the shipped
 window mode keeps `m` as fullscreen, so it ships no conflicting mark sequence.
 With `count = true`, unbound digits build a count and the next bound command list
@@ -194,6 +204,9 @@ Signal exits restore too; after a hard kill, relaunch and quit normally to repai
 
 A Lens no longer accepts `keys`, `starts-in` or `on-release`; `config check`
 names the replacing mode property. Popup lists become Boolean records.
+On an installed build, a config containing a removed Lens field fails to load.
+WinMux runs on the built-in defaults and keeps the reason on screen until you
+fix the config.
 
 | Old Lens setting | Rewrite |
 | --- | --- |
