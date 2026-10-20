@@ -18,8 +18,8 @@ Nothing.
 
 ## Done when
 
-- [ ] The two paragraphs are in `AGENTS.md` and the record is linked.
-- [ ] The `issue-relay` skill's step 6 names the test among the reasons a finding is declined, beside the Scope and compatibility reason it already names.
+- [x] The two paragraphs are in `AGENTS.md` and the record is linked.
+- [x] The `issue-relay` skill's step 6 names the test among the reasons a finding is declined, beside the Scope and compatibility reason it already names.
 
 ## Sources
 
