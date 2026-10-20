@@ -1,6 +1,6 @@
 # Lens opening traces
 
-Hold Cmd and press Tab to open the strip; release Cmd to commit. A strip opened from a CLI without held modifiers commits immediately and has no presented frame. Open the text list drawn by the window mode's `r` with `winmux lens recent --presentation list --tile text`, or miniatures with `winmux lens overview`.
+With Cmd-Tab opted in, hold Cmd and press Tab to enter `cmd-tab`; release Cmd to focus the selection and return to `main`. `winmux lens recent` opens an inert view and leaves the mode alone. Follow it with `winmux mode search` to operate the list, or use `winmux mode cmd-tab`, which enters that held mode latched and reports the choice on stderr.
 
 Read the last five openings:
 
@@ -25,18 +25,18 @@ The stages, with start and duration relative to the input, are:
 | view built | Hosting root assignment and panel sizing |
 | first layout | The hosting view's first synchronous layout |
 | first-frame thumbnails ready | Cached images or placeholders available for that layout; fresh captures are not required |
-| display delay | Strip's remaining wait until its original 100 ms gesture deadline |
+| display delay | The held mode's remaining `draw-delay` from entry |
 | panel ordered front | The AppKit ordering request |
 | first frame presented | The calibrated display-link presentation observation after ordering |
 | gap | Time between recorded intervals, printed explicitly |
 
-The strip prepares its real view while hidden during the display delay, so view construction and first layout precede the delay row. The list and miniatures omit the delay entirely. Event sources that do not apply are absent.
+The Lens prepares its real view while hidden during the mode's display delay, so view construction and first layout precede the delay row. Shipped staying modes have no delay. Event sources that do not apply are absent.
 
 Cold SwiftUI drawing is prepared at startup using existing window snapshots and cached pictures, with fourteen picture and placeholder Tiles in four workspace sections as the empty-desktop grid fallback. That fallback includes real-size landscape, portrait and dialog shapes, images at the cache’s normal width, application icons and Frozen badges. This neither orders a panel nor requests fresh thumbnails. At startup, each Presentation is rasterized into a bitmap and the hidden window backing is displayed and its Core Animation transaction flushed before the root is cleared. Bitmap caching alone leaves the native backing path cold. The panel stays invisible throughout; ordinary preparations use the hosting view’s display pass. This remains one startup preparation, with no later window-triggered warm.
 
 Startup therefore pays work that previously blocked the first gesture: it runs on the main actor after WinMux is ready and any config saved during startup has reloaded, draws each Presentation once at the focused monitor's size with default Lens settings, and writes its duration to the unified log (`/usr/bin/log show --last 5m --predicate 'subsystem == "<app id>" && category == "lens"'`, the line starting `Lens startup preparation took`). A Lens that is open or opening when it would run owns the panel, so that launch skips it and its first opening is cold.
 
-Stage ownership stays with the work: `LensCommand` records binding/collection/Filter work; `LensLifecycle` owns the active trace, delay and cancellation; the panel records AppKit stages on that same trace. `LensTraceStore` bounds history and owns the reader/injectable stamps. Instrumentation does not move business logic between those owners.
+Stage ownership stays with the work: `LensCommand` records binding/collection/Filter work; `LensLifecycle` owns the active trace and view cancellation; `ModeEngine` owns entry timing and input readiness; the panel records AppKit stages on that same trace. `LensTraceStore` bounds history and owns the reader/injectable stamps.
 
 All stamps use Mach absolute seconds since boot, excluding sleep. `NSEvent.timestamp` and a Carbon event's time are already on it, so they are used as they are; an event stamped later than its own receipt is treated as received when it was stamped. The CLI sends its stamp in the socket request: client and server share the same machine's kernel clock. Older clients without that stamp fall back to receipt time.
 
@@ -94,20 +94,19 @@ At this desk size, the additional straight top-border probe rejects workspace mo
 frame and after dismissal, within the twenty-opening history. JSON's `keys` contains the last 256 rows per opening.
 The opening stages and total do not include these rows. Each row carries the
 physical key code, characters, modifier flags, event, receipt and recorded boot seconds on
-`LensTimebase`, Presentation, input state (`hold`, `normal`, `search`), Hold, entry path, destination, Search and selected
+`LensTimebase`, Presentation, mode name in `state`, whether entry modifiers remain held in `hold`, entry path, destination, Search and selected
 window id. `fieldEditor` tells whether Search had its AppKit editor when a key entered routing;
 `focus` rows mark when that editor became first responder. Read the table from
 the same guest's debug CLI; no debugger or environment flag is needed.
 
 The final `Session` line (JSON `session`) reports current or dismissed state:
-Presentation, current input state, Hold, Search, selected window id and `active`. It includes field-editor
-edits, which finish after a key is passed to AppKit. `flagsChanged` rows mark the
-Hold ending on release; their synthetic code is 65535. The first unbound letter or `/` is read in `hold` and its destination says `Hold ended by key`, followed by the resulting state. Later keys are read in that state. Focus and flag rows are observations,
+Presentation, current mode name, held-entry status, Search, selected window id and `active`. It includes field-editor
+edits, which finish after a key is passed to AppKit. Routing rows name the resolver's destination, including `latch`, `type`, `run` and `global`. Focus rows are observations,
 not additional typed keys. During conversion, the first focus row can appear before
 the triggering letter's completed routing row: compare event timestamps with
 receipt timestamps when measuring the handoff. `receivedAt` is stamped before
 routing and `recordedAt` after its effects; the row's Search and selection are the
-result, while Presentation, input state and Hold are the facts at entry. AppKit can send one
+result, while Presentation, mode and held-entry status are the facts at entry. AppKit can send one
 physical key through more than one entry path; each call gets its own row.
 
 For a true zero-gap pair in the guest driver, use `delay:0` before the two taps and

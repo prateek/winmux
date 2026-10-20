@@ -6,6 +6,8 @@ Each entry is a bullet with the date and the pull request, or where it came from
 
 ## Pending
 
+- **2026-10-20, Modes are the only modality.** In the hand-written Nickel config, rewrite every binding that runs only `lens <name>` to a `W.open` pair or a mode. A Lens opener now changes only the view; plain keys in `main` pass to the app. Replace `cmd-tab = "lens recent"` with `cmd-tab = "mode cmd-tab"`, `cmd-shift-tab = "lens recent"` with `cmd-shift-tab = "mode cmd-tab-back"`, and `cmd-backtick = "lens app-windows"` with `cmd-backtick = "mode cmd-backtick"`. The shipped Option-slash line is `alt-slash = "mode search-hold"`; for a staying list use `alt-r = W.open "recent --presentation list --tile text" 'search`. Keep these in a `W.when "mode == main"` keymap block, or keep the existing `mode.main.binding` sugar. Move any Lens `keys`, `starts-in` and `on-release` into mode bindings, `unbound` and mode `on-release`; turn popup lists into Boolean records. See the migration section in `docs/default-config.md`.
+
 ## Done
 
 - **2026-10-13, #135, recorded after the fact.** The dotfiles config removed the shipped Control and Command chords with `std.record.remove`; once #135 dropped them from the defaults, every launch failed with ``missing field `ctrl-q` `` and ran on built-in defaults. Reconciled by the dotfiles commit "fix(winmux): stop removing chords the defaults no longer bind", which merges straight over the defaults.

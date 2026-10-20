@@ -123,14 +123,123 @@ Nothing.
 
 ## Done when
 
-- [ ] `winmux.ncl` exposes `W.Mode`, `W.Keymap`, `W.switcher`, `W.hold`, `W.open`, `W.transient`, `W.when`, `W.keys`, `W.modes` and `W.keymap`, every returned field at `| default`; `defaults.ncl`'s `mode` and `keymap` are the block above and the file loads under `config check` with every chord of today's `main` and `window` still bound; a config written in the `mode.<name>.binding` shape loads unchanged; the opt-in's three lines in mode form, Option-slash, Option-Shift-o and the six `window` letters open each Lens exactly once; and a config that merges the opt-in lines over defaults gets Cmd-Tab while one that does not leaves the system's switcher alone.
-- [ ] A Nickel config with `lenses.<name>.keys`, `on-release` or `starts-in` fails `config check` with a message naming the mode property that replaces it, and the docs' migration section shows the rewrite.
-- [ ] Tests cover each row of the table above: at least one test per row, named for the rule.
-- [ ] Tests cover the context evaluator on every variable and operator, including an unknown variable failing `config check`; a more specific block winning, `priority` deciding a tie, and an equal tie failing `config check`; a sequence `"m a"` with its pending state named by the HUD and cancelled by a chord that continues no sequence; `"m <r>"` expanding over the registers; `window-once` running one key and returning; `count = true` repeating a command; an unbound Escape cancelling a latched and a transient mode; and `'pass` under an `app` context leaving the chord to that app.
-- [ ] Tests cover the lifetime rules: held release runs `on-release`; a latch makes a later release run nothing; a foreign-modifier chord leaves a held mode and its global binding runs; `lens <name>` alone leaves `main` current and plain keys reach the app; closing a Lens by key and by the CLI ends in `main`; Cmd-Shift-Tab repeated steps back; `list-modes --current` reports `browse` while a browsed Lens is open.
-- [ ] In a guest, Cmd-Tab, Cmd-Shift-Tab, Cmd-W during the hold, release, Option-slash then typing, Escape twice, and Option-Shift-o then `hjkl` all behave as `docs/lenses.md` describes today, and the docs describe them as modes.
-- [ ] `CONTEXT.md` has the new Mode entry with the three lifetimes and the six properties, a Keymap entry with the context vocabulary, and the Lens entry and no Trigger or Hold entry; `docs/lenses.md` has no section named The Hold; `docs/default-config.md` lists the shipped modes with their properties, `draw-delay` included, and the keymap's context vocabulary with one example per variable.
-- [ ] A line in **Prateek's checks on an installed build and real hardware**: Cmd-Tab and Option-slash under his own config, with the modes his config defines.
+- [x] `winmux.ncl` exposes `W.Mode`, `W.Keymap`, `W.switcher`, `W.hold`, `W.open`, `W.transient`, `W.when`, `W.keys`, `W.modes` and `W.keymap`, every returned field at `| default`; `defaults.ncl`'s `mode` and `keymap` are the block above and the file loads under `config check` with every chord of today's `main` and `window` still bound; a config written in the `mode.<name>.binding` shape loads unchanged; the opt-in's three lines in mode form, Option-slash, Option-Shift-o and the six `window` letters open each Lens exactly once; and a config that merges the opt-in lines over defaults gets Cmd-Tab while one that does not leaves the system's switcher alone.
+- [x] A Nickel config with `lenses.<name>.keys`, `on-release` or `starts-in` fails `config check` with a message naming the mode property that replaces it, and the docs' migration section shows the rewrite.
+- [x] Tests cover each row of the table above: at least one test per row, named for the rule.
+- [x] Tests cover the context evaluator on every variable and operator, including an unknown variable failing `config check`; a more specific block winning, `priority` deciding a tie, and an equal tie failing `config check`; a sequence `"m a"` with its pending state named by the HUD and cancelled by a chord that continues no sequence; `"m <r>"` expanding over the registers; `window-once` running one key and returning; `count = true` repeating a command; an unbound Escape cancelling a latched and a transient mode; and `'pass` under an `app` context leaving the chord to that app.
+- [x] Tests cover the lifetime rules: held release runs `on-release`; a latch makes a later release run nothing; a foreign-modifier chord leaves a held mode and its global binding runs; `lens <name>` alone leaves `main` current and plain keys reach the app; closing a Lens by key and by the CLI ends in `main`; Cmd-Shift-Tab repeated steps back; `list-modes --current` reports `browse` while a browsed Lens is open.
+- [x] In a guest, Cmd-Tab, Cmd-Shift-Tab, Cmd-W during the hold, release, Option-slash then typing, Escape twice, and Option-Shift-o then `hjkl` all behave as `docs/lenses.md` describes today, and the docs describe them as modes.
+- [x] `CONTEXT.md` has the new Mode entry with the three lifetimes and the six properties, a Keymap entry with the context vocabulary, and the Lens entry and no Trigger or Hold entry; `docs/lenses.md` has no section named The Hold; `docs/default-config.md` lists the shipped modes with their properties, `draw-delay` included, and the keymap's context vocabulary with one example per variable.
+- [x] A line in **Prateek's checks on an installed build and real hardware**: Cmd-Tab and Option-slash under his own config, with the modes his config defines.
+
+## Built and checked
+
+Modes own keyboard modality through `ModeEngine` and the pure `resolveModeKey`.
+Carbon callbacks and panel input use that resolver; `Common/modes` owns the
+context parser and the compiler shared by offline checking and the app. No
+keyboard event tap was added. Registration follows context and pending input,
+omits winning `'pass` chords and Space, and adds held-entry modifier aliases.
+Outside a key Lens panel, unregistered keys reach the app, cancel pending input
+and end transient modes. The docs state this limit.
+
+The Lens is a view with selection, Search, marks and Presentation state. Its
+old keys, three input states, `starts-in` and `on-release` are removed. New Lens
+verbs operate on that state; `lens run` carries selection/mark command dispatch.
+Closing ends in `main`. Ready input and later input share a queue, replacement
+invalidates old entry work, and a foreign global chord interrupts opening.
+Held release uses event modifiers; readiness and the draw deadline alone sample
+live flags. Native Search preserves caret, selection, clipboard and composition.
+
+The library exports all requested contracts, constructors, modes and key sets.
+Main has 41 chords and window 45. Cmd-Tab remains opt-in. Popup classes are a
+Boolean record; migration errors name the replacement properties. Conversion
+retains shipped modes/keymaps while replacing main/window with converted sugar.
+`CONTEXT.md`, the Lens/default-config/event/trace guides, generated help and the
+compiled agent skill describe the new model. The dotfiles handoff records the
+manual opener migration; installed checks remain unchecked in the hardware brief.
+The same brief records `brew upgrade --cask --greedy winmux` for the new CLI;
+Sparkle updates the app alone.
+
+### Departures settled by the builder rulings
+
+The Decisions and Defaults above retain their original wording. The settled
+builder rulings refine the example block: `W.when` defaults to priority 1 and
+shipped blocks explicitly use 0; `W.transient` emits mode `binding` sugar.
+Option-slash and Option-Shift-O enter `search-hold` and `overview-hold`.
+Window letters use pairs, with recent/app-windows kept as text lists. `m` stays
+fullscreen and no mark sequence ships. The HUD names the mode and pending
+chords; a which-key legend belongs to **The HUD can show the current mode's keys**.
+The `lens run` verb preserves the shipped Cmd-digit workspace actions. Space
+peek, Option-Enter Summon and Cmd-digits remain in the appropriate shipped modes.
+No Default chosen for you changed.
+
+Decided: Counts saturate at 9999; zero runs zero copies of the command list.
+
+Decided: An explicit keymap block cannot reuse `mode-<name>` while that mode has
+nonempty binding sugar; checking reports the collision instead of replacing it.
+
+Decided: A replaced mode's remaining `on-enter` commands are discarded. Ordinary
+binding and release lists retain their command-list semantics. Reload preserves
+held entry modifiers without rerunning entry commands and reconciles registration.
+
+Decided: The Lens action legend keeps its existing action groups and custom
+actions; mode transitions, navigation, caret, presentation, marking and Lens-close
+controls are omitted. Its action chords still come from resolved mode bindings.
+
+### Behavioral test seams
+
+| Table rules | Tests |
+| --- | --- |
+| Return discount, extra Shift, opening key and reverse stepping | `ModeResolverTest.testHeldMatchingDiscountsEntryModifiersAndForeignModifiersLeave`, `ModeIntegrationTest.testHeldReturnDiscountsFullEntryChordAndPeekPrefersDiscountedBinding`, `StripSessionTest.testInitialSelectionForwardReverseWrapAndOnlyInvokingKeyCycles` |
+| Staying list Tab and release selection | `LensHoldTest.testStayingHeldListTabStepsMatchesAndReleaseKeepsSelection` |
+| Arrows, Escape, plain-key latch and consumed nonletters | `ModeResolverTest.testLatchOnlyReinterpretsLettersAndConsumesOtherUnboundKeys`, `testUnboundEscapeCancelsLatchedAndTransientAndMainPassesIt`, `StripSessionTest.testSingleRowArrowsCycleAndWrappedVerticalArrowsStayAtEdges` |
+| Slash conversion, retained selection, recall and queued editor input | `LensHoldTest.testExplicitSearchAppliesInBrowseAndPresentationChangeKeepsSelectionMarksAndSearch`, `testStripSlashSelectsRecalledSearchForReplacement`, `testPanelKeepsBothLettersAndBackspaceAcrossConversionAtBothEntryPoints`, `testPanelStripKeepsDormantRememberedSearchUntilSlash` |
+| Foreign chord and immediate global dispatch during opening | `ModeIntegrationTest.testForeignChordInterruptsOpeningAndDropsRemainingEntryCommands`, `testObservedForeignChordLeavesHeldModeBeforePanelCanTakeKeys` |
+| Discounted peek, queued peek/Escape and composition | `ModeIntegrationTest.testHeldReturnDiscountsFullEntryChordAndPeekPrefersDiscountedBinding`, `LensPeekTest.testOpeningHoldQueuesAndReplaysPeekThenEscapeWithoutDismissing`, `testEscapeQueuedAfterPeekDoesNotCancelOpeningHold`, `testEveryKeyGoesToTheInputMethodWhileComposing` |
+| Release, key-latch cancellation, opening order and draw deadline | `LensReleaseTest`'s eight injected-engine/clock tests, `ModeIntegrationTest.testOpeningLatchBeforeReleaseCancelsCommitButReleaseBeforeLatchCommits`, `testQuickReleaseCanFinishFocusAfterClosingWithoutCancellingItself`, `testReadinessActionsAndLaterInputKeepArrivalOrderAcrossAnAwait` |
+| No stack, toggle and ad-hoc identity | `LensLifecycleTest.testSameLensTogglesAndAnotherReplacesRememberingSearch`, `testAdHocIdentityTogglesOnlyWhenFilterAndResolvedSettingsMatch`, `LensHoldTest.testNoStackModeReplacementAndCLIClosingEndsMain` |
+| Browse navigation, list sideways keys, Search editing and Escape twice | `LensHoldTest.testNormalGridNavigationAndListSidewaysOverrides`, `testBrowseConsumesPlainLettersAndSearchEscapeKeepsTextAndMatches`, `ModeIntegrationTest.testTypingUsesSearchSelectionAndCaretRatherThanAppending`, `LensPeekTest.testSearchSpaceAlwaysTypesAndBrowseSpaceKeepsItsPeek` |
+| Search caret, marks and selection command targeting | `ModeIntegrationTest.testLensVerbsUseSelectionAndMarksInMarkOrderAndClosingReportsMain` |
+| Search-row click, panel/editor focus and no input state | `LensHoldTest.testSearchClickNamesSearchAndBindingsHaveNoLensSpecificInputState`, `testSelectionAndModifiersDoNotStealKeyboardOutsideModeChanges`, `ModeIntegrationTest.testOpenPairGivesTheDrawnInertLensKeyFocusWhenItsModeEnters` |
+| Pre-key-panel limit, inert opener and mode-named starts | `LensHoldTest.testInertLensDoesNotChangeMainAndItsPlainKeysPass`, `ModeIntegrationTest.testObservedUnboundKeyCancelsTransientSequenceAndCountOutsideLens`, `DefaultConfigTest.testSixLensesTriggersAndLeaderEscape` |
+| Hints and Summon modifier discount | `LensHintsTest.testEnterAndClicksUseModeModifiersInEveryPresentation`, `testLegendReadsCurrentModeBindingsForEveryLens`, `testWorkspaceChipRequiresExactCommandAndSummonChordPrefersHintsKey` |
+| Rebindable mode keys, selection/mark actions and standalone peek | `ModeResolverTest.testSearchBoundKeysWinAndUnboundClipboardAndLettersType`, `ModeIntegrationTest.testLensVerbsUseSelectionAndMarksInMarkOrderAndClosingReportsMain`, `LensPeekTest.testConfigAcceptsPeekAloneAndNamesMixedListError` |
+
+Context/operator/specificity/priority/conflict/prefix tests are in
+`ModeResolverTest`; actual registration, pending HUD, one-shot, counts, closing,
+CLI failure, trace and reload paths are in `ModeIntegrationTest`. Helper tests
+exercise library override priority, register expansion, sugar `'pass`, migrations
+and conversion. Existing view geometry, thumbnail, pointer, window restoration,
+URL gate and ordinary binding assertions remain covered through the new APIs.
+
+### Guest checks
+
+One proof script runs against the base and the new build on the standing desk.
+It verifies Cmd-Tab stepping, reverse opening/repetition, Cmd-W closing the
+selected window, release focus, Option-slash with Tab while held, a typed letter,
+Escape to browse with text kept then Main, and overview hjkl. Selection, Search
+and active/dismissed readbacks match the base. The new mode CLI reports the held
+mode, `search`, `browse` and then `main`; the HUD shows browse/search below the Lens.
+A defaults-only configuration also leaves Cmd-Tab with macOS: the system app
+switcher appears and WinMux stays in `main` before and after release.
+Additional asserted runs cover all six window letters, Cmd-backtick, quick tap,
+foreign modifiers, CLI held entry, `window-once`, `g t` pending/cancellation and
+completion, `2l`, and contextual terminal `'pass`. Screenshots accompany mode,
+focus, trace and agent-tree readbacks. Workspace moves were checked on screen as
+well as in the tree and inventory. Proof sources are in `proofs/modes/`.
+Every Lens verb was exercised: inert opening passes typed text to the terminal;
+steps, grouping, presentation, caret and peek change the open view; Cmd-digit
+targets its selection; Summon and focus close into Main; marks feed `lens run`
+in mark order; marked and selected closes remove their windows. Pane reports its
+explicit unsupported error. The existing six action groups stay in the hint
+legend; navigation/editor controls are omitted from it.
+
+Host and pinned-version guest `make check` pass: 1,754 Swift tests, 94 Rust/helper
+tests and 171 script tests, with the guest's existing committed-hash skip. The
+guest is a debug build; CI's swift.org toolchain remains the merge gate.
+Installed-build use, a second
+display and real sleep/wake/unlock are not checked here. The installed check line
+requested above is present and remains unchecked in the hardware brief.
 
 ## Sources
 

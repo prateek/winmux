@@ -1,4 +1,4 @@
-# Default config and Triggers
+# Default config and modes
 
 With no config file, WinMux loads `winmux/defaults.ncl`. Columns are off, so new windows use ordinary tree tiling. Startup does not write a starter file unless it is converting a legacy config. “Open config” creates an editable import-only starter when needed.
 
@@ -20,55 +20,43 @@ Settings edits nothing. **Open Config** opens the config file in its default edi
 
 ## Importing defaults
 
-
-A config imports defaults explicitly. This import-only config has the same static settings as a fresh install:
-
 ```nickel
 let W = import "winmux/winmux.ncl" in
 (import "winmux/defaults.ncl") | W.Config
 ```
 
-Values in the default record can be overridden by merging an ordinary value over them:
+Defaults use field priorities that let an ordinary merge change one value. Modes own
+keys and their lifetime; Lenses own their Filter, Presentation and view settings.
+`mode.<name>.binding` remains valid sugar for a keymap block named `mode-<name>` with
+`context = "mode == <name>"` and priority 1.
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 ((import "winmux/defaults.ncl") & {
-  mode.main.binding.alt-slash = "lens floating",
+  mode.main.binding.alt-l = W.open "floating" 'browse,
+  keymap.terminal = W.when "app == 'com.mitchellh.ghostty'" { ctrl-semicolon = 'pass },
 }) | W.Config
 ```
 
-Free a chord by overriding it with an empty command list. The key then reaches the focused app, and `winmux config check` accepts it without a warning:
-
-```nickel
-let W = import "winmux/winmux.ncl" in
-((import "winmux/defaults.ncl") & {
-  mode.main.binding.alt-slash = [],
-}) | W.Config
-```
-
-The same idea frees a Lens key: `lenses.recent.keys.space = []` frees Space,
-and `lenses.recent.keys.cmd-y = []` removes the other shipped peek key.
-Lens defaults restore omitted keys; an explicit empty list survives that merge.
-A replacement such as `lenses.recent.keys.cmd-p = "peek"` can be added alongside it.
-
-To drop a mode binding's field from the record, use `W.without-bindings ["chord", …] bindings`. It ignores absent names. Give the replacement record precedence so Nickel's merge does not restore the field:
+A binding value is a command, a command list, or `'pass`. `'pass` leaves the key to
+the app; `[]` consumes it without running a command. Remove a field with
+`W.without-bindings`; a replacement record needs `| force` to keep Nickel from
+merging the omitted field back in:
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
 let defaults = import "winmux/defaults.ncl" in
-let without-search = defaults & {
-  mode.main.binding | force = W.without-bindings ["alt-slash"] defaults.mode.main.binding,
-} in
-(without-search & { gaps.inner.horizontal = 4 }) | W.Config
+(defaults & {
+  keymap.window.bindings | force = W.without-bindings ["t"] defaults.keymap.window.bindings,
+}) | W.Config
 ```
 
-To turn a shipped Lens off, set `lenses.recent.enabled = false` (using that Lens's name). Other Lens overrides continue to merge over the defaults. A binding that opens a disabled Lens then fails with exit 2, including the window mode's `w` for `windows`, `r` for `recent` and `a` for `app-windows`, and a Cmd-Tab opt-in: remove or rebind those keys too.
+`lenses.<name>.enabled = false` disables a Lens and preserves its other overrides.
+Its opener fails with exit 2; remove or rebind the opener too. Omitting the defaults
+import supplies no shipped keys or Lenses. Collections a person extends are records;
+ordered values such as commands and sort keys are lists replaced whole.
 
-Leaving the import out supplies no default Lenses or bindings. `winmux config convert` imports the six default Lenses. If the TOML has a `mode` table, conversion replaces the default modes with the TOML's modes and adds two `main` Triggers, `alt-slash` and `alt-shift-o`, only where the TOML has no binding for those keys. It adds the `window` binding mode together with its `alt-semicolon` Trigger only when the TOML has neither a mode named `window` nor a binding for `alt-semicolon` in `main`; otherwise it adds neither, so a mode you wrote gains no keys and no mode arrives that nothing enters. Modifier order, keyboard presets and key aliases are resolved as in the Swift loader. Omitted upstream bindings stay omitted, and a user's `alt-slash` command wins over the added Search Trigger. A TOML's own Cmd-Tab bindings are preserved as explicit opt-ins. Duplicate user spellings of the same chord fail conversion with a binding redeclaration diagnostic, and so does a `mode` table with no `main` mode. The converted modes are merged at normal priority, so a record merged over the converted file later can still add or change a binding. With no `mode` table, conversion keeps all default modes and bindings. A comment in the converted file describes the retained defaults and how to remove them.
-
-`config-version` is optional, accepted and ignored for compatibility with earlier Nickel conversions, like `contract-version`. It is absent from shipped defaults and new conversions; both version keys are removed before the Swift settings parser runs. Nickel uses an explicit `persistent-workspaces` list, defaulting to empty. For TOML version 1 or lower, or an absent version, conversion preserves the old inferred persistence when the file sets no list: it writes workspace targets from every mode's `workspace` and `move-node-to-workspace` bindings, followed by force-assignment keys, in first-seen order, and prints a warning. A quoted name is one target. When nothing is inferred it writes no list and prints no warning. Relative `next` and `prev` targets declare no workspace. Version 2 and an explicit list suppress inference.
-
-## The 40 default shortcuts
+## The 41 default shortcuts
 
 | Binding in `main` | Command |
 | --- | --- |
@@ -79,100 +67,162 @@ Leaving the import out supplies no default Lenses or bindings. `winmux config co
 | `alt-1` through `alt-8`, and `alt-9` | `focus --tab-index 1` through `8`, and `focus --tab-index last` |
 | `alt-shift-t` | `layout floating tiling` |
 | `alt-shift-m` | `fullscreen` |
-| `alt-slash` | `lens search` |
-| `alt-shift-o` | `lens overview` |
+| `alt-slash` | `mode search-hold` |
+| `alt-shift-o` | `mode overview-hold` |
 | `alt-semicolon` | `mode window` |
+| `alt-shift-semicolon` | `mode window-once` |
 
-Holding the tab digits' modifier for half a second shows each reachable tab's key on the focused tab group. The hints follow whatever bindings are in effect, including a different modifier or letter keys.
+Holding the tab digits' modifier for half a second shows reachable tab keys on the
+focused tab group. Option-Shift-O shadows the US/ABC `Ø` character. Cmd-Tab and
+Cmd-backtick remain with macOS until opted in below.
 
-Option-Shift-O types `Ø` on US and ABC layouts when WinMux is not listening; the overview shortcut shadows that character. It has no system symbolic-hotkey collision. During its Hold, Return subtracts the Trigger’s own Option and Shift before matching and focuses. On the Option-slash Hold, Option-Return focuses and extra Shift-Return Summons. Option-slash opens the Search list; its first letter ends the Hold and becomes the first Search letter even with Option still down. Once the Hold ends, modifiers mean themselves: `alt-enter` Summons. Overview starts in normal mode: `hjkl` and arrows move, `/` starts Search, Escape returns to normal with the matches kept, and another Escape closes. The Search list starts in Search and also takes two Escapes to close. `starts-in` can override either choice.
+## Shipped modes
 
-Cmd-Tab and Cmd-backtick stay with macOS. Alt-Tab, the bare-Control letters and the other removed chords are free for the focused app or another switcher.
+| Mode | Lifetime | Unbound | Entry | Release | Draw delay |
+| --- | --- | --- | --- | --- | --- |
+| `main` | latched | pass | — | — | 0 ms |
+| `window` | latched | pass | — | — | 0 ms |
+| `browse` | latched | consume | — | — | 0 ms |
+| `search` | latched | type | — | — | 0 ms |
+| `cmd-tab`, `cmd-tab-back` | held | latch to browse | open recent; back steps prev | focus, then main | 100 ms |
+| `cmd-backtick` | held | latch to browse | open app-windows | focus, then main | 100 ms |
+| `search-hold` | held | latch to search | open search | mode search | 0 ms |
+| `overview-hold` | held | latch to browse | open overview | mode browse | 0 ms |
+| `window-once` | transient | consume | — | return to entering mode after one key | 0 ms |
 
-Hovering over the expanded workspace sidebar starts type-to-search without activating WinMux. A chord with Control, Command or Option, and a Globe chord with a letter, passes through to the system and the focused app. Command-Delete and Option-Delete stay edits in a rename, in search opened with `open-sidebar`, and once a click on the sidebar has brought WinMux forward; otherwise, under the pointer, they go to the focused app. Plain and Shift-only search keys still go to the sidebar. Search opened with `open-sidebar`, renames and clicks keep their usual activation behavior.
+`lifetime`, `unbound`, `on-enter`, `on-release`, `draw-delay` and `count` are mode
+properties. `latch-to` names the latch target. Counts default to false. A mode with
+no explicit `unbound` passes keys unless an `on-enter` command opens a Lens, in
+which case it consumes them. A held committing mode defaults to 100 ms of draw
+delay; other modes draw immediately. CLI entry into a held mode is latched and
+prints a note on stderr, since no entering chord supplies its modifiers.
+
+The library exposes `W.Mode`, `W.Keymap`, `W.switcher`, `W.hold`, `W.open`,
+`W.transient`, `W.when`, `W.keys`, `W.modes` and `W.keymap`. The shared key sets are
+`main-today`, `navigate`, `workspaces`, `columns` (currently empty), and `lenses`.
+Their fields have default priority, so `&` overrides a member.
+
+In `browse`, arrows and hjkl move, Tab marks, Enter focuses, Shift-Enter and
+Option-Enter Summon, Space/Y peek, G changes sections, and `/` converts to a list
+and enters `search`. In `search`, unbound keys edit Search, including clipboard
+chords; bound chords win. Escape returns to `browse` with text and matches kept;
+a second Escape closes the Lens and enters `main`. The HUD names every mode but
+`main`, including `browse` and `search`. `list-modes --current` reports that name.
 
 ## The windowing mode
 
-`alt-semicolon` enters the `window` binding mode. It has exactly these 45 keys:
+`window` has 45 keys. Focus (`hjkl`), move (Shift-hjkl), join (Control-hjkl),
+workspace digits and Shift-digits, tab-next/prev (`n`/`p`), `find-focus` (`c`),
+floating/tiling (`t`), fullscreen (`m`) and project next/prev (brackets) stay on.
+Escape and Option-semicolon return to `main`. The six Lens letters are pairs:
 
 | Key | Commands |
 | --- | --- |
-| `h`, `j`, `k`, `l` | `focus left`, `focus down`, `focus up`, `focus right` |
-| `shift-h`, `shift-j`, `shift-k`, `shift-l` | `move left`, `move down`, `move up`, `move right` |
-| `1` through `9` | `workspace 1` through `workspace 9` |
-| `shift-1` through `shift-9` | `move-node-to-workspace 1` through `9` |
-| `ctrl-h`, `ctrl-j`, `ctrl-k`, `ctrl-l` | `join-with left`, `join-with down`, `join-with up`, `join-with right` |
-| `n`, `p` | `focus tab-next`, `focus tab-prev` |
-| `c` | `find-focus` |
-| `t` | `layout floating tiling` |
-| `m` | `fullscreen` |
-| `rightSquareBracket`, `leftSquareBracket` | `project next`, `project prev` |
-| `w` | `mode main`, `lens windows` |
-| `o` | `mode main`, `lens overview` |
-| `f` | `mode main`, `lens floating` |
-| `s` | `mode main`, `lens search` |
-| `r` | `mode main`, `lens recent --presentation list --tile text` |
-| `a` | `mode main`, `lens app-windows --presentation list --tile text` |
-| `esc` | `mode main` |
-| `alt-semicolon` | `mode main` |
+| `w`, `o`, `f` | open windows, overview, floating; then `mode browse` |
+| `s` | open search; then `mode search` |
+| `r`, `a` | open recent or app-windows with `--presentation list --tile text`; then `mode search` |
 
-Only the six Lens letters, Escape and Option-semicolon leave the binding mode. Focus, movement, workspace changes and failed commands keep it on. `0` is unbound. Numeric workspace commands use the same workspace ordinals as `main`.
+`main`'s bindings are inactive in `window`. Unbound keys reach the app, as before.
+Outside a Lens panel with key focus, unregistered keys reach the app even when a
+mode says consume, type or latch; they end a transient mode and cancel a pending
+sequence or count. See the related pre-key-panel limit in [Lenses](lenses.md#modes-and-keys).
 
-While it is on, `main`'s chords are off: Option-slash does not open Search, and Option-Shift-O does not open overview. Plain keys not bound in this binding mode reach the focused app; for example, `x` still types into a text field. WinMux does not swallow unbound keys.
+## Keymap contexts, sequences and counts
 
-A small HUD at the bottom centre of the focused monitor's visible frame shows the active binding mode's name. It follows monitor focus, takes neither keyboard focus nor mouse clicks, and shows no key hints. It appears for every binding mode other than `main`, including user-defined ones, with no setting to hide it. Disabling WinMux hides it. CLI mode changes and config reloads update it too; the menu bar keeps its existing single-letter indicator.
+Expressions use `==`, `!=`, `&&`, `||`, `!` and parentheses. Values are bare
+identifiers or single-quoted strings; Columns comparisons use integers.
 
-The six Lens values are ordered command lists: `mode main` runs and hides the HUD before the Lens starts opening. `winmux list-modes --current` reports `main` while the Lens is open, even if opening failed. A standalone `lens` command leaves the active binding mode alone, including a user's sticky binding mode named `lens`.
+| Variable | Example | Meaning |
+| --- | --- | --- |
+| mode | `mode == browse` | Current mode |
+| app | `app == 'com.mitchellh.ghostty'` | Frontmost app other than WinMux, by bundle id |
+| lens | `lens == recent`, or `lens` | Open named Lens, or any open Lens including ad-hoc |
+| presentation | `presentation == strip` | Open Lens's Presentation |
+| columns | `columns == 3`, or `columns` | Focused workspace's Column count, or Columns enabled |
+| profile | `profile == default` | The implicit profile; other profiles await Display profiles |
 
-To remove a windowing key, merge this record over defaults:
+Absent Lens/Columns comparisons are false for equality and true for inequality.
+An ad-hoc Lens is present but has no name. Specificity is the number of top-level
+`&&` conjuncts; a parenthesised group or `!` counts as one. Greater specificity
+wins, then greater priority. `W.when` defaults to priority 1; shipped blocks use
+0. Equal ties are errors unless the contexts have top-level equality conjuncts
+that cannot both hold. A complete chord conflicting with a sequence prefix is
+also an error. `config check` names the block for invalid contexts and chords.
 
 ```nickel
 let W = import "winmux/winmux.ncl" in
-let defaults = import "winmux/defaults.ncl" in
-(defaults & {
-  mode.window.binding | force = W.without-bindings ["t"] defaults.mode.window.binding,
+((import "winmux/defaults.ncl") & {
+  mode.counting = { count = true, unbound = 'consume, on-enter = "lens windows" },
+  keymap.counting = W.when "mode == counting" { l = "lens step next", "g t" = "lens step prev" },
 }) | W.Config
 ```
 
-`winmux list-lenses --json` lists resolved Lens settings and Filter paths. It does not list Triggers; those belong to `mode.<name>.binding` in the loaded config. `winmux list-columns --json` prints `[]` when Columns are off. Both commands print valid JSON and exit 0 on success, 1 on runtime failure and 2 on bad usage. See [Lenses](lenses.md), [Columns](columns.md) and [subscription events](events.md).
-
-Lens keys include `cmd-g = "sections next"`. Lists and grids draw workspace sections by default;
-their Search row has the grouping control. During a Command Hold, a `g` in a list or grid runs
-that binding and keeps its Hold; in a strip it ends the Hold and stays in normal mode. `/` converts the strip to a list. See [Sections](lenses.md#sections-and-the-grouping-control).
-
-The shipped `recent` Lens uses `tile = 'picture` and `grid.tile-size = 'same-height`; see [Tiles](lenses.md#tiles) for the cards-back recipe. `windows`, `app-windows` and `floating` use grids with card Tiles at real relative sizes. `app-windows` explicitly commits on release and draws no sections, so it steps in MRU order; `windows` and `floating` stay open. A config's existing `windows` Lens receives the grid Presentation at priority -1, so its own values win.
+A sequence has no timeout. Pending chords appear beside the mode in the HUD.
+Continuations win; a non-continuing key cancels the sequence and is read fresh.
+An unbound Escape cancels only the pending sequence. A mode change cancels it.
+`"m <r>" = "mark <r>"` in `W.when` expands over `a` through `z`; the shipped
+window mode keeps `m` as fullscreen, so it ships no conflicting mark sequence.
+With `count = true`, unbound digits build a count and the next bound command list
+runs that many times, in order. Any other key resets the count.
+Zero runs the list zero times; accumulated counts stop at 9999.
+The generated `mode-<name>` block name is reserved while that mode has bindings;
+a same-named explicit block is a configuration error.
 
 ## Opt in to Cmd-Tab
 
-Merge these three lines into the record over your imported defaults:
+Merge this block over defaults:
 
 ```nickel
-mode.main.binding.cmd-tab = "lens recent",
-mode.main.binding.cmd-shift-tab = "lens recent",
-mode.main.binding.cmd-backtick = "lens app-windows",
+let W = import "winmux/winmux.ncl" in
+((import "winmux/defaults.ncl") & {
+  keymap.cmd-tab-opt-in = W.when "mode == main" {
+    cmd-tab = "mode cmd-tab",
+    cmd-shift-tab = "mode cmd-tab-back",
+    cmd-backtick = "mode cmd-backtick",
+  },
+}) | W.Config
 ```
 
-Cmd-Tab and Cmd-Shift-Tab then open WinMux's recent-window strip instead of Apple's app switcher; Cmd-backtick opens the same-app grid, which commits on Command release. WinMux disables the matching enabled system Cmd-Tab pair while the mode listens to those chords. Native Cmd-backtick remains enabled; WinMux handles its registered chord. Removing the bindings, leaving their mode, disabling WinMux or quitting restores the shortcuts WinMux held. Signal exits restore them too. A hard kill cannot restore them: relaunch WinMux, then quit normally to repair and restore the saved system shortcuts. Wake and unlock repair remains in place for configs that opt in.
+Tab steps the recent strip and Shift-Tab steps back while Command is down;
+Command-W closes the selected window. Release focuses the selection. Cmd-backtick
+uses the same lifetime over the same-app grid. The matching native Cmd-Tab pair
+is held only while successful Carbon registrations need it. Removing those
+bindings, changing context, disabling WinMux or quitting restores what it took.
+Signal exits restore too; after a hard kill, relaunch and quit normally to repair.
 
-## For people upgrading
+## Migration: Lens keys become modes
 
-`alt-0` is no longer a default and `alt-9` now focuses the last tab; a config that wants the old tenth-tab chord merges `mode.main.binding.alt-0 = "focus --tab-index 10"`, and a config that carries its own `alt-9` line, as a file converted from upstream's default TOML does, keeps focusing the ninth tab until that line changes to `focus --tab-index last`.
+A Lens no longer accepts `keys`, `starts-in` or `on-release`; `config check`
+names the replacing mode property. Popup lists become Boolean records.
 
-The shipped binding mode is now `window`; there is no default `lens` binding mode or alias. A config merging `mode.lens.binding.x = "focus left"` over defaults still loads: it creates a user-defined `lens` binding mode that the default Trigger never enters. Reading `defaults.mode.lens.binding` fails with a missing-field error; the helper prints a rename hint above Nickel's diagnostic. Change that read to `defaults.mode.window.binding`.
+| Old Lens setting | Rewrite |
+| --- | --- |
+| `keys.cmd-x = "close"` | mode/keymap `cmd-x = "lens close-window"` |
+| `keys.cmd-1 = "move-node-to-workspace 1"` | `cmd-1 = "lens run move-node-to-workspace 1"` |
+| `starts-in = 'search` | opener `W.open "name" 'search`, or mode with `unbound = 'type` |
+| `starts-in = 'normal` | opener `W.open "name" 'browse`, or mode with `unbound = 'consume` |
+| `on-release = 'commit` | a held mode with `on-release = ["lens focus", "mode main"]` |
+| `on-release = 'stay` | a held mode with `on-release = "mode browse"` or `"mode search"` |
+| `popups = ['accessory-popup]` | `popups.accessory-popup = true` |
 
-Files converted before this change contain their own `lens` binding mode and `alt-semicolon = "mode lens"`. They keep working as before and gain none of the new windowing keys. To adopt these keys, replace that binding mode with the new defaults and point the Trigger at `mode window`. A newly converted TOML gets the `window` binding mode and its Trigger only when it has neither a mode named `window` nor its own Option-semicolon binding.
+Replace `cmd-tab = "lens recent"` with `cmd-tab = "mode cmd-tab"` (and use
+`cmd-tab-back` for Cmd-Shift-Tab). Replace Option-slash's `"lens search"` with
+`"mode search-hold"`. Every hand-written `lens <name>` opener needs a mode or a
+`W.open` pair if it should operate from the keyboard: a Lens opened alone leaves
+the current mode unchanged. Empty command lists now consume; use `'pass` to free
+a chord. Reads of `defaults.mode.main.binding` and `.window.binding` become
+`defaults.keymap.main.bindings` and `.window.bindings`.
 
-`winmux mode <name>` still succeeds when no binding mode of that name exists. It makes that name current and registers no bindings. Recover with `winmux mode main` from the CLI; no new validation or alias was added.
+`config convert` preserves user modes and omitted upstream chords. It adds the
+shipped Option-slash/Option-Shift-O commands only where unbound, and adds `window`
+plus Option-semicolon only when neither existed. Converted files keep the other
+shipped mode definitions and keymap blocks alongside the six Lenses. No-mode TOML
+keeps all defaults. Version keys remain accepted and ignored; workspace
+persistence is explicit, with the existing legacy TOML inference and warning.
 
-The windowing mode restores access to these removed chords' commands: tab-next/tab-prev (formerly Alt-Tab/Alt-Shift-Tab), the four join directions (formerly Cmd-Shift-H/J/K/L), and project prev/next (formerly Alt-Cmd-H/L). Focus, move, workspace, floating/tiling and fullscreen commands also remain available here. Other removed commands still need explicit bindings; the paste block below keeps them available.
-
-An old removal such as `std.record.remove "ctrl-w" defaults.mode.main.binding` now fails with ``error: missing field `ctrl-w` ``: Ctrl-W is no longer a default binding. One-line fix: delete that removal, or replace it with `W.without-bindings ["ctrl-w"] defaults.mode.main.binding`. The helper prints this advice above the original Nickel error. A config that fails evaluation cannot load; on startup WinMux falls back to its built-in defaults.
-
-An earlier `config convert` wrote `mode.main.binding.cmd-tab = "lens recent"`, `mode.main.binding.cmd-shift-tab = "lens recent"` and `mode.main.binding.cmd-backtick = "lens app-windows"` as your own lines. They remain active after upgrading; delete those three lines to give Cmd-Tab back to macOS. Their Cmd-backtick now opens a grid that commits on release; to restore the old picture strip, merge `lenses.app-windows.presentation = 'strip`, `lenses.app-windows.tile = 'picture` and `lenses.app-windows.grid.tile-size = 'same-height` over defaults; it needs no `on-release` line.
-
-The new defaults are `main`'s `alt-shift-o` and the windowing mode's `a` and `w`; an existing binding for any of them under another spelling, such as `shift-alt-o`, can fail with a binding redeclaration error, just as for other default chords.
-
-Importing defaults now gives the short list above. Previously inherited chords disappear on upgrade; your own bindings remain. To retain any of the removed commands, paste the lines you want inside the record merged over defaults. This is also the migration block for this release.
+`list-lenses --json` reports view settings, not keys. A standalone `lens` command
+never enters a mode. The earlier keyboard's removed commands remain available;
+copy the lines needed into a record merged over defaults:
 
 ```nickel
 mode.main.binding.alt-cmd-1 = "project 1",
@@ -204,9 +254,9 @@ mode.main.binding.alt-p = "focus dfs-prev",
 mode.main.binding.alt-shift-tab = "focus tab-prev",
 mode.main.binding.alt-space = "layout horizontal vertical",
 mode.main.binding.alt-tab = "focus tab-next",
-mode.main.binding.cmd-tab = "lens recent",
-mode.main.binding.cmd-shift-tab = "lens recent",
-mode.main.binding.cmd-backtick = "lens app-windows",
+mode.main.binding.cmd-tab = "mode cmd-tab",
+mode.main.binding.cmd-shift-tab = "mode cmd-tab-back",
+mode.main.binding.cmd-backtick = "mode cmd-backtick",
 mode.main.binding.cmd-ctrl-h = "workspace prev",
 mode.main.binding.cmd-ctrl-l = "workspace next",
 mode.main.binding.cmd-shift-h = "join-with left",
