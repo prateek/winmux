@@ -30,7 +30,6 @@ final class ModeEngine {
     private var inputCount = 0
     private var nextInputAction = 0
     private var runningInputActions = Set<Int>()
-    private var drainingCancelledOpening = false
     private(set) var releasing = false
     var inputIsIdle: Bool { inputCount == 0 && !opening }
     /// True only in the queued action itself; a Task it spawns inherits the task-local but outlives the action.
@@ -116,11 +115,7 @@ final class ModeEngine {
         modeChanged()
     }
 
-    func lensOpening() {
-        // Keys parked for a cancelled opening belong to that Lens; this one reads the release itself at its ready point.
-        if drainingCancelledOpening { drainingCancelledOpening = false; queued = []; released = false }
-        opening = true; lensIsOpen = true
-    }
+    func lensOpening() { opening = true; lensIsOpen = true }
     func reconfigure(_ mode: Mode) {
         configurationRevision += 1
         properties = mode
@@ -216,13 +211,24 @@ final class ModeEngine {
             entryModifiers = []; released = false
         }
         if preserveOpeningInput && !entering {
+            // The parked work leaves with this drain; later keys queue behind it in arrival order.
             let ticket = generation
-            drainingCancelledOpening = true
+            let parked = queued
+            queued = []; opening = false
             enqueueInput { [weak self] in
-                guard let self, self.drainingCancelledOpening else { return }
-                self.drainingCancelledOpening = false
-                guard self.generation == ticket, !self.lensIsOpen else { return }
-                await self.finishReady(flags: self.entryModifiers.isEmpty ? [] : self.liveModifiers())
+                guard let self, self.generation == ticket else { return }
+                if self.lensIsOpen {
+                    // A newer Lens owns the keyboard now and reads the release at its own ready point.
+                    self.released = false
+                    return
+                }
+                let epoch = self.inputEpoch
+                for action in parked {
+                    guard self.inputEpoch == epoch, !Task.isCancelled else { return }
+                    await action()
+                }
+                guard self.inputEpoch == epoch else { return }
+                await self.observeModifiers(self.entryModifiers.isEmpty ? [] : self.liveModifiers())
             }
         }
     }
@@ -258,12 +264,13 @@ final class ModeEngine {
         released = false
         entryModifiers = []
         releasing = true
-        defer { releasing = false }
         let ticket = generation
         do {
             try await execute(properties.onRelease.compactMap { if case .cmd(let command) = parseCommand($0) { command } else { nil } })
             if generation == ticket { try await enter(mainModeId, mode: config.modes[mainModeId] ?? .zero) }
         } catch { lensLog.error("Mode release: \(error.localizedDescription, privacy: .public)") }
+        // A failed on-release never reached main, whose entry would have registered keys again.
+        if generation == ticket && releasing { releasing = false; changed() }
     }
 
     private func perform(_ commands: [String], generation ticket: Int) async throws {

@@ -68,9 +68,6 @@ import HotKey
     }
 }
 
-/// The pending chords the queued keys will leave, so a sequence typed faster than its dispatch still registers each continuation.
-@MainActor private var predictedPending: [ModeChord]?
-
 @MainActor @discardableResult
 func handleModeKey(code: UInt16, flags: NSEvent.ModifierFlags, characters: String, carbon: Bool = false, origin: LensTraceOrigin? = nil,
                    composing: Bool = false, replay: (@MainActor () -> Void)? = nil) -> Bool {
@@ -78,17 +75,15 @@ func handleModeKey(code: UInt16, flags: NSEvent.ModifierFlags, characters: Strin
     let releasesHeldMode = !engine.entryModifiers.isEmpty && flags.intersection(engine.entryModifiers).isEmpty
     engine.noteModifiers(flags)
     let inputWasIdle = engine.inputIsIdle
-    if inputWasIdle { predictedPending = nil }
     let preview = resolveModeKey(keymap: resolvedModeKeymap(), context: currentKeyContext(), mode: engine.properties,
                                  chord: .init(code: code, modifiers: flags), characters: characters,
-                                 entryModifiers: engine.entryModifiers, entryChordModifiers: engine.entryChordModifiers, pending: predictedPending ?? engine.pending, count: engine.count,
+                                 entryModifiers: engine.entryModifiers, entryChordModifiers: engine.entryChordModifiers, pending: engine.pending, count: engine.count,
                                  peeking: SwitcherPalettePanel.shared.session?.zoomPeeking == true, composing: composing, typingModifiers: engine.textModifiers)
     // Native keys (editing, input methods, 'pass) need their event now; behind queued keys they wait and are replayed.
     if inputWasIdle, deliversNatively(preview, code: code, flags: flags, characters: characters, carbon: carbon) {
         finishNatively(preview, code: code, flags: flags, characters: characters, origin: origin)
         return false
     }
-    predictedPending = preview.kind == .pending ? preview.pending : nil
     if preview.kind == .pending { reconcileModeContext(pending: preview.pending) }
     let dispatch: @MainActor () async -> Void = {
         await dispatchModeKey(code: code, flags: flags, characters: characters, carbon: carbon, origin: origin, composing: composing,
@@ -129,9 +124,10 @@ private func isTextKey(code: UInt16, characters: String) -> Bool {
     let panel = SwitcherPalettePanel.shared
     let chord = ModeChord(code: code, modifiers: flags)
     let context = currentKeyContext()
+    let keymap = resolvedModeKeymap()
     let peeking = panel.session?.zoomPeeking == true
     if let replay {
-        let current = resolveModeKey(keymap: resolvedModeKeymap(), context: context, mode: engine.properties, chord: chord, characters: characters,
+        let current = resolveModeKey(keymap: keymap, context: context, mode: engine.properties, chord: chord, characters: characters,
                                      entryModifiers: engine.entryModifiers, entryChordModifiers: engine.entryChordModifiers, pending: engine.pending, count: engine.count,
                                      peeking: peeking, composing: composing, typingModifiers: engine.textModifiers)
         if deliversNatively(current, code: code, flags: flags, characters: characters, carbon: carbon) {
@@ -142,7 +138,7 @@ private func isTextKey(code: UInt16, characters: String) -> Bool {
     }
     let trace = LensModeKeyTrace(code: code, flags: flags, characters: characters, origin: origin)
     let entry = engine.entryModifiers
-    let result = engine.resolve(chord, characters: characters, keymap: resolvedModeKeymap(), context: context, peeking: peeking, composing: composing)
+    let result = engine.resolve(chord, characters: characters, keymap: keymap, context: context, peeking: peeking, composing: composing)
     defer { trace.finish([String(describing: result.kind), result.target, result.bindingName].compactMap { $0 }.joined(separator: " ")) }
     do {
         switch result.kind {
@@ -159,7 +155,7 @@ private func isTextKey(code: UInt16, characters: String) -> Bool {
                 guard let target = result.target, let mode = config.modes[target], mode.unbound != .latch else { return }
                 try await activateMode(target)
                 guard engine.properties.unbound != .latch else { return }
-                await dispatchModeKey(code: code, flags: flags.subtracting(entry), characters: characters, carbon: carbon, origin: origin, composing: composing)
+                await dispatchModeKey(code: code, flags: flags.subtracting(entry), characters: characters, carbon: carbon, origin: origin, composing: composing, replay: replay)
             case .global:
                 panel.dismiss()
                 try await activateMode(mainModeId)

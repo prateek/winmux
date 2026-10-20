@@ -281,9 +281,11 @@ final class LensLifecycle {
 
     func cancelOpening(ticket: Int) {
         guard ticket == generation, case .opening = state else { return }
-        // A held mode keeps its parked keys and release, which end it; any other mode has nothing left to show.
+        // A held mode keeps its parked keys and release, which end it. A mode that exists to show this Lens
+        // has nothing left, and one the person was already in when a binding opened it stays.
         let held = !modeEngine.entryModifiers.isEmpty
-        dismiss(returnToMain: !held, preserveOpeningInput: held)
+        let opensLens = LensCommandList(modeEngine.properties.onEnter).containsOpener
+        dismiss(returnToMain: !held && opensLens, preserveOpeningInput: held)
     }
 
     func dismiss(returnToMain: Bool = true, preserveOpeningInput: Bool = false) {
@@ -303,7 +305,7 @@ final class LensLifecycle {
         modeEngine.lensClosed(cancelMode: returnToMain, preserveOpeningInput: preserveOpeningInput)
         if returnToMain, modeEngine === ModeEngine.shared, activeMode != mainModeId {
             let revision = modeEngine.revision
-            Task { if ModeEngine.shared.revision == revision { try await activateMode(mainModeId) } }
+            modeEngine.enqueueInput { if ModeEngine.shared.revision == revision { try? await activateMode(mainModeId) } }
         }
         if Self.columnsObserver === self { Self.columnsObserver = nil }
         generation += 1
