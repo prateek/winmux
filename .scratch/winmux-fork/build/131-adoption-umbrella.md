@@ -8,7 +8,7 @@ WinMux is a window manager with an integration surface. A helper becomes a featu
 
 ## What the mode work is
 
-A **mode** is a named record of chords to command lists with a lifetime, latched or held, a policy for unbound keys, and commands on entry and on release. A **Lens** is a view with a selection, driven by Lens verbs from whatever mode is current. Every Lens opener is a pair of commands. There is no stack. The held, normal and Search states of a Lens session, and the words Trigger and Hold, leave the glossary with **Modes are the only modality**.
+A **mode** is a named record of properties, a lifetime that is latched, held or transient, a policy for unbound keys, and commands on entry and on release; its keys live in a keymap of blocks each conditioned on a context, the mode among them. A **Lens** is a view with a selection, driven by Lens verbs from whatever mode is current. Every Lens opener is a pair of commands. There is no stack. The held, normal and Search states of a Lens session, and the words Trigger and Hold, leave the glossary with **Modes are the only modality**.
 
 ## Child issues, in build order
 
