@@ -61,6 +61,18 @@ Resolved 2026-10-19 with Prateek, in six rounds.
 - **One umbrella**, with the mode rewrite as its first large child and the independent children free for the relay's next-child rule.
 - **The outcome lives in three places**: the test in `AGENTS.md`, the vocabulary in `CONTEXT.md`, the decisions in the umbrella's body. No new document.
 
+## Addendum, the same evening: Vimium and Emacs
+
+Prateek read the marks issue and asked how Vimium handles command versus insert mode, how Emacs does it, and what the design would look like if it did that. Settled on the answer, "ok i like that i think":
+
+- **A third lifetime, transient**: a mode current for exactly one key, then back to the mode that entered it. Emacs's prefix key and Vimium's `gg`. Marks and Column digits become prefix keys, not special cases.
+- **Counts** as a mode property, off in the shipped modes because `window`'s digits are workspaces, on in the example module.
+- **Escape cancels** any mode but `main` unless the mode binds it.
+- **Per-app pass keys**, Vimium's passKeys: a mode leaves named chords to a named app.
+- **A hint mode**, Vimium's `f`: labels on every window, Column mark, workspace row and tab, and the label typed reaches it. A child of its own.
+- **Not taken**: Vimium's automatic insert mode. A window manager cannot see where the keyboard goes inside an app, so the resting mode stays `main` with keys passing through.
+- **A mode library** in `winmux.ncl`, because the shipped modes written out in full were sixty lines: `W.switcher`, `W.hold`, `W.open`, `W.transient`, `W.registers`, `W.chords`, `W.keys` and `W.modes`, every field at `| default` so `&` overrides. Prateek: "isn't there syntactic sugar and more utils/lib functions we can expose to make all this easier?"
+
 ## Sources
 
 - #268 and its handoff file, 2026-10-19.
