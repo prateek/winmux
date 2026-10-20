@@ -276,6 +276,25 @@ import XCTest
         XCTAssertEqual(engine.current, mainModeId)
     }
 
+    func testCancelledOpeningDrainsReleaseIntoTheCurrentHeldMode() async throws {
+        let engine = ModeEngine(liveModifiers: { .command })
+        let owner = testLensLifecycle(modeEngine: engine)
+        var held = Mode.zero; held.lifetime = .held; held.onRelease = ["focus left"]
+        engine.replace("first", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        let ticket = try XCTUnwrap(owner.begin("windows", toggle: false))
+        var seen: [String] = []
+        engine.execute = { commands in seen += commands.map { $0.args.description } }
+        engine.whenLensReady { seen.append("key before release") }
+        engine.noteModifiers([])
+        held.onRelease = ["focus right"]
+        engine.replace("current", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        engine.whenLensReady { seen.append("key after release: \(engine.current ?? "nil")") }
+        owner.cancelOpening(ticket: ticket)
+        await engine.waitForInput()
+        XCTAssertEqual(seen, ["key before release", "focus right", "key after release: main"])
+        XCTAssertEqual(engine.current, mainModeId)
+    }
+
     func testCancelledHeldOpeningPreservesTypingModifiersAtReady() async throws {
         let engine = ModeEngine(liveModifiers: { .option })
         engine.execute = { _ in }

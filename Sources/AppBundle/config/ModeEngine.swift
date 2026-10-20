@@ -264,10 +264,10 @@ final class ModeEngine {
     private func recordOpeningRelease(_ flags: NSEvent.ModifierFlags) {
         guard !entryModifiers.isEmpty, flags.intersection(entryModifiers).isEmpty, !released else { return }
         released = true
-        let ticket = generation
         queued.append { [weak self] in
-            guard let self, self.generation == ticket else { return }
-            await self.finishRelease()
+            guard let self else { return }
+            self.released = false
+            await self.observeModifiers(flags)
         }
     }
     func observeModifiers(_ flags: NSEvent.ModifierFlags) async {
