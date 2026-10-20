@@ -30,9 +30,26 @@ Nothing.
 
 ## Done when
 
-- [ ] Tests cover `focus-back` across workspaces and projects, a mark surviving a workspace move, a mark cleared by its window closing, and `jump` to an empty register exiting 1.
-- [ ] In a guest, `mark a`, focus elsewhere, `jump a` returns, and `focus-back` toggles between two windows on different workspaces.
-- [ ] `docs/cli.md` lists the four commands.
+- [x] Tests cover `focus-back` across workspaces and projects, a mark surviving a workspace move, a mark cleared by its window closing, and `jump` to an empty register exiting 1.
+- [x] In a guest, `mark a`, focus elsewhere, `jump a` returns, and `focus-back` toggles between two windows on different workspaces.
+- [x] `docs/cli.md` lists the four commands.
+
+## Built and checked
+
+- `focus-back` uses `prevFocusedWindow`, the same confirmed-focus history as the Filter context's `previous`, and exits 1 with `No previously focused window` when none exists. It never falls back to a never-focused window or an empty workspace. `focus-back-and-forth` keeps its existing behavior. The return-trip test confirms the first request as a refresh would before requesting the second.
+- The Lens `focus` verb, `focus-back` and `jump` share `focusLensWindow`: restore at the retained origin, request logical focus except for popups, then request native focus. **A minimized or hidden-app window** keeps the Default's requested restoration behavior, but restoration comes from the Lens path, not from `focus --window-id`, which remains unchanged. The Default's attribution to `focus` was incorrect; no Default behavior changed.
+- One in-memory register-to-window-id map survives replacement of Window objects. Registration prunes it with the same live-plus-closed-cache set as focus history. All readers omit unavailable windows without erasing a temporarily absent id that the cache may restore. Restart clears the map.
+- Registers accept exactly one lowercase ASCII letter. Reassignment moves only that register; multiple registers can name one window. Bare `mark` prints sorted letters separated by spaces, with no output for no marks. Both mark forms exit 1 with `No window is focused` on empty focus. Invalid arguments follow the CLI's existing parse-error exit code, 1.
+- `list-marks` reuses `list-windows` padding and JSON encoding, adding `register` to `window-id`, `app-name` and `window-title`. There is no `--format`. The URL gate refuses bare `mark` and `list-marks`, and permits register assignment, `jump` and `focus-back`.
+- Fourteen command tests cover the required cases, restoration, popup focus, replacement/cache retention, parsing, both output forms, restart semantics and URL policy. The existing minimized Lens focus test additionally checks native focus. The initial guest build executes the new failing tests; removing restoration or pruning also makes their regressions fail. Host and pinned-version guest `make check` pass: 1,774 Swift, 92 Rust/helper and 171 script tests. The guest skips the existing committed-hash script check for its sync commit. This is local verification, not a CI result.
+- Standing-desk screenshots, command transcripts with exit codes, window lists and agent trees check `mark a`, a cross-workspace `jump a`, four alternating `focus-back` calls, both list forms, empty-register failure, minimized restoration and closed-register omission. Additional captures check a workspace move, hidden-app restoration, register reassignment, already-focused success, parse errors, and clearing marks plus the previous-window error after restart. Source-workspace screenshots agree with the window lists and trees. No permission was granted. Proof scripts are in `.scratch/winmux-fork/proofs/window-marks/`; builder captures remain in the relay artifacts, separate from final-commit demos.
+- No default binding, Lens guide, cask shape or on-disk state format changes. After a Sparkle app update, the installed CLI needs `brew upgrade --cask --greedy winmux` to learn the new commands.
+
+## Checks for Prateek
+
+- [ ] Use the new commands with the installed build and upgraded cask CLI.
+- [ ] Check focus and restoration across a second real display.
+- [ ] Check marks across real sleep, wake and screen lock/unlock. Object replacement and retained ids are covered in tests; the physical transitions are not guest checks.
 
 ## Sources
 
