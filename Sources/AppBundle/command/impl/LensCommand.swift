@@ -82,7 +82,7 @@ struct LensCommand: Command {
         let panel = SwitcherPalettePanel.shared
         guard let model = panel.session else { return io.err("No Lens is open") }
         switch verb {
-            case "close": panel.dismiss()
+            case "close": panel.dismiss(); await ModeEngine.shared.completeLensClose()
             case "step": model.step(args.operands[0])
             case "peek": model.send(.peekToggled)
             case "mark": model.toggleMark()
@@ -97,6 +97,7 @@ struct LensCommand: Command {
                 if raw == ["focus"] {
                     let ids = model.targets(forCommand: "focus")
                     panel.dismiss()
+                    await ModeEngine.shared.completeLensClose()
                     guard let id = ids.first, let window = Window.get(byId: id) else { return io.err("No selected window") }
                     return try await focusLensWindow(window)
                 }
@@ -108,7 +109,7 @@ struct LensCommand: Command {
                 let keepOpen = raw[0] == "close" || raw[0] == "move-node-to-workspace"
                 // The command acts on what was selected and marked when it ran, not after the Lens closed.
                 let targets = model.targets(forCommand: raw.joinArgs())
-                if !keepOpen { panel.dismiss() }
+                if !keepOpen { panel.dismiss(); await ModeEngine.shared.completeLensClose() }
                 return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env, targets: targets)
             default: return io.err("Unknown Lens verb '\(verb)'")
         }

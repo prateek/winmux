@@ -268,15 +268,156 @@ import XCTest
         XCTAssertEqual(engine.textModifiers, .option)
     }
 
-    func testBindingReplacingAnOwnedLensEndsItsOwner() async throws {
-        let engine = ModeEngine(liveModifiers: { .command })
+    func testBindingReplacingAnOwnedLensKeepsItsOwnerAndParkedKeys() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        engine.execute = { _ in }
         let lens = testLensLifecycle(modeEngine: engine)
         var browse = Mode.zero; browse.unbound = .consume
         _ = lens.begin("overview", toggle: false)
         engine.replace("browse", mode: browse)
         _ = lens.begin("recent", toggle: false)
+        var seen: [String?] = []
+        engine.whenLensReady { seen.append(engine.current) }
+        await engine.waitForInput()
+        XCTAssertEqual(engine.current, "browse", "the replacement is browse's Lens, so browse does not end")
+        await engine.lensReady(show: {}, flags: [])
+        XCTAssertEqual(seen, ["browse"], "keys parked for the replacement run in browse, not main")
+        lens.dismiss()
         await engine.waitForInput()
         XCTAssertEqual(engine.current, mainModeId)
+    }
+
+    func testTransientReturnKeepsAnUnownedLens() async throws {
+        var closes = 0
+        let engine = ModeEngine(liveModifiers: { [] }, closeLens: { closes += 1 })
+        engine.execute = { _ in }
+        let lens = testLensLifecycle(modeEngine: engine)
+        _ = lens.begin("windows", toggle: false)
+        var once = Mode.zero; once.lifetime = .transient
+        try await engine.enter("window-once", mode: once)
+        try await engine.transientFinished("window-once")
+        XCTAssertEqual(engine.current, mainModeId)
+        XCTAssertEqual(closes, 0)
+    }
+
+    func testOwnedLensClosesWhenItsModeIsReplacedByAPassMode() async throws {
+        var closes = 0
+        let engine = ModeEngine(liveModifiers: { [] }, closeLens: { closes += 1 })
+        let lens = testLensLifecycle(modeEngine: engine)
+        var browse = Mode.zero; browse.unbound = .consume
+        _ = lens.begin("windows", toggle: false)
+        engine.replace("browse", mode: browse)
+        engine.replace("search", mode: { var m = Mode.zero; m.unbound = .type; return m }())
+        XCTAssertEqual(closes, 0, "search adopts browse's Lens")
+        engine.replace("window", mode: .zero)
+        XCTAssertEqual(closes, 1)
+    }
+
+    func testReleaseDuringACancelledOpeningIsReadByTheNewerLens() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        var releases = 0
+        engine.execute = { _ in releases += 1 }
+        let lens = testLensLifecycle(modeEngine: engine)
+        var held = Mode.zero; held.lifetime = .held; held.onRelease = ["focus left"]
+        engine.replace("held", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        let first = try XCTUnwrap(lens.begin("first", toggle: false))
+        engine.noteModifiers([])
+        lens.cancelOpening(ticket: first)
+        _ = lens.begin("second", toggle: false)
+        await engine.lensReady(show: {}, flags: [])
+        await engine.waitForInput()
+        XCTAssertEqual(releases, 1)
+        XCTAssertEqual(engine.current, mainModeId)
+    }
+
+    func testClosingAnUnownedOpeningReadsADroppedReleaseAgain() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        var releases = 0
+        engine.execute = { _ in releases += 1 }
+        let lens = testLensLifecycle(modeEngine: engine)
+        var held = Mode.zero; held.lifetime = .held; held.onRelease = ["focus left"]
+        engine.replace("held-pass", mode: held, invocation: .init(keyCode: 48, invoking: .command))
+        _ = lens.begin("windows", toggle: false)
+        engine.noteModifiers([])
+        lens.dismiss()
+        await engine.waitForInput()
+        XCTAssertEqual(releases, 1)
+        XCTAssertEqual(engine.current, mainModeId)
+    }
+
+    func testOnEnterReplacingAnAdoptedLensKeepsKeysParkedDuringEntry() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        let lens = testLensLifecycle(modeEngine: engine)
+        _ = lens.begin("overview", toggle: false)
+        var opener = Mode.zero; opener.onEnter = ["lens recent"]
+        var seen: [String] = []
+        engine.didEnter = { _, _ in engine.whenLensReady { seen.append("key") } }
+        engine.execute = { _ in
+            _ = lens.begin("recent", toggle: false)
+            engine.presentLens(show: {}, flags: [])
+        }
+        try await engine.enter("opener", mode: opener)
+        await engine.waitForInput()
+        XCTAssertEqual(seen, ["key"])
+    }
+
+    func testTaskSpawnedByOnEnterOpensAnUnownedLens() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        let lens = testLensLifecycle(modeEngine: engine)
+        var mode = Mode.zero; mode.onEnter = ["focus left"]
+        let opened = expectation(description: "spawned opening")
+        engine.execute = { _ in
+            Task { @MainActor in
+                await Task.yield()
+                _ = lens.begin("windows", toggle: false)
+                opened.fulfill()
+            }
+        }
+        try await engine.enter("spawner", mode: mode)
+        await fulfillment(of: [opened], timeout: 2)
+        lens.dismiss()
+        await engine.waitForInput()
+        XCTAssertEqual(engine.current, "spawner")
+    }
+
+    func testCancelledOnEnterOpeningKeepsKeysForTheModeOnEnterEnters() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        let lens = testLensLifecycle(modeEngine: engine)
+        var opener = Mode.zero; opener.onEnter = ["lens a", "mode other"]
+        var seen: [String?] = []
+        engine.execute = { commands in
+            if commands.first?.args.description == "lens a" {
+                let ticket = try XCTUnwrap(lens.begin("a", toggle: false))
+                engine.whenLensReady { seen.append(engine.current) }
+                lens.cancelOpening(ticket: ticket)
+            } else {
+                try await engine.enter("other", mode: .zero)
+            }
+        }
+        try await engine.enter("opener", mode: opener)
+        await engine.waitForInput()
+        XCTAssertEqual(seen, ["other"])
+    }
+
+    func testLensCloseReturnDoesNotWaitForASlowInterrupt() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        engine.execute = { _ in }
+        let lens = testLensLifecycle(modeEngine: engine)
+        var browse = Mode.zero; browse.unbound = .consume
+        _ = lens.begin("windows", toggle: false)
+        engine.replace("browse", mode: browse)
+        let started = expectation(description: "slow global binding")
+        var resume: CheckedContinuation<Void, Never>?
+        engine.interruptOpening {
+            started.fulfill()
+            await withCheckedContinuation { resume = $0 }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        lens.dismiss()
+        for _ in 0 ..< 20 { await Task.yield() }
+        XCTAssertEqual(engine.current, mainModeId)
+        resume?.resume()
+        await engine.waitForInput()
     }
 
     func testOnEnterReplacingAnAdoptedLensKeepsTheHold() async throws {

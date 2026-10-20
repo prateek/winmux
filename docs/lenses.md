@@ -354,10 +354,12 @@ A Lens opened by `on-enter` belongs to that mode. A mode entered over an open
 Lens adopts it when its unbound policy is consume, type or latch, or its
 `on-enter` opens a Lens. Closing a Lens a mode owns ends that mode in `main`;
 closing a Lens no mode owns changes no mode, including its lifetime and entry
-modifiers. A Lens opened by a binding, the CLI or `on-release` belongs to no mode.
-When a held mode releases, only its owned Lens closes; a Lens opened by its
-`on-release` stays. Escape, a foreign chord and `mode main` still close the open
-Lens when they end a mode.
+modifiers. A Lens opened by a binding, the CLI or `on-release` belongs to no mode,
+except that a Lens replacing the one a mode owns is still that mode's. A mode
+that ends closes the Lens it owns unless the next mode adopts it. When a held
+mode releases, only its owned Lens closes; a Lens opened by its `on-release`
+stays. Escape, a foreign chord and `mode main` close the open Lens, owned or
+not; a transient mode returning to its mode leaves a Lens it does not own open.
 
 A mode with `lifetime = 'held` lasts until all the entering chord's Command,
 Control and Option modifiers are up; Shift is the lifetime modifier for a

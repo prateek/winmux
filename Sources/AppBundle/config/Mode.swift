@@ -6,14 +6,9 @@ struct Mode: ConvenienceCopyable, Equatable, Sendable {
     enum Lifetime: String, Sendable { case latched, held, transient }
     enum Unbound: String, Sendable { case pass, consume, type, latch }
     var lifetime: Lifetime = .latched
-    var unbound: Unbound = .pass {
-        didSet { updateLensRequirement() }
-    }
+    var unbound: Unbound = .pass
     var onEnter: [String] = [] {
-        didSet {
-            opensLens = LensCommandList(onEnter).containsOpener
-            updateLensRequirement()
-        }
+        didSet { opensLens = LensCommandList(onEnter).containsOpener }
     }
     private(set) var opensLens = false
     var onRelease: [String] = []
@@ -25,11 +20,7 @@ struct Mode: ConvenienceCopyable, Equatable, Sendable {
     var tapBindings: [String: TapBinding]
     var sequenceBindings: [String: SequenceBinding]
 
-    private(set) var requiresLens = false
-
-    private mutating func updateLensRequirement() {
-        requiresLens = unbound != .pass || opensLens
-    }
+    var requiresLens: Bool { unbound != .pass || opensLens }
 
     init(
         bindings: [String: HotkeyBinding],

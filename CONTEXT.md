@@ -5,7 +5,7 @@ A sidebar-first tiling window manager for macOS, forked from AeroSpace. This glo
 ## Finding windows
 
 **Lens**:
-A view of matching windows: a Filter, a Presentation, sort order and shared Tile settings. A command in any Mode, a gesture or the CLI opens it. Its view state is selection, Search text, marks in mark order and the focused pane; keys belong to Modes. A mode and its Lens are one thing exactly when the mode opened the Lens. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode.
+A view of matching windows: a Filter, a Presentation, sort order and shared Tile settings. A command in any Mode, a gesture or the CLI opens it. Its view state is selection, Search text, marks in mark order and the focused pane; keys belong to Modes. A mode and its Lens are one thing exactly when the mode opened the Lens. Closing a Lens a mode owns ends that mode in `main`; closing a Lens no mode owns changes no mode. A Lens that replaces the one a mode owns is still that mode's.
 _Avoid_: picker, picker binding, switcher, exposé, overview, Mission Control
 
 **Filter**:

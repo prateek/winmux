@@ -150,7 +150,6 @@ import XCTest
         XCTAssertEqual(current.stdout, ["browse"])
         model.hover(1)
         let focused = try await parseCommand("lens focus").cmdOrDie.run(.defaultEnv, .emptyStdin)
-        await ModeEngine.shared.waitForInput()
         XCTAssertEqual(focused.exitCode, 0)
         XCTAssertEqual(focus.windowOrNil?.windowId, 1)
         XCTAssertEqual(activeMode, "main")
