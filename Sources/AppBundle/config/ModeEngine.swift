@@ -165,10 +165,13 @@ final class ModeEngine {
     func returnToMainAfterLensCloses() {
         guard current != mainModeId, properties.requiresLens else { return }
         let ticket = generation
-        enqueueHeadInput { [self] in
+        let tail = inputTask
+        let head = enqueueHeadInput { [self] in
             guard generation == ticket else { return }
             await leaveLensDependentMode()
         }
+        // Input queued before the dismiss still runs, so later input waits for it as well as for the return.
+        inputTask = Task { await tail?.value; await head.value }
     }
     private func leaveLensDependentMode() async {
         guard !lensIsOpen, current != mainModeId, properties.requiresLens else { return }

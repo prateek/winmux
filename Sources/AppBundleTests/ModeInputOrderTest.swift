@@ -315,7 +315,7 @@ import XCTest
         XCTAssertEqual(engine.textModifiers, .option)
     }
 
-    private func checkDismiss(_ between: (ModeEngine) -> Void) async throws {
+    private func checkDismiss(keyWaitsForEarlierInput: Bool = true, _ between: (ModeEngine) -> Void) async throws {
         let engine = ModeEngine.shared
         engine.execute = { _ in }
         let owner = testLensLifecycle(modeEngine: engine)
@@ -332,10 +332,10 @@ import XCTest
         owner.dismiss()
         between(engine)
         var modeAtKey: String?
-        let dispatched = expectation(description: "later key dispatched before slow input finishes")
-        engine.enqueueInput { modeAtKey = engine.current; dispatched.fulfill() }
-        await fulfillment(of: [dispatched], timeout: 2)
+        engine.enqueueInput { modeAtKey = engine.current }
+        for _ in 0 ..< 20 { await Task.yield() }
         let modeBeforeSlowEnds = engine.current
+        if keyWaitsForEarlierInput { XCTAssertNil(modeAtKey, "a later key still waits for the input before it") }
         resume?.resume()
         await slow.value
         await engine.waitForInput()
@@ -349,11 +349,36 @@ import XCTest
     }
 
     func testDismissReturnsToMainAcrossInterrupt() async throws {
-        try await checkDismiss { $0.interruptOpening {} }
+        try await checkDismiss(keyWaitsForEarlierInput: false) { $0.interruptOpening {} }
     }
 
     func testDismissReturnsBeforeSlowInputEndsAndLaterKeyDispatches() async throws {
         try await checkDismiss { _ in }
+    }
+
+    func testKeysQueuedAcrossADismissKeepTheirOrder() async throws {
+        let engine = ModeEngine(liveModifiers: { [] })
+        engine.execute = { _ in }
+        let owner = testLensLifecycle(modeEngine: engine)
+        var browse = Mode.zero; browse.unbound = .consume
+        engine.replace("browse", mode: browse)
+        _ = owner.begin("windows", toggle: false)
+        let started = expectation(description: "slow input in flight")
+        var resume: CheckedContinuation<Void, Never>?
+        engine.enqueueInput {
+            started.fulfill()
+            await withCheckedContinuation { resume = $0 }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        var keys: [String] = []
+        engine.enqueueInput { keys.append("before") }
+        owner.dismiss()
+        engine.enqueueInput { keys.append("after") }
+        for _ in 0 ..< 20 { await Task.yield() }
+        XCTAssertEqual(engine.current, mainModeId)
+        resume?.resume()
+        await engine.waitForInput()
+        XCTAssertEqual(keys, ["before", "after"])
     }
 
     func testDismissDoesNotEndANewerMode() async throws {
