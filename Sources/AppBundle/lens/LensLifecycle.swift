@@ -4,7 +4,10 @@ import Common
 struct LensAdHocIdentity: Equatable {
     let filter: String
     let settings: LensConfig
-    var search = ""
+    let search: String?
+    init(filter: String, settings: LensConfig, search: String? = nil) {
+        self.filter = filter; self.settings = settings; self.search = search
+    }
 }
 
 @MainActor

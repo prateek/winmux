@@ -125,6 +125,7 @@ func handleModeKey(code: UInt16, flags: NSEvent.ModifierFlags, characters: Strin
             case .latch:
                 guard let target = result.target, let mode = config.modes[target], mode.unbound != .latch else { return }
                 try await activateMode(target)
+                guard engine.properties.unbound != .latch else { return }
                 await dispatchModeKey(code: code, flags: flags.subtracting(entry), characters: characters, carbon: carbon, origin: origin)
             case .global:
                 panel.dismiss()

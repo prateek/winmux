@@ -116,6 +116,12 @@ import XCTest
         owner.complete(model, ticket: ticket)
         XCTAssertNotNil(owner.begin("<ad-hoc>", toggle: false, identity: bar))
         owner.dismiss()
+        let implicit = LensAdHocIdentity(filter: "true", settings: LensConfig())
+        let empty = LensAdHocIdentity(filter: "true", settings: LensConfig(), search: "")
+        let recalled = owner.begin("<ad-hoc>", toggle: false, identity: implicit)!
+        owner.complete(LensSession(name: "<ad-hoc>", settings: LensConfig(), items: [], search: "remembered"), ticket: recalled)
+        XCTAssertNotNil(owner.begin("<ad-hoc>", toggle: false, identity: empty))
+        owner.dismiss()
     }
 
     func testLensRunCloseTreatsCompanionMarkedWindowAsDone() async throws {
@@ -173,6 +179,16 @@ import XCTest
         handleModeKey(code: 0, flags: [], characters: "a")
         await ModeEngine.shared.waitForInput()
         XCTAssertEqual(activeMode, "bad")
+        config.modes["carrier"] = .zero
+        config.modes["carrier"]!.onEnter = ["mode latching"]
+        config.modes["latching"] = .zero
+        config.modes["latching"]!.unbound = .latch
+        config.modes["latching"]!.latchTo = "main"
+        config.modes["bad"]!.latchTo = "carrier"
+        enterModeForTests("bad")
+        handleModeKey(code: 0, flags: [], characters: "a")
+        await ModeEngine.shared.waitForInput()
+        XCTAssertEqual(activeMode, "latching", "on-enter can change the target's mode; never re-dispatch into its latching policy")
     }
 
     func testThrowingOpenerStillReachesReadyAndDrainsParkedInput() async {

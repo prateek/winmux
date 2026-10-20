@@ -44,7 +44,7 @@ struct LensCommand: Command {
                 return io.err(failure.message)
             }
         }
-        let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings, search: args.search ?? "") } : nil
+        let identity = args.name == nil ? filter.map { LensAdHocIdentity(filter: $0, settings: settings, search: args.search) } : nil
         let panel = SwitcherPalettePanel.shared
         let now = LensTimebase.now()
         let trace = LensTraceStore.shared.begin(presentation: settings.presentation, origin: lensTraceOrigin ?? LensTraceOrigin(start: now, received: now, source: "internal"))
