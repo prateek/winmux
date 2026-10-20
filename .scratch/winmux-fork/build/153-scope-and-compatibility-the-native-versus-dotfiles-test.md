@@ -20,7 +20,6 @@ Nothing.
 
 - [ ] The two paragraphs are in `AGENTS.md` and the record is linked.
 - [ ] The `issue-relay` skill's step 6 names the test among the reasons a finding is declined, beside the Scope and compatibility reason it already names.
-- [ ] A review run on this pull request itself, asked in its prompt whether WinMux should ship a leader-key menu, answers with the test; the answer is quoted in the pull request body.
 
 ## Sources
 

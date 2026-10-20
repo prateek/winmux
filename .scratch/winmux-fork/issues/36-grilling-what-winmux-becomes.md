@@ -24,8 +24,8 @@ Resolved 2026-10-19 with Prateek, in six rounds.
 ### Modality
 
 - **Modes are the only modal concept.** A mode is a named record of chords to command lists, with a lifetime. A Lens is a view, Filter plus Presentation plus sort, opened and closed by commands; while open it has a selection and nothing else. Keys never belong to a Lens. Prateek: "it feels like we're coupling application state (held v normal v search) with modality as a concept. i should be able to be in a mode while holding a key, that's all cmd-tab is, if i then need to switch to a different mode where i don't need to be holding command any more, i should express that".
-- **A mode has four properties**: a lifetime, `'latched` until a command changes the mode or `'held` while the modifiers of the chord that entered it stay down; a policy for unbound keys, `'pass` to the app, `'consume`, or `'type` into the open Lens's Search; `on-enter` commands; and `on-release` commands for a held mode. A held mode's keys match as pressed first, then with the entry modifiers removed, so its record says `tab`, not `cmd-tab`.
-- **Lens verbs** work from any mode's keys while a Lens is open: `lens step next`, `lens step prev`, `lens focus`, `lens summon`, `lens peek`, `lens close`, `lens search`.
+- **A mode has four properties**: a lifetime, `'latched` until a command changes the mode or `'held` while the modifiers of the chord that entered it stay down; a policy for unbound keys, `'pass` to the app, `'consume`, or `'type` into the open Lens's Search; `on-enter` commands; and `on-release` commands for a held mode; a held mode that commits also has a `draw-delay`. A held mode's keys match as pressed first, then with the entry modifiers removed, so its record says `tab`, not `cmd-tab`.
+- **Lens verbs** work from any mode's keys while a Lens is open: `lens step next`, `lens step prev`, `lens focus`, `lens summon`, `lens peek`, `lens close`. Entering Search is `mode search`, not a verb; `lens search` means opening the Lens named `search`.
 - **`lens <name>` alone changes no mode.** Every opener in the shipped defaults is a pair, `lens recent` and `mode cmd-tab`. There is no convenience that lets a Lens name a default mode.
 - **A gesture enters a mode too.** `'held` for a gesture means while the fingers are on the pad; `on-release` runs when they lift. The swipe-driven overview is a held mode whose Presentation follows the finger.
 - **No stack.** Entering a mode or a Lens leaves whatever was active. Closing a Lens returns to `main`, not to the mode that opened it.
@@ -53,11 +53,11 @@ Resolved 2026-10-19 with Prateek, in six rounds.
 - **Layouts and rules are a research child first**; its outcome decides whether layout commands get built.
 - **Crash reporting merges into #106**, following AltTab, Rectangle and Ice: a "report a bug" entry that gathers diagnostics and opens a prefilled GitHub issue, collection off until the user opts in, dSYMs published with every release as a public release asset. #263 keeps the crash and a relaunch after a crash.
 - **The integration gaps are defects**: workspaces from the CLI, `place --dry-run` for a named workspace, a root split orientation command, `subscribe`'s initial state, `config check` evaluating hooks.
-- **Status is three small children** plus a logging step for the pointer jump.
+- **Status is two small children**, the menu bar item with its pause state and the sidebar accents, plus a logging step for the pointer jump.
 
 ### Process
 
-- **The tracker moves to beads.** Every open issue imports; GitHub issues stay for outsiders. The relay skill is revised first. A phone view is a bead of its own. **Deferred on 2026-10-20**: Prateek chose to stay on GitHub for now, file the adoption umbrella and its children there, and close the five issues the decisions supersede, #144, #145, #213, #227 and #228. Prateek: "maybe we close old issues and file new issues instead of beads for now?" The two beads drafts are kept under the umbrella's Later section.
+- **The tracker moves to beads.** Every open issue imports; GitHub issues stay for outsiders. The relay skill is revised first. A phone view is a bead of its own. **Deferred on 2026-10-19**: Prateek chose to stay on GitHub for now, file the adoption umbrella and its children there, and close the five issues the decisions supersede, #144, #145, #213, #227 and #228. Prateek: "maybe we close old issues and file new issues instead of beads for now?" The two beads drafts are kept under the umbrella's Later section.
 - **One umbrella**, with the mode rewrite as its first large child and the independent children free for the relay's next-child rule.
 - **The outcome lives in three places**: the test in `AGENTS.md`, the vocabulary in `CONTEXT.md`, the decisions in the umbrella's body. No new document.
 

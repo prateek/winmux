@@ -1,12 +1,12 @@
 # A phone view of beads
 
-Shelved 2026-10-20 with the beads move; GitHub's own app is the phone view for now.
+Shelved 2026-10-19 with the beads move; GitHub's own app is the phone view for now.
 
 Part of {{UMBRELLA}}.
 
 ## What to build
 
-Beads is a CLI. Prateek reviewed GitHub issues on his phone; after **Issues move to beads, and the relay reads them** he cannot. `bd serve` is a loopback HTTP API for automation, not a page. Two community web interfaces exist: beads-ui, a kanban with live updates started with `npx beads-ui start`, and Beady, a Go web interface. A third has stopped and does not support the Dolt storage that bd 0.50 and later use, which includes the pinned 1.3.1.
+Beads is a CLI. Prateek reviewed GitHub issues on his phone; after **Issues move to beads, and the relay reads them** he cannot. `bd serve` is a loopback HTTP API for automation, not a page. Two community web interfaces exist: beads-ui, a kanban with live updates started with `npx beads-ui start`, and Beady, a Go web interface. A third has stopped and does not support the Dolt storage that bd 0.50 and later use, which includes the version the beads child was written against, 1.3.1.
 
 ## Decisions
 

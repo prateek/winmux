@@ -10,7 +10,7 @@ Make the smoke passes cover what the config says about itself.
 
 ## Decisions
 
-- **One smoke context per workspace the config names**, from `persistent-workspaces`, `columns.when.<workspace>` and every workspace a hook body mentions, each with that workspace's Column count and widths resolved; and one per Display profile under `when`.
+- **One smoke context per workspace the config names**, from `persistent-workspaces` and every `workspace.<name>` record, each with that workspace's Column count and widths resolved; and one per Display profile under `when`. A workspace a hook body mentions by name and the config names nowhere else is not a context; the docs say to list such workspaces in `persistent-workspaces` to have them checked.
 - **A failing pass names its context**: the hook, the workspace, the profile and Nickel's message.
 - **A hook that returns an action the contract does not allow** in any pass is reported the same way, as today.
 - **`--no-hooks`** keeps a parse-only check for a config that is only being edited.
@@ -21,12 +21,12 @@ Nothing.
 
 ## Defaults chosen for you
 
-- **A workspace named only inside a hook body** is found by the helper's existing parse of the body's string literals; a name it cannot see is not a context, and the docs say to list such workspaces in `persistent-workspaces` to have them checked.
 - **The synthetic window's fields** stay as they are and are documented in `docs/columns.md`.
+- **The two contexts the helper uses today** stay as the first passes, so a config that passed before still runs the same checks plus the new ones.
 
 ## Done when
 
-- [ ] A test with a `place` hook that errors only for workspace `9`, named in `persistent-workspaces`, fails `config check` naming workspace `9`; the same config without the name passes, as today.
+- [ ] A test with a `place` hook that errors only for workspace `9` fails `config check` naming workspace `9` when `9` is in `persistent-workspaces`, and passes, as today, when `9` is named nowhere but inside the hook.
 - [ ] A test with a hook that errors only under a non-default Display profile fails naming the profile.
 - [ ] `docs/cli.md` and `docs/columns.md` describe the passes and the contexts.
 

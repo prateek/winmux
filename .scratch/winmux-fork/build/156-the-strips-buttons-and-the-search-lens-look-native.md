@@ -4,7 +4,7 @@ Part of {{UMBRELLA}}.
 
 ## What to build
 
-Two Lens look items from a day of use. The strip's close, minimize and fullscreen buttons on a Tile do not look like macOS's traffic lights; they read as drawn by WinMux. And the Ctrl-F switcher, `lens search` as a list, has the pieces but not the finish: its rows carry an icon, a mark and a title, matched text is highlighted, and a legend of keys sits below the panel, yet beside Spotlight or Raycast the rows are too tall and too plain, the icons are small, the highlight is a weight change that is hard to see, the panel chrome does not match the sidebar's glass, the legend reads as debugging output rather than a hint footer, and the first frame lands late enough to notice.
+Two Lens look items from a day of use. The strip's close, minimize and fullscreen buttons on a Tile do not look like macOS's traffic lights; they read as drawn by WinMux. And the search Lens as a list, Option-slash as shipped and Ctrl-F in Prateek's own config, has the pieces but not the finish: its rows carry an icon, a mark and a title, matched text is highlighted, and a legend of keys sits below the panel, yet beside Spotlight or Raycast the rows are too tall and too plain, the icons are small, the highlight is a weight change that is hard to see, the panel chrome does not match the sidebar's glass, the legend reads as debugging output rather than a hint footer, and the first frame lands late enough to notice.
 
 ## Decisions
 

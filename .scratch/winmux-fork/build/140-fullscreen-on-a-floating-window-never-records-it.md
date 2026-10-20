@@ -25,3 +25,4 @@ Nothing.
 ## Sources
 
 - #268's handoff, "Fullscreen on floating windows is one-way", with the reproduction.
+- `Sources/AppBundle/layout/layoutRecursive.swift`, the floating branch: `FullscreenCommand` sets the flag and the layout pass clears it after `layoutFullscreen` on the floating path, which is where the record is lost.

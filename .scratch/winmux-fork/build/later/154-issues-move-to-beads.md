@@ -1,6 +1,6 @@
 # Issues move to beads, and the relay reads them
 
-Shelved 2026-10-20: Prateek chose to file on GitHub for now. Kept for when the sub-issue cap bites again; the umbrella's Later section points here.
+Shelved 2026-10-19: Prateek chose to file on GitHub for now. Kept for when the sub-issue cap bites again; the umbrella's Later section points here.
 
 Part of {{UMBRELLA}}. This is the child that changes what "Part of" means: after it, a draft's placeholder is the parent bead's id.
 
@@ -17,7 +17,7 @@ Move the tracker to beads, import every open issue, and revise the relay skill t
 - **GitHub issues stay for outsiders.** A person who is not Prateek files on GitHub; the relay triages such an issue into a bead and links the two. Nothing else is filed on GitHub.
 - **Open with Prateek and his checks are beads** with a `blocked-on-prateek` label and a `prateek-check` label, and the relay's Items for Prateek section writes to them.
 - **The relay skill is revised in one pull request before this umbrella's relay starts**: Issue bodies, Items for Prateek, the next-child rule, the `Closes #n` line, the umbrella child list and the drafts under `.scratch/winmux-fork/build/` all become beads operations. A draft is the bead's body; `bd create` from the draft replaces rendering and `gh issue edit`. The squash body ends with the bead id.
-- **The beads pin follows the repository's toolchain decision.** **One pinned toolchain for CI, the guest and the release** chose a Nix flake over mise for every pin, so `bd` goes into the flake when that issue lands; until then the import script checks the `bd` version it was written against and refuses another, and `AGENTS.md` names the version.
+- **The beads pin follows the repository's toolchain decision.** **One pinned toolchain for CI, the guest and the release** chose a Nix flake over mise for every pin, so `bd` goes into the flake when that issue lands; until then the import script checks the `bd` version it was written against, 1.3.1, and refuses another, and `AGENTS.md` names the version.
 - **Dependencies import as they are written, not as the list order.** A child's `blocks` edges come from its Depends on section; #55's narrative build order becomes a `priority` field, so `bd ready` keeps the independent children independent instead of serializing the list.
 
 ## Depends on

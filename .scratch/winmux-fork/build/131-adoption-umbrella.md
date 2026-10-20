@@ -16,7 +16,7 @@ A **mode** is a named record of chords to command lists with a lifetime, latched
 
 - **Scope and compatibility: the native-versus-dotfiles test** is first and docs-only. Nothing depends on it in the graph; it goes first by priority so every later child is reviewed against it.
 - **Modes are the only modality** is the first large child. The shipped keyboard, the HUD legend, the mark keys, Column keys, gestures and the overview's keys all build on it. The mark commands themselves, **focus-back, mark and jump**, do not, and are ready now.
-- **These are ready now and independent of the mode work**: the four reproduced defects, `fullscreen` on a floating window, clicking outside a Lens, double-sided windows hiding the tab strip, and the pointer jump; the five integration gaps; the system-switcher command; modifier move and resize; the two status children; the strip's buttons and the search list's look; the modifier-held hints on the sidebar and move targets; and the research child. A relay can take them in any order. **Fullscreen is a round trip on the same Space** waits on the floating-window defect.
+- **These are ready now and independent of the mode work**: the four reproduced defects, `fullscreen` on a floating window, clicking outside a Lens, double-sided windows hiding the tab strip, and the pointer jump; the five integration gaps; the system-switcher command; modifier move and resize; the two status children, the menu bar item and the sidebar accents; the strip's buttons and the search list's look; the modifier-held hints on the sidebar and move targets; and the research child. A relay can take them in any order. **Fullscreen is a round trip on the same Space** waits on the floating-window defect.
 - **The overview goes prototype, pick, build.** Its prototype is independent; its build waits on Prateek's pick and on the mode work, since the Presentation's keys are a mode.
 - **Gestures are #49, unparked**, with a replacement body on held modes. Its last checks need Prateek's trackpad.
 - **Crash and reports**: #263 keeps the crash and the relaunch; #106 gains the opt-in flag and the prefilled-issue convention, and still waits on #91, the pinned toolchain, which is blocked on Prateek.
@@ -27,7 +27,7 @@ A **mode** is a named record of chords to command lists with a lifetime, latched
 
 ## Later, with no issue yet
 
-- **The tracker moves to beads.** Decided in the grilling, then deferred by Prateek on 2026-10-20 in favour of filing on GitHub for now. The two drafts, moving every open issue into beads with the relay reading them, and a phone view of beads, are kept beside this umbrella's drafts under `build/later/`, and the cap of 100 sub-issues is the reason to come back to them.
+- **The tracker moves to beads.** Decided in the grilling, then deferred by Prateek on 2026-10-19 in favour of filing on GitHub for now. The two drafts, moving every open issue into beads with the relay reading them, and a phone view of beads, are kept beside this umbrella's drafts under `build/later/`, and the cap of 100 sub-issues is the reason to come back to them.
 
 ## How the children are written
 

@@ -10,7 +10,8 @@ Ship a `main` that nobody has to remove, make `window` the product's keyboard, a
 
 ## Decisions
 
-- **`main` keeps three things**: Ctrl-1 to 9 for `workspace 1` to `9`, Ctrl-semicolon for `mode window`, and the opt-in Cmd-Tab and Cmd-backtick pairs. Option-semicolon no longer enters `window`; it typed an ellipsis.
+- **`main` keeps three kinds of chord**: Ctrl-1 to 9 for `workspace 1` to `9`, Ctrl-semicolon for `mode window`, and the opt-in Cmd-Tab and Cmd-backtick lines a user merges. Option-semicolon no longer enters `window`; it typed an ellipsis. Gesture bindings are not chords: the workspace swipes **Trackpad gestures as held modes** adds to `main` sit beside these.
+- **Tab focus by digit leaves the shipped defaults.** Option-1 to 9 ran `focus --tab-index`; no shipped mode binds it afterwards, since `window`'s bare digits are workspaces and its Ctrl-digits are Columns. The example module binds it on Ctrl-Option-1 to 9 in `main`, and the tab hints follow that binding there; with the minimal defaults there is no tab-digit binding and so no tab-digit hint, and `n` and `p` in `window` step tabs.
 - **`window` keeps its 45 keys and gains Columns and marks.** Ctrl-1 to 9 run `focus-column 1` to `9`; Ctrl-Shift-1 to 9 run `move-node-to-column 1` to `9`; comma and period run `column-width prev` and `column-width next`; minus and equals step `column-count` down and up. `m` plus a letter sets a mark and quote plus a letter jumps to it, as **focus-back, mark and jump** defines; fullscreen moves from `m` to Shift-m; backtick runs `focus-back`. No Column sub-mode.
 - **The shipped Lens set grows, mostly by configuration.** `recent`, the Cmd-Tab Lens, filters to the current workspace. `recent-all` keeps every window. `app-windows`, `floating`, `windows`, `search` and `overview` stay. `floating` takes a scope, workspace, project or everything, through three shipped Lenses, `floating`, `floating-project` and `floating-all`. Three scoped switchers ship: `mouse-app`, the app under the pointer; `project-windows`, every window in the current project; `column-windows`, the windows in the focused Column. The first two are Filters over existing Filter context fields.
 - **The Filter context gains Column membership**, which `column-windows` needs and nothing exposes today: the window record gains `column`, its Column's one-based index or null when it is floating or its workspace has Columns off, and the context gains `focused-column`. `winmux agent query` reports the same field. This is the one code change in the Lens set.
@@ -31,14 +32,14 @@ Ship a `main` that nobody has to remove, make `window` the product's keyboard, a
 ## Defaults chosen for you
 
 - **`column-count` stepping**: minus and equals step the count for the current workspace by one, floored at one and capped at the configured maximum; `config check` reports a count the display cannot fit.
-- **Hints for tab digits** keep following whatever binding is in effect, as they do today.
+- **The example module's `main` chords may be visible to a terminal**, Ctrl-f and the Ctrl-Option directions among them; the docs list which ones, and the person importing it chooses.
 - **`winmux config convert`** writes the new `main` and `window` records, and names each removed Option chord in its output so a user can put it back.
 
 ## Done when
 
-- [ ] `defaults.ncl`'s `main` has exactly the Ctrl-digits, Ctrl-semicolon and the two opt-in pairs, and `docs/default-config.md`'s table matches it; the `window` table lists the Column and mark keys.
+- [ ] `defaults.ncl`'s `main` has exactly the Ctrl-digits and Ctrl-semicolon as chords, plus any gesture bindings the gestures issue has added, and the docs show the opt-in lines in mode form; `docs/default-config.md`'s table matches it, and the `window` table lists the Column and mark keys.
 - [ ] `winmux/keys.ncl` and `winmux/examples/keyboard.ncl` exist, `(import "winmux/examples/keyboard.ncl") | W.Config` passes `config check`, and the docs show both.
-- [ ] A test loads the example module and the defaults and asserts that no chord bound in either `main` types a character on the US and ABC layouts; `window` mode's bare letters are exempt by design.
+- [ ] A test loads the defaults and asserts that no chord bound in `main` produces a printable character under `UCKeyTranslate` on the US and ABC layouts, control characters not counting; `window` mode's bare letters are exempt by design, and the example module is checked only for the list of terminal-visible chords its docs name.
 - [ ] A test of `column-windows` on a workspace with three Columns shows only the focused Column's windows, and `agent query` reports each window's `column`.
 - [ ] In a guest: Ctrl-semicolon, then Ctrl-2 focuses Column 2, Ctrl-Shift-3 moves the window to Column 3, comma and period change its width preset, minus and equals change the count, and the HUD names `window` throughout.
 - [ ] Cmd-Tab shows only the current workspace's windows; `winmux lens recent-all` shows every window.

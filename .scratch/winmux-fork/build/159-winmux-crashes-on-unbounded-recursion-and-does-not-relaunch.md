@@ -10,12 +10,12 @@ Both crashes came about two seconds after a ScreenCaptureKit screenshot (`SCScre
 
 The crash is a hard kill, so WinMux kept the native Cmd-Tab pair (symbolic hotkeys 1 and 2) disabled until it was relaunched, as `docs/default-config.md` says. WinMux does not relaunch itself after a crash, so the system switcher stays dead until the user notices and relaunches it.
 
-The reporting half this issue first carried, dSYMs per release, an opt-in `winmux report` and a prefilled GitHub issue, moved to **Crash and bug reports that are easy to send and easy to read**, #106, on 2026-10-20. This issue keeps the crash and adds the relaunch.
+The reporting half this issue first carried, dSYMs per release, an opt-in `winmux report` and a prefilled GitHub issue, moved to **Crash and bug reports that are easy to send and easy to read**, #106, on 2026-10-19. This issue keeps the crash and adds the relaunch.
 
 ## Decisions
 
 - **Find the recursion and make the release iterative**, using the offsets above against the dogfood.66 dSYM rebuilt from `3b76a45`, or by reproducing with Lens openings under the debugger.
-- **WinMux relaunches after a crash**, through a launch agent with `KeepAlive` on crash, so held system shortcuts come back without the user acting. A relaunch within a minute of the previous one does not relaunch again, so a crash at startup cannot loop.
+- **WinMux relaunches after a crash**, so held system shortcuts come back without the user acting. Not through a `KeepAlive` launch agent: WinMux already registers itself with `SMAppService.mainApp` for start at login, and a second registration would let launchd start a second instance beside one opened by hand or over ssh. Instead, at launch WinMux starts a detached watchdog, the `winmux` CLI binary with a `--watch <pid>` flag, which waits on the app's process; when the process ends by a signal the watchdog relaunches the app once with `open -b` and exits, and when it ends by a normal quit the watchdog exits. The watchdog writes a marker with the relaunch time; a watchdog that finds a marker younger than a minute does not relaunch and logs why, so a crash at startup cannot loop.
 
 ## Questions
 
@@ -26,7 +26,8 @@ None open. Where dSYMs live is answered in #106: public release assets.
 - [ ] Neither crash signature reproduces, and a test covers releasing a long chain of the structure without recursion.
 - [ ] In a guest with the Cmd-Tab opt-in on, a forced crash relaunches WinMux once, the relaunch repairs the symbolic hotkeys and takes the chords again, and Cmd-Tab opens the Lens.
 - [ ] In a guest with the opt-in off, the same crash relaunches once and the system's Cmd-Tab is live.
-- [ ] A second forced crash within a minute does not relaunch, and the log says why.
+- [ ] A second forced crash within a minute does not relaunch, and the watchdog's log line says why.
+- [ ] A normal quit leaves no watchdog process behind, and a second WinMux opened by hand while one runs does not get a second watchdog.
 
 ## Sources
 

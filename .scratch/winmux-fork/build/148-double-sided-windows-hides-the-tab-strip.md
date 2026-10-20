@@ -8,7 +8,7 @@ With the menu's double-sided windows toggle on, a tab group of exactly two windo
 
 ## Decisions
 
-- **The toggle moves into config** as `window-tabs.double-sided`, with the menu item reading and writing the config value as the sidebar's own writes do; the UserDefaults key is read once for migration and then ignored.
+- **The toggle moves into config** as `window-tabs.double-sided`, and the menu item goes away: WinMux never writes a person's config, so a setting that lives there has one place to change it. The UserDefaults key is read once on the first launch after this lands, applied as the config's value if the config does not set one, and the log says it was migrated, as **Scope and compatibility** asks for state a release leaves behind.
 - **Turning it off redraws the strip at once**, without waiting for a layout.
 - **`config status` and `doctor` report it**, so a missing strip has one place to look.
 
@@ -19,7 +19,7 @@ Nothing.
 ## Done when
 
 - [ ] A test toggles the setting on a two-window group and asserts the strip's presence both ways, immediately.
-- [ ] In a guest, flipping the menu item shows and hides the strip at once, and `config status` names the value.
+- [ ] In a guest, a reload that flips the setting shows and hides the strip at once, `config status` names the value, and the menu item is gone.
 - [ ] `docs/` describes the setting where window tabs are described.
 
 ## Sources

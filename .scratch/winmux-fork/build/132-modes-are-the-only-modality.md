@@ -10,13 +10,13 @@ Make modes the only modal concept. A mode gains a lifetime, a policy for unbound
 
 ## Decisions
 
-- **A mode is a named record of chords to command lists, with four properties.** `lifetime` is `'latched`, current until a command changes the mode, or `'held`, current while the modifiers of the chord that entered it stay down. `unbound` says what an unbound key does: `'pass` to the app; `'consume`; `'type` into the open Lens's Search field; or `'latch <mode>`, which switches to the named mode on the first unbound letter and reads that letter there, while other unbound keys, digits, Backspace, Space and punctuation, are consumed. `on-enter` is a command list run on entry. `on-release` is a command list run when a held mode's modifiers release.
+- **A mode is a named record of chords to command lists, with four properties.** `lifetime` is `'latched`, current until a command changes the mode, or `'held`, current while the modifiers of the chord that entered it stay down. `unbound` says what an unbound key does: `'pass` to the app; `'consume`; `'type` into the open Lens's Search field; or `'latch`, which switches to the mode named by `latch-to` on the first unbound letter and reads that letter there, while other unbound keys, digits, Backspace, Space and punctuation, are consumed. `on-enter` is a command list run on entry. `on-release` is a command list run when a held mode's modifiers release. A held mode whose `on-release` commits also has a timing setting, `draw-delay`, below.
 - **Matching in a held mode.** Return, the arrows, Escape and the peek key match with the entry modifiers removed first; every other chord matches as pressed first, then with the entry modifiers removed. So a record written for Cmd-Tab says `tab`, `shift-tab` and `w`, and Cmd-W pressed while Command is down matches `w`.
-- **Entering a held mode from a chord with Shift alone holds on Shift.** Command, Control and Option otherwise; releasing all of them runs `on-release`.
+- **The entry modifiers are Command, Control and Option**, never Shift, unless Shift is the chord's only modifier. So Cmd-Shift-Tab enters `cmd-tab` holding on Command, and a repeated Cmd-Shift-Tab minus Command matches `shift-tab`, stepping back as today. Releasing all the entry modifiers runs `on-release`.
 - **A chord with a foreign modifier leaves a held mode**, closes its Lens and runs the chord's global binding. In a latched mode an unbound modifier chord runs its global binding and closes the Lens too.
 - **No stack.** `mode <name>` replaces the current mode. A Lens is entered through a mode exactly once; the chord that entered it, pressed again while the Lens is open, is a key in the current mode. In the shipped held modes it steps; in `browse` and `search` it is bound to close, so repeating Option-slash toggles Search closed. An ad-hoc Lens is the same Lens when its Filter text and resolved settings are equal.
-- **Closing a Lens returns to `main`.** `lens close`, a focus or Summon that closes, a click outside the panel, and `winmux lens close` from the CLI all end in `main`, so nobody is left in a Lens-operating mode with no Lens. A mode's own Escape key may name another mode instead.
-- **A Lens has no `keys`, `on-release` or `starts-in`.** Its config is Filter, Presentation, sort, Tile, sections, popups, hints and `when`. A Nickel config that still sets one fails `config check` with a message naming the mode property that replaces it; `docs/default-config.md` gains a migration section with the three rewrites; `config convert` rewrites a TOML config's Lens keys into modes and names each rewrite.
+- **Closing a Lens returns to `main`.** `lens close`, a focus or Summon that closes, and `winmux lens close` from the CLI all end in `main`, so nobody is left in a Lens-operating mode with no Lens; the click outside the panel, built by **Clicking outside a Lens does not dismiss it**, ends the same way. A mode's own Escape key may name another mode instead.
+- **A Lens has no `keys`, `on-release` or `starts-in`.** Its config is Filter, Presentation, sort, Tile, sections, popups, hints and `when`. A Nickel config that still sets one fails `config check` with a message naming the mode property that replaces it, and `docs/default-config.md` gains a migration section with the three rewrites. `config convert` is unaffected: a TOML config has no Lens keys, and the six default Lenses it imports come with the shipped modes.
 - **A Lens keeps view state and no key state**: its selection, its Search text, its Lens marks and, for an arrangement, its focused pane. Modes read and change that state through the verbs.
 - **Lens verbs** act on the open Lens from any mode's keys: `lens step next`, `lens step prev`, `lens step <direction>` for left, right, up and down; `lens focus`; `lens summon`; `lens peek`; `lens close`; `lens close-window`; `lens sections next`; `lens mark`; `lens pane next`; `lens presentation <name>`, which converts the open Lens keeping its selection; `lens settle <mode>`, defined by **Trackpad gestures as held modes**. With no Lens open each exits 1 and does nothing. Entering Search is `mode search`, not a verb.
 - **`lens <name>` alone changes no mode.** An opener is a pair, `["lens search", "mode search"]`, or a mode whose `on-enter` opens the Lens, as the shipped Cmd-Tab is. Either way the Lens opens once. A Lens opened from `main` with no mode is drawn and inert to plain keys, which pass to the app as `main`'s `unbound` says.
@@ -29,17 +29,19 @@ Make modes the only modal concept. A mode gains a lifetime, a policy for unbound
 
 ## The shipped modes
 
-`defaults.ncl` defines these; the records are built from `winmux/keys.ncl` once **The shipped keyboard: a minimal main and a full window mode** lands, and are written out in full here so that this issue stands alone.
+`defaults.ncl` defines these; the records are built from `winmux/keys.ncl` once **The shipped keyboard: a minimal main and a full window mode** lands, and are written out in full here, each mode complete and no record merged over another, so that this issue stands alone and the block evaluates as written. The shipped `main` binds the three Option openers it has today; **The shipped keyboard** changes them later. The Cmd-Tab and Cmd-backtick modes ship, but nothing binds them: the opt-in stays the user's three lines, now in mode form.
 
 ```nickel
 mode.main.binding = {
-  cmd-tab = "mode cmd-tab", cmd-shift-tab = "mode cmd-tab-back",   # the Cmd-Tab opt-in
-  cmd-backtick = "mode cmd-backtick",
   alt-slash = "mode search-hold", alt-shift-o = "mode overview-hold",
   alt-semicolon = "mode window",
 },
+# The Cmd-Tab opt-in, merged by the user over defaults as today:
+#   mode.main.binding.cmd-tab = "mode cmd-tab",
+#   mode.main.binding.cmd-shift-tab = "mode cmd-tab-back",
+#   mode.main.binding.cmd-backtick = "mode cmd-backtick",
 mode.cmd-tab = {
-  lifetime = 'held, unbound = 'latch browse, draw-delay = 100,
+  lifetime = 'held, unbound = 'latch, latch-to = "browse", draw-delay = 100,
   on-enter = ["lens recent"], on-release = ["lens focus", "mode main"],
   binding = {
     tab = "lens step next", shift-tab = "lens step prev", backtick = [],
@@ -50,14 +52,40 @@ mode.cmd-tab = {
     esc = ["lens close", "mode main"],
   },
 },
-mode.cmd-tab-back = mode.cmd-tab & { on-enter = ["lens recent", "lens step prev"] },
-mode.cmd-backtick = mode.cmd-tab & { on-enter = ["lens app-windows"], binding.backtick = "lens step next", binding.shift-backtick = "lens step prev", binding.tab = [] },
+mode.cmd-tab-back = {
+  lifetime = 'held, unbound = 'latch, latch-to = "browse", draw-delay = 100,
+  on-enter = ["lens recent", "lens step prev"], on-release = ["lens focus", "mode main"],
+  binding = {
+    tab = "lens step next", shift-tab = "lens step prev", backtick = [],
+    left = "lens step left", right = "lens step right", up = "lens step up", down = "lens step down",
+    enter = ["lens focus", "mode main"], shift-enter = ["lens summon", "mode main"],
+    w = "lens close-window", y = "lens peek", g = "lens sections next",
+    slash = ["lens presentation list", "mode search"],
+    esc = ["lens close", "mode main"],
+  },
+},
+mode.cmd-backtick = {
+  lifetime = 'held, unbound = 'latch, latch-to = "browse", draw-delay = 100,
+  on-enter = ["lens app-windows"], on-release = ["lens focus", "mode main"],
+  binding = {
+    backtick = "lens step next", shift-backtick = "lens step prev", tab = [],
+    left = "lens step left", right = "lens step right", up = "lens step up", down = "lens step down",
+    enter = ["lens focus", "mode main"], shift-enter = ["lens summon", "mode main"],
+    w = "lens close-window", y = "lens peek", g = "lens sections next",
+    slash = ["lens presentation list", "mode search"],
+    esc = ["lens close", "mode main"],
+  },
+},
 mode.search-hold = {
-  lifetime = 'held, unbound = 'latch search,
+  lifetime = 'held, unbound = 'latch, latch-to = "search",
   on-enter = ["lens search"], on-release = ["mode search"],
   binding = { tab = "lens step next", shift-tab = "lens step prev", enter = ["lens focus", "mode main"], esc = ["lens close", "mode main"] },
 },
-mode.overview-hold = mode.search-hold & { unbound = 'latch browse, on-enter = ["lens overview"], on-release = ["mode browse"] },
+mode.overview-hold = {
+  lifetime = 'held, unbound = 'latch, latch-to = "browse",
+  on-enter = ["lens overview"], on-release = ["mode browse"],
+  binding = { tab = "lens step next", shift-tab = "lens step prev", enter = ["lens focus", "mode main"], esc = ["lens close", "mode main"] },
+},
 mode.browse = {
   lifetime = 'latched, unbound = 'consume,
   binding = {
@@ -93,7 +121,7 @@ Every rule in `docs/lenses.md`, "The Hold", "Release and appearance" and the Sea
 | The opening key steps, Shift reverses; the other opener's key is consumed | `tab`, `shift-tab` and `backtick = []` in `cmd-tab`; mirrored in `cmd-backtick` |
 | In a staying held list, Tab steps the matches | `tab` in `search-hold` |
 | Arrows move and Escape dismisses with the modifiers removed | Matching in a held mode |
-| The first unbound letter or `/` ends the Hold; the letter is read in the starting state; `/` starts Search; a strip stays a strip at a letter; `/` converts a strip to a list keeping its selection; a list configured to start in Search types the letter | `unbound = 'latch browse` on `cmd-tab`, `'latch search` on `search-hold`; `slash = ["lens presentation list", "mode search"]` |
+| The first unbound letter or `/` ends the Hold; the letter is read in the starting state; `/` starts Search; a strip stays a strip at a letter; `/` converts a strip to a list keeping its selection; a list configured to start in Search types the letter | `unbound = 'latch` with `latch-to = "browse"` on `cmd-tab` and `"search"` on `search-hold`; `slash = ["lens presentation list", "mode search"]` |
 | Backspace, digits, Space, punctuation and function keys do nothing during a Hold | The `'latch` policy consumes them |
 | A foreign-modifier chord belongs to its global binding and dismisses | Foreign-modifier rule |
 | Peek matches with the modifiers removed; Cmd-Y during Cmd-Tab | Matching in a held mode; `y` in `cmd-tab` |
@@ -115,6 +143,7 @@ Every rule in `docs/lenses.md`, "The Hold", "Release and appearance" and the Sea
 
 ## Not in this issue
 
+- The click outside a Lens's panel: **Clicking outside a Lens does not dismiss it**. This issue states where it ends; that one builds it.
 - The minimal `main` and the full keyboard module: **The shipped keyboard: a minimal main and a full window mode**.
 - The HUD legend: **The HUD can show the current mode's keys**.
 - The marks commands: **focus-back, mark and jump**.
@@ -132,12 +161,12 @@ Nothing.
 
 ## Done when
 
-- [ ] `defaults.ncl` defines the modes above, the Cmd-Tab opt-in, Option-slash, Option-Shift-o and the six `window` letters open each Lens exactly once, and `config convert` rewrites a TOML config's Lens keys into modes and names each rewrite.
+- [ ] `defaults.ncl` defines the modes above and the block in this issue loads under `config check` as written; the opt-in's three lines in mode form, Option-slash, Option-Shift-o and the six `window` letters open each Lens exactly once; and a config that merges the opt-in lines over defaults gets Cmd-Tab while one that does not leaves the system's switcher alone.
 - [ ] A Nickel config with `lenses.<name>.keys`, `on-release` or `starts-in` fails `config check` with a message naming the mode property that replaces it, and the docs' migration section shows the rewrite.
 - [ ] Tests cover each row of the table above: at least one test per row, named for the rule.
-- [ ] Tests cover the lifetime rules: held release runs `on-release`; a latch makes a later release run nothing; a foreign-modifier chord leaves a held mode and its global binding runs; `lens <name>` alone leaves `main` current and plain keys reach the app; closing a Lens by key, by click outside and by the CLI ends in `main`; `list-modes --current` reports `browse` while a browsed Lens is open.
+- [ ] Tests cover the lifetime rules: held release runs `on-release`; a latch makes a later release run nothing; a foreign-modifier chord leaves a held mode and its global binding runs; `lens <name>` alone leaves `main` current and plain keys reach the app; closing a Lens by key and by the CLI ends in `main`; Cmd-Shift-Tab repeated steps back; `list-modes --current` reports `browse` while a browsed Lens is open.
 - [ ] In a guest, Cmd-Tab, Cmd-Shift-Tab, Cmd-W during the hold, release, Option-slash then typing, Escape twice, and Option-Shift-o then `hjkl` all behave as `docs/lenses.md` describes today, and the docs describe them as modes.
-- [ ] `CONTEXT.md` has the new Mode and Lens entries and no Trigger or Hold entry; `docs/lenses.md` has no section named The Hold; `docs/default-config.md` lists the shipped modes with their four properties.
+- [ ] `CONTEXT.md` has the new Mode and Lens entries and no Trigger or Hold entry; `docs/lenses.md` has no section named The Hold; `docs/default-config.md` lists the shipped modes with their properties, `draw-delay` included.
 - [ ] A line in **Prateek's checks on an installed build and real hardware**: Cmd-Tab and Option-slash under his own config, with the modes his config defines.
 
 ## Sources
