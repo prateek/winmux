@@ -32,9 +32,11 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
     let prints = "\(kind.rawValue) is refused in a URL: it prints a result"
     func readsStdin(_ form: String) -> String { "\(kind.rawValue) \(form) is refused in a URL: it reads stdin" }
     switch kind {
-        case .subscribe, .listWindows, .listWorkspaces, .listApps, .listMonitors, .listModes,
+        case .subscribe, .listWindows, .listMarks, .listWorkspaces, .listApps, .listMonitors, .listModes,
              .listExecEnvVars, .listLenses, .listColumns, .debugWindows, .debugLensTrace, .debugHooks, .doctor, .config, .agent, .place:
             return prints
+        case .mark:
+            return (args as? MarkCmdArgs)?.register == nil ? prints : nil
         case .execAndForget:
             return "exec-and-forget is refused in a URL: it runs a shell command"
         case .workspace:
@@ -47,7 +49,7 @@ public func urlCommandRefusal(kind: CmdKind, args: (any CmdArgs)?) -> String? {
             return (args as? ReloadConfigCmdArgs)?.dryRun == true ? "reload-config --dry-run is refused in a URL: it prints a result" : nil
         case .focusColumn, .moveNodeToColumn, .columnWidth, .compact, .columnCount, .balanceSizes,
              .close, .closeAllWindowsButCurrent, .enable, .flattenWorkspaceTree, .findFocus,
-             .focus, .focusBackAndForth, .focusMonitor, .fullscreen, .joinWith, .layout,
+             .focus, .focusBack, .jump, .focusBackAndForth, .focusMonitor, .fullscreen, .joinWith, .layout,
              .macosNativeFullscreen, .macosNativeMinimize, .mode, .move, .moveMouse, .moveNodeToMonitor,
              .moveNodeToProject, .moveWorkspaceToMonitor, .openSidebar, .palette, .project,
              .resize, .split, .stackWith, .sections, .summon, .summonWorkspace, .swap, .triggerBinding,

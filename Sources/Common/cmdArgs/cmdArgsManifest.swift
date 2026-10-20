@@ -22,22 +22,26 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case flattenWorkspaceTree = "flatten-workspace-tree"
     case findFocus = "find-focus"
     case focus
+    case focusBack = "focus-back"
     case focusBackAndForth = "focus-back-and-forth"
     case focusMonitor = "focus-monitor"
     case fullscreen
     case joinWith = "join-with"
+    case jump
     case layout
     case lens
     case listLenses = "list-lenses"
     case listApps = "list-apps"
     case listExecEnvVars = "list-exec-env-vars"
     case listModes = "list-modes"
+    case listMarks = "list-marks"
     case listMonitors = "list-monitors"
     case listWindows = "list-windows"
     case listWorkspaces = "list-workspaces"
     case macosNativeFullscreen = "macos-native-fullscreen"
     case macosNativeMinimize = "macos-native-minimize"
     case mode
+    case mark
     case move = "move"
     case moveMouse = "move-mouse"
     case moveNodeToMonitor = "move-node-to-monitor"
@@ -101,6 +105,10 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(FindFocusCmdArgs.init)
             case .focus:
                 result[kind.rawValue] = SubCommandParser(parseFocusCmdArgs)
+            case .focusBack: result[kind.rawValue] = SubCommandParser(FocusBackCmdArgs.init)
+            case .mark: result[kind.rawValue] = SubCommandParser(MarkCmdArgs.init)
+            case .jump: result[kind.rawValue] = SubCommandParser(JumpCmdArgs.init)
+            case .listMarks: result[kind.rawValue] = SubCommandParser(ListMarksCmdArgs.init)
             case .focusBackAndForth:
                 result[kind.rawValue] = SubCommandParser(FocusBackAndForthCmdArgs.init)
             case .focusMonitor:
