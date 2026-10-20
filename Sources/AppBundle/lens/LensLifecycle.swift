@@ -281,7 +281,9 @@ final class LensLifecycle {
 
     func cancelOpening(ticket: Int) {
         guard ticket == generation, case .opening = state else { return }
-        dismiss(returnToMain: false, preserveOpeningInput: true)
+        // A held mode keeps its parked keys and release, which end it; any other mode has nothing left to show.
+        let held = !modeEngine.entryModifiers.isEmpty
+        dismiss(returnToMain: !held, preserveOpeningInput: held)
     }
 
     func dismiss(returnToMain: Bool = true, preserveOpeningInput: Bool = false) {

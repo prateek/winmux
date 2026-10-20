@@ -168,15 +168,15 @@ final class LensSession: ObservableObject {
     private let searchIsExplicit: Bool
     var searchToRemember: String { searchEdited ? query : rememberedSearch }
 
-    func enterSearch() { queueModeChange(key: "slash", useLatchTarget: true) }
-    func leaveSearch() { queueModeChange(key: "esc", useLatchTarget: false) }
-    private func queueModeChange(key: String, useLatchTarget: Bool) {
+    func enterSearch() { queueModeChange(key: "slash", fallback: "search") }
+    func leaveSearch() { queueModeChange(key: "esc", fallback: nil) }
+    private func queueModeChange(key: String, fallback: String?) {
         ModeEngine.shared.enqueueInput { [weak self] in
             guard let self else { return }
             let target = self.commands(for: key).compactMap { raw -> String? in
                 guard case .cmd(let command) = parseCommand(raw), let args = command.args as? ModeCmdArgs else { return nil }
                 return args.targetMode.val
-            }.last ?? (useLatchTarget ? ModeEngine.shared.properties.latchTo : nil)
+            }.last ?? fallback
             guard let target, config.modes[target] != nil else { return }
             try? await activateMode(target)
         }

@@ -108,8 +108,10 @@ struct LensCommand: Command {
                     case .help: return io.err("A command is required")
                 }
                 let keepOpen = raw[0] == "close" || raw[0] == "move-node-to-workspace"
+                // The command acts on what was selected and marked when it ran, not after the Lens closed.
+                let targets = model.targets(forCommand: raw.joinArgs())
                 if !keepOpen { panel.dismiss(); try await activateMode(mainModeId) }
-                return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env)
+                return try await runLensAction([raw.joinArgs()], session: model, io: io, env: env, targets: targets)
             default: return io.err("Unknown Lens verb '\(verb)'")
         }
         return true

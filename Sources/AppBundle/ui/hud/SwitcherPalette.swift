@@ -49,6 +49,8 @@ final class SwitcherPalettePanel: NSPanelHud {
         panel.makeKey()
     }
     private var openedWithHeldModifiers = false
+    private var replayingEvent: NSEvent?
+    var replayKeyEvent: (NSEvent) -> Void = { NSApp.sendEvent($0) }
     var isPaletteActive: Bool { session != nil }
     var isLensOpen: Bool { lifecycle.isOpen }
     var openLensName: String? { lifecycle.openName }
@@ -223,20 +225,21 @@ final class SwitcherPalettePanel: NSPanelHud {
         updateInputFocus(model, selectAll: instruction.focusSearch)
     }
 
-    override func makeKey() {
-        super.makeKey()
-        reconcileModeContext()
+    // Whether the panel is key decides which plain chords Carbon takes, however it became key.
+    override func becomeKey() {
+        super.becomeKey()
+        if !isUnitTest { reconcileModeContext() }
     }
 
     override func resignKey() {
         super.resignKey()
-        reconcileModeContext()
+        if !isUnitTest { reconcileModeContext() }
     }
 
     override func orderOut(_ sender: Any?) {
         super.orderOut(sender)
         openedWithHeldModifiers = false
-        reconcileModeContext()
+        if !isUnitTest { reconcileModeContext() }
     }
 
     private func updateInputFocus(_ model: LensSession, selectAll: Bool = false) {
@@ -437,11 +440,20 @@ final class SwitcherPalettePanel: NSPanelHud {
     }
 
     private func routeKey(_ event: NSEvent, path: String) -> Bool {
-        guard session != nil else { return false }
+        guard session != nil, event !== replayingEvent else { return false }
         return handleModeKey(code: event.keyCode, flags: event.modifierFlags,
                              characters: lensCharacters(event),
                              origin: LensTraceOrigin(start: event.timestamp, received: LensTimebase.now(), source: path),
-                             composing: (firstResponder as? NSTextView)?.hasMarkedText() == true)
+                             composing: (firstResponder as? NSTextView)?.hasMarkedText() == true,
+                             replay: { [weak self] in self?.replayNatively(event) })
+    }
+
+    /// Sends a key that waited behind queued input down the path it would have taken had routeKey returned false.
+    private func replayNatively(_ event: NSEvent) {
+        guard session != nil, isVisible else { return }
+        replayingEvent = event
+        defer { replayingEvent = nil }
+        replayKeyEvent(event)
     }
 
     func typeModeKey(code: UInt16, characters: String) {

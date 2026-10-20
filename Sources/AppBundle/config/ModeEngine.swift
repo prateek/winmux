@@ -4,7 +4,7 @@ import Common
 @MainActor
 final class ModeEngine {
     static let shared = ModeEngine()
-    @TaskLocal private static var inputOwner: ObjectIdentifier?
+    @TaskLocal private static var inputAction: Int?
     private(set) var current: String? = mainModeId
     private(set) var properties: Mode = .zero
     private(set) var entryModifiers: NSEvent.ModifierFlags = []
@@ -28,7 +28,13 @@ final class ModeEngine {
     private var inputTask: Task<Void, Never>?
     private var inputEpoch = 0
     private var inputCount = 0
+    private var nextInputAction = 0
+    private var runningInputActions = Set<Int>()
+    private var drainingCancelledOpening = false
+    private(set) var releasing = false
     var inputIsIdle: Bool { inputCount == 0 && !opening }
+    /// True only in the queued action itself; a Task it spawns inherits the task-local but outlives the action.
+    private var isRunningInput: Bool { Self.inputAction.map(runningInputActions.contains) ?? false }
     private var readinessTask: Task<Void, Never>?
     private var readinessGeneration = 0
     private var delayTask: Task<Void, Never>?
@@ -60,7 +66,7 @@ final class ModeEngine {
                 await finishReady(flags: entryModifiers.isEmpty ? textModifiers : liveModifiers())
             }
             readyAction = nil
-            if Self.inputOwner == ObjectIdentifier(self) { await ready() }
+            if isRunningInput { await ready() }
             else {
                 await enqueueInput { [self] in
                     guard generation == ticket else { return }
@@ -73,6 +79,7 @@ final class ModeEngine {
 
     func replace(_ name: String?, mode: Mode, invocation: ModeInvocation? = nil, cli: Bool = false) {
         entering = false
+        releasing = false
         readyAction = nil
         let previous = current ?? mainModeId
         generation += 1
@@ -109,7 +116,11 @@ final class ModeEngine {
         modeChanged()
     }
 
-    func lensOpening() { opening = true; lensIsOpen = true }
+    func lensOpening() {
+        // Keys parked for a cancelled opening belong to that Lens; this one reads the release itself at its ready point.
+        if drainingCancelledOpening { drainingCancelledOpening = false; queued = []; released = false }
+        opening = true; lensIsOpen = true
+    }
     func reconfigure(_ mode: Mode) {
         configurationRevision += 1
         properties = mode
@@ -130,11 +141,16 @@ final class ModeEngine {
         let previous = inputTask
         let epoch = inputEpoch
         inputCount += 1
+        nextInputAction += 1
+        let id = nextInputAction
         let next = Task { @MainActor [self] in
+            // Dropped work still counts until the chain before it ends, so an interrupted action keeps the queue busy.
+            defer { inputCount -= 1 }
             await previous?.value
             guard inputEpoch == epoch, !Task.isCancelled else { return }
-            defer { if inputEpoch == epoch { inputCount -= 1 } }
-            await Self.$inputOwner.withValue(ObjectIdentifier(self)) { await action() }
+            runningInputActions.insert(id)
+            defer { runningInputActions.remove(id) }
+            await Self.$inputAction.withValue(id) { await action() }
         }
         inputTask = next
         return next
@@ -142,7 +158,6 @@ final class ModeEngine {
     func interruptOpening(_ action: @escaping @MainActor () async -> Void) {
         queued = []; readyAction = nil
         inputEpoch += 1
-        inputCount = 0
         inputTask = nil
         enqueueInput(action)
     }
@@ -202,8 +217,11 @@ final class ModeEngine {
         }
         if preserveOpeningInput && !entering {
             let ticket = generation
+            drainingCancelledOpening = true
             enqueueInput { [weak self] in
-                guard let self, self.generation == ticket, !self.lensIsOpen else { return }
+                guard let self, self.drainingCancelledOpening else { return }
+                self.drainingCancelledOpening = false
+                guard self.generation == ticket, !self.lensIsOpen else { return }
                 await self.finishReady(flags: self.entryModifiers.isEmpty ? [] : self.liveModifiers())
             }
         }
@@ -239,6 +257,8 @@ final class ModeEngine {
         guard released else { return }
         released = false
         entryModifiers = []
+        releasing = true
+        defer { releasing = false }
         let ticket = generation
         do {
             try await execute(properties.onRelease.compactMap { if case .cmd(let command) = parseCommand($0) { command } else { nil } })

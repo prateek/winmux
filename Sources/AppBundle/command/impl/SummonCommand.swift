@@ -35,7 +35,7 @@ func restoreLensWindow(_ window: Window, on workspace: Workspace, runPlace: Bool
 }
 
 @MainActor
-func runLensAction(_ commands: [String], session: LensSession, io: CmdIo, env: CmdEnv = .defaultEnv) async throws -> Bool {
+func runLensAction(_ commands: [String], session: LensSession, io: CmdIo, env: CmdEnv = .defaultEnv, targets: [UInt32]? = nil) async throws -> Bool {
     var success = true
     for raw in commands {
         if case .cmd(let command) = parseCommand(raw), let args = command.args as? SectionsCmdArgs {
@@ -43,7 +43,7 @@ func runLensAction(_ commands: [String], session: LensSession, io: CmdIo, env: C
             continue
         }
         let closes = if case .cmd(let command) = parseCommand(raw) { command.args is CloseCmdArgs } else { false }
-        for id in session.targets(forCommand: raw) {
+        for id in targets ?? session.targets(forCommand: raw) {
             // An earlier marked close can take this window with it; for close, gone is done.
             if closes, Window.get(byId: id) == nil { continue }
             success = try await runLensWindowAction(raw, windowId: id, io: io, env: env) && success
