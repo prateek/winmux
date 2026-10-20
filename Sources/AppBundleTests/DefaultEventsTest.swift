@@ -49,12 +49,12 @@ final class DefaultEventsTest: XCTestCase {
         XCTAssertEqual(try json(.modeChanged(mode: "window"))["mode"] as? String, "window")
     }
 
-    func testAllIncludesTenEventsAndNewEventsParse() throws {
-        let names = ["config-reloaded", "lens-opened", "lens-closed", "columns-changed"]
+    func testAllIncludesElevenEventsAndNewEventsParse() throws {
+        let names = ["config-reloaded", "lens-opened", "lens-closed", "columns-changed", "hook-called"]
         for raw in [["--all"], names] {
             guard case .cmd(let args) = parseSubscribeCmdArgs(raw.slice) else { return XCTFail("Cannot subscribe") }
             XCTAssertTrue(Set(names).isSubset(of: Set(args.events.map(\.rawValue))))
-            if raw == ["--all"] { XCTAssertEqual(args.events.count, 10) }
+            if raw == ["--all"] { XCTAssertEqual(args.events.count, 11) }
         }
     }
 

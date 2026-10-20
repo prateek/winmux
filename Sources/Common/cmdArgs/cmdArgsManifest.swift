@@ -13,6 +13,7 @@ public enum CmdKind: String, CaseIterable, Equatable, Sendable {
     case close
     case closeAllWindowsButCurrent = "close-all-windows-but-current"
     case config
+    case debugHooks = "debug-hooks"
     case debugLensTrace = "debug-lens-trace"
     case debugWindows = "debug-windows"
     case doctor
@@ -82,6 +83,8 @@ func initSubcommands() -> [String: any SubCommandParserProtocol] {
                 result[kind.rawValue] = SubCommandParser(CloseAllWindowsButCurrentCmdArgs.init)
             case .config:
                 result[kind.rawValue] = SubCommandParser(parseConfigCmdArgs)
+            case .debugHooks:
+                result[kind.rawValue] = SubCommandParser(DebugHooksCmdArgs.init)
             case .debugLensTrace:
                 result[kind.rawValue] = SubCommandParser(DebugLensTraceCmdArgs.init)
             case .debugWindows:

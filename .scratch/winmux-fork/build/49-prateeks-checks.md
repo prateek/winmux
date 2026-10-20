@@ -163,6 +163,9 @@ A driver adds a line at Land, under the issue that left it, with the exact steps
 **A skill for a person's agent, shipped with the CLI**
 - [ ] After `brew upgrade --cask --greedy winmux` (the cask's `winmux` is not updated by Sparkle), quit WinMux and run `winmux agent skill | head -3`. Pass: it exits 0 and prints `name: winmux`. Then install it with `mkdir -p ~/.claude/skills/winmux && winmux agent skill > ~/.claude/skills/winmux/SKILL.md`, start WinMux, and ask your agent "which window is focused, on which workspace, and in which Column?". Pass: its answer matches the screen.
 
+**A capture mode for hooks**
+- [ ] After `brew upgrade --cask --greedy winmux` (Sparkle does not update the cask's `winmux`), run `winmux debug-hooks on`, open a window on a workspace whose Columns have your own `place` hook, then `winmux debug-hooks off`. Pass: `on` prints a `hook-capture.jsonl` path under `~/.local/state/winmux`, the file has one record per hook that ran for that window with `args` and `result` you recognise from your config, and `off` prints that count.
+
 ## From the first build
 
 - [ ] The double-sided flip animates (deployment target).

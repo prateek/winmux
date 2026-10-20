@@ -43,6 +43,7 @@ final class AgentSkillTest: XCTestCase {
         let result = try cli(["agent", "skill"], helper: "/missing/helper", executable: executable)
         XCTAssertEqual(result.status, 0, result.output)
         XCTAssertTrue(result.output.contains("name: winmux\n"))
+        XCTAssertTrue(result.output.contains("winmux debug-hooks on"))
         for heading in ["What is focused", "Reading state", "Config is Nickel", "Recipes", "Arranging windows", "Who can drive WinMux"] {
             XCTAssertTrue(result.output.contains("## \(heading)"), heading)
         }

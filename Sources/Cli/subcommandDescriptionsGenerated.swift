@@ -13,6 +13,7 @@ let subcommandDescriptions = [
     ["  close-all-windows-but-current", "On the focused workspace, close all windows but current"],
     ["  close", "Close the focused window"],
     ["  config", "Query WinMux config options, check a config file, convert a TOML config to Nickel, or print what a Filter can read"],
+    ["  debug-hooks", "Start, stop or inspect a 15-minute Policy hook capture"],
     ["  debug-lens-trace", "Read recent Lens opening stages as text or JSON"],
     ["  debug-windows", "Interactive command to record Accessibility API debug information to create bug reports"],
     ["  doctor", "Print diagnostics: permissions, monitors, per-app accessibility latency, manager state"],

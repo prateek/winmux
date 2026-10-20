@@ -167,7 +167,7 @@ let subscribe_help_generated = """
 
     Events: focus-changed, focused-monitor-changed, focused-workspace-changed,
             mode-changed, window-detected, binding-triggered, config-reloaded,
-            lens-opened, lens-closed, columns-changed
+            lens-opened, lens-closed, columns-changed, hook-called
     """
 let summon_workspace_help_generated = """
     USAGE: summon-workspace [-h|--help] [--fail-if-noop] <workspace>
@@ -222,6 +222,21 @@ let compact_help_generated = "USAGE: compact [-h|--help] [--workspace <name>]"
 let list_columns_help_generated = "USAGE: list-columns [-h|--help] [--json] [--workspace <name>]"
 let column_count_help_generated = "USAGE: column-count [-h|--help] <n>|off [--workspace <name>]"
 let place_help_generated = "USAGE: place [-h|--help] --dry-run --window-id <id> [--json]"
+
+public let debug_hooks_help_generated = """
+USAGE: debug-hooks [-h|--help] [on|off|status] [--json]
+
+Capture Policy hook calls in hook-capture.jsonl in WinMux's state directory
+(hook-capture-debug.jsonl for a debug build).
+With no subcommand, print status. Capture is off at startup.
+On starts a fresh capture, or extends an active capture, for 15 minutes.
+Off prints the path and record count. Every form reports a write error
+since the last fresh capture.
+
+OPTIONS:
+  --json       Print capturing, path, until, records and error as JSON
+  -h, --help   Show this help
+"""
 
 public let debug_lens_trace_help_generated = """
 USAGE: debug-lens-trace [-h|--help] [--json] [--last <n>]

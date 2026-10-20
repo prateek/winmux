@@ -94,6 +94,19 @@ public let agentSkillText = """
 
     Keep hooks pure Nickel. `place` receives a Window, Filter context and Column records and must return `column` and `overflow`. Columns hold windows, tab groups or splits; occupied targets use the Overflow policy (`'tab-group`, `'split`, `'float` or `'squeeze`). Place does not run when Columns are off.
 
+    ## Capturing hook calls
+
+    To see what Arrive, Place or Move-boundary was given and returned:
+
+    ```sh
+    winmux debug-hooks on
+    # Reproduce the placement, then read the JSONL file the command printed.
+    # Or stream the records with: winmux subscribe hook-called
+    winmux debug-hooks off
+    ```
+
+    Records include window titles, other context windows' titles and documents, and preview calls. Capture stops itself after 15 minutes; `winmux debug-hooks` prints its status.
+
     ## Arranging windows
 
     Use this workflow for layout changes. Its JSON request file is not config: the rule against editing generated JSON above concerns config/state, while this interface requires editing the request's `edit` object.

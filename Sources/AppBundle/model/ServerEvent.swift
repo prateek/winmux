@@ -28,6 +28,11 @@ public struct ServerEvent: Codable, Sendable {
     private var count: Int?
     private var widths: [Double]?
     private var occupied: [Int]?
+    private var hookRecord: HookCaptureRecord?
+
+    static func hookCalled(_ record: HookCaptureRecord) -> ServerEvent {
+        ServerEvent(_event: .hookCalled, hookRecord: record)
+    }
 
     public static func configReloaded(ok: Bool, error: String?, configPath: String) -> ServerEvent {
         ServerEvent(_event: .configReloaded, ok: ok, error: error, configPath: configPath)
@@ -45,6 +50,8 @@ public struct ServerEvent: Codable, Sendable {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(_event, forKey: ._event)
         switch _event {
+            case .hookCalled:
+                try hookRecord?.encode(to: encoder)
             case .configReloaded:
                 try c.encode(ok, forKey: .ok)
                 try c.encode(error, forKey: .error)

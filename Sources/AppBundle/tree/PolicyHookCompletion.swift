@@ -44,14 +44,29 @@ struct PolicyHookCompletion {
     static func call(_ path: String?, window: Window, workspace: Workspace, edge: Bool? = nil,
                      supervisor: any PolicyHookHelper = PolicyHooks.current, initialClass: WindowClass? = nil, columnsSnapshot: JSONValue? = nil) async -> JSONValue? {
         guard let path else { return nil }
+        let kind = path.split(separator: ".").last.map(String.init) ?? path
+        let captureStore = HookCaptureStore.shared
+        let capture = captureStore.beginCall()
         let started = ContinuousClock.now
         var argumentDuration: Duration?
+        var capturedArgs: [JSONValue]?
+        var capturedResult: JSONValue = .null
+        var capturedError: String?
+        var helperDuration: Duration?
+        var shouldCapture = false
         defer {
+            if let capture, shouldCapture {
+                captureStore.append(HookCaptureRecord(
+                    time: HookCaptureStore.timestamp(capture.time), hook: path,
+                    kind: kind,
+                    windowId: window.windowId, args: capturedArgs.map(JSONValue.array) ?? .null,
+                    result: capturedResult, error: capturedError.map(JSONValue.string) ?? .null,
+                    argumentsMs: policyMilliseconds(argumentDuration ?? started.duration(to: .now)),
+                    durationMs: helperDuration.map(policyMilliseconds) ?? 0
+                ), call: capture)
+            }
             if isDebug, ProcessInfo.processInfo.environment["WINMUX_DEBUG_POLICY_TIMING"] == "1", let argumentDuration {
-                func milliseconds(_ duration: Duration) -> Double {
-                    Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
-                }
-                debugFocusLog("policy-timing arguments-ms=\(milliseconds(argumentDuration)) total-ms=\(milliseconds(started.duration(to: .now)))")
+                debugFocusLog("policy-timing arguments-ms=\(policyMilliseconds(argumentDuration)) total-ms=\(policyMilliseconds(started.duration(to: .now)))")
             }
         }
         do {
@@ -77,21 +92,33 @@ struct PolicyHookCompletion {
             try Task.checkCancellation()
             if let edge { args.append(.bool(edge)) }
             argumentDuration = started.duration(to: .now)
-            switch await supervisor.hook(path, args: args) {
+            if capture != nil { capturedArgs = args }
+            let helperStarted = capture == nil ? nil : ContinuousClock.now
+            let answer = await supervisor.hook(path, args: args)
+            if let helperStarted { helperDuration = helperStarted.duration(to: .now) }
+            shouldCapture = capture != nil
+            switch answer {
                 case .success(let result):
-                    guard ColumnPolicy.accepts(result, hook: path.split(separator: ".").last.map(String.init) ?? path) else {
-                        supervisor.recordHookFailure("\(path): helper returned an invalid hook result")
+                    if capture != nil { capturedResult = result }
+                    guard ColumnPolicy.accepts(result, hook: kind) else {
+                        let error = "\(path): helper returned an invalid hook result"
+                        if capture != nil { capturedError = error }
+                        supervisor.recordHookFailure(error)
                         return nil
                     }
                     return result
                 case .failure(let failure):
-                    supervisor.recordHookFailure("\(path): \(failure.message)")
+                    let error = "\(path): \(failure.message)"
+                    if capture != nil { capturedError = error }
+                    supervisor.recordHookFailure(error)
                     return nil
             }
         } catch is CancellationError {
             return nil
         } catch {
-            supervisor.recordHookFailure("\(path): \(error.localizedDescription)")
+            let message = "\(path): \(error.localizedDescription)"
+            if capture != nil { capturedError = message; shouldCapture = true }
+            supervisor.recordHookFailure(message)
             return nil
         }
     }
@@ -152,4 +179,8 @@ struct PolicyHookCompletion {
                 return result
         }
     }
+}
+
+private func policyMilliseconds(_ duration: Duration) -> Double {
+    Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
 }
