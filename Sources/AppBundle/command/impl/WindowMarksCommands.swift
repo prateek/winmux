@@ -15,14 +15,14 @@ struct MarkCommand: Command {
     let shouldResetClosedWindowsCache = false
 
     func run(_ env: CmdEnv, _ io: CmdIo) -> Bool {
-        let window: Window
-        if let windowId = env.windowId {
-            guard let target = Window.get(byId: windowId) else { return io.err("Can't find window with ID \(windowId)") }
-            window = target
+        let target: Window?
+        if env.windowId != nil || env.workspaceName != nil {
+            guard let focus = args.resolveTargetOrReportError(env, io) else { return false }
+            target = focus.windowOrNil
         } else {
-            guard let front = windowInFront else { return io.err("No window is focused") }
-            window = front
+            target = windowInFront
         }
+        guard let window = target else { return io.err("No window is focused") }
         if let register = args.register {
             WindowMarks.set(register, to: window)
             return true

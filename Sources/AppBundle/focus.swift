@@ -124,6 +124,7 @@ func replaceWorkspaceNameInFocusState(oldName: String, newName: String) {
     let oldFocus = focus
     let status = newFocus.workspace.workspaceMonitor.setActiveWorkspace(newFocus.workspace)
     guard status else { return false }
+    forgetNativeFullscreenInFront()
 
     FindFocusHighlight.shared.dismiss()
 

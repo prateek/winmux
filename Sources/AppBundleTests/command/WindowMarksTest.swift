@@ -36,6 +36,44 @@ final class WindowMarksTest: XCTestCase {
         XCTAssertTrue(WindowMarks.window(for: "a") === fullscreen)
     }
 
+    func testACommandThatMovesFocusFromNativeFullscreenLeavesItForTheNextCommand() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let other = TestWindow.new(id: 3, parent: workspace.rootTilingContainer)
+        let fullscreen = TestWindow.new(id: 2, parent: workspace.macOsNativeFullscreenWindowsContainer)
+        try await refreshWithMacOsFocus(on: other)
+        _ = try await run("mark a")
+        try await refreshWithMacOsFocus(on: tiled)
+        try await refreshWithMacOsFocus(on: fullscreen)
+        let sequence = try XCTUnwrap(parseCommand("jump a").cmdOrNil)
+        let mark = try XCTUnwrap(parseCommand("mark b").cmdOrNil)
+        let result = try await [sequence, mark].runCmdSeq(.defaultEnv, .emptyStdin)
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertTrue(WindowMarks.window(for: "b") === other)
+    }
+
+    func testAMinimizedWindowMacOsStillReportsFocusedIsNotTheWindowInFront() async throws {
+        let workspace = focus.workspace
+        let tiled = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
+        let minimized = TestWindow.new(id: 2, parent: workspace.rootTilingContainer)
+        try await refreshWithMacOsFocus(on: minimized)
+        try await refreshWithMacOsFocus(on: tiled)
+        minimized.bind(to: macosMinimizedWindowsContainer, adaptiveWeight: 1, index: INDEX_BIND_LAST)
+        try await refreshWithMacOsFocus(on: minimized)
+        _ = tiled.focusWindow()
+        _ = try await run("mark a")
+        XCTAssertTrue(WindowMarks.window(for: "a") === tiled)
+    }
+
+    func testMarkInAHookForAnEmptyWorkspaceMarksNothing() async throws {
+        let focused = TestWindow.new(id: 1, parent: focus.workspace.rootTilingContainer)
+        _ = focused.focusWindow()
+        let empty = Workspace.get(byName: "empty")
+        let result = try await run("mark a", env: CmdEnv.defaultEnv.copy(\.workspaceName, empty.name))
+        XCTAssertEqual(result.exitCode, 1)
+        XCTAssertNil(WindowMarks.window(for: "a"))
+    }
+
     func testMarkActsOnTheCommandsTargetWindow() async throws {
         let workspace = focus.workspace
         let focused = TestWindow.new(id: 1, parent: workspace.rootTilingContainer)
@@ -202,7 +240,7 @@ final class WindowMarksTest: XCTestCase {
         _ = window.focusWindow()
         _ = try await run("mark a")
         window.unbindFromParent()
-        forgetWindowsExcept([1])
+        Window.forgetWindows(except: [1])
         let missing = try await run("jump a")
         XCTAssertEqual(missing.exitCode, 1)
         let absent = try await run("list-marks")
@@ -214,7 +252,7 @@ final class WindowMarksTest: XCTestCase {
         let jump = try await run("jump a")
         XCTAssertEqual(jump.exitCode, 0)
         XCTAssertTrue(TestApp.shared.focusedWindow === replacement)
-        forgetWindowsExcept([])
+        Window.forgetWindows(except: [])
         let forgotten = try await run("mark")
         XCTAssertEqual(forgotten.stdout, [])
         let empty = try await run("jump a")

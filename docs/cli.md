@@ -34,12 +34,13 @@ windowing mode, which stays on.
   switching workspace and project when needed. After macOS confirms focus, a second
   call returns. From a window in macOS native fullscreen it returns to the window
   you were in before. It exits 1 with `No previously focused window` when none exists.
-- `winmux mark a` assigns the focused window to register `a`, or the window a Lens
-  action or hook runs it for; registers are exactly
-  one lowercase letter `a` to `z`. Reassigning a register moves it to the new window;
-  a window can hold several registers. Bare `winmux mark` prints the focused window's
-  registers in letter order, separated by spaces, or nothing when it has none.
-  Both forms exit 1 when no window is focused.
+- `winmux mark a` assigns a window to register `a`: the window a Lens action or hook
+  runs it for, as `WINMUX_WINDOW_ID` names it, or else the focused window, one in
+  macOS native fullscreen included. Registers are exactly one lowercase letter `a`
+  to `z`. Reassigning a register moves it to the new window; a window can hold
+  several registers. Bare `winmux mark` prints that window's registers in letter
+  order, separated by spaces, or nothing when it has none. Both forms exit 1 when
+  there is no such window.
 - `winmux jump a` restores and focuses the marked window, including a minimized or
   hidden-app window. Marks survive workspace and project moves. An empty register
   or a closed window exits 1 with `Register a is empty`; jumping to the focused

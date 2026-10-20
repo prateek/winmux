@@ -25,10 +25,3 @@ enum WindowMarks {
 
     static func resetForTests() { registers = [:] }
 }
-
-/// Forgets what WinMux keeps of every window but `windowIds`: its place in focus order and its marks.
-@MainActor
-func forgetWindowsExcept(_ windowIds: Set<UInt32>) {
-    Window.forgetLastFocusedSeqs(except: windowIds)
-    WindowMarks.forget(except: windowIds)
-}
